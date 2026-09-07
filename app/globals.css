@@ -97,3 +97,53 @@ footer {
   color: var(--muted);
   font-size: 0.82rem;
 }
+
+/* Coming soon */
+.soon {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0;
+  padding: 2rem 1.5rem 6rem;
+  max-width: none;
+}
+
+.soon .mark {
+  color: var(--accent);
+  margin-bottom: 1.75rem;
+  opacity: 0.9;
+}
+
+.soon h1 {
+  font-size: clamp(2.4rem, 7vw, 3.4rem);
+  letter-spacing: -0.035em;
+  margin: 0;
+}
+
+.soon .tagline {
+  color: var(--muted);
+  font-size: 1.02rem;
+  margin: 0.6rem 0 0;
+  max-width: 26rem;
+  text-wrap: balance;
+}
+
+.soon .soon-note {
+  margin: 2.5rem 0 0;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+}
+
+.soon .soon-note::before {
+  content: "";
+  display: block;
+  width: 2rem;
+  height: 1px;
+  background: var(--border);
+  margin: 0 auto 1.5rem;
+}

@@ -44,6 +44,14 @@ export default async function SpaceLayout({
           Teapot
         </Link>
         <span className="space-title">{space.name}</span>
+        {canEdit ? (
+          <Link
+            href={`/spaces/${space.slug}/teams`}
+            className="btn btn-secondary btn-small"
+          >
+            Teams
+          </Link>
+        ) : null}
         {user ? (
           <form action={signOut}>
             <button className="btn btn-secondary btn-small" type="submit">

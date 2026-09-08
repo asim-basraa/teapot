@@ -10,6 +10,7 @@ export type EffectiveGrant = {
   grantee_type: "user" | "team" | "public";
   grantee_id: string | null;
   grantee_email: string | null;
+  grantee_name: string | null;
   role: GrantRole;
 };
 

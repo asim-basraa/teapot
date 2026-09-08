@@ -300,4 +300,110 @@ select pg_temp.check('RLS shows an anonymous visitor no profiles',
   (select count(*)::text from public.profiles), '0');
 reset role;
 
+-- Teams ----------------------------------------------------------------------
+--
+-- Team membership is the one route to a node whose meaning changes after the
+-- grant is made: the folder is shared once, and who that reaches depends on a
+-- roster edited later. These check that managing the roster is as guarded as
+-- making the grant, and that a team cannot be pointed at another space.
+
+-- A second space, owned by carol, so a team can be borrowed across a boundary.
+insert into public.spaces (id, slug, name, owner_id) values
+  ('a0000000-0000-0000-0000-000000000002','other-space','Other Space',
+   '44444444-4444-4444-4444-444444444444');
+insert into public.teams (id, space_id, name) values
+  ('c0000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000002','Outsiders');
+
+select pg_temp.check('owns_team_space answers false, never null, for a team that does not exist',
+  public.owns_team_space('c0000000-0000-0000-0000-000000000009')::text, 'false');
+
+set local role authenticated;
+
+-- A stranger must not be able to edit somebody else's roster, and must not
+-- learn from the attempt whether the team or the address exists.
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+select pg_temp.check('a stranger does not own the team space',
+  public.owns_team_space('c0000000-0000-0000-0000-000000000001')::text, 'false');
+do $$
+begin
+  begin
+    perform public.add_team_member(
+      'c0000000-0000-0000-0000-000000000001','carol@test.local','member');
+    raise exception 'FAIL: a stranger was allowed to add a team member';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+select pg_temp.check('a stranger reading a roster gets nothing',
+  (select count(*)::text from public.team_roster('c0000000-0000-0000-0000-000000000001')), '0');
+
+-- The owner manages their own team.
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select pg_temp.check('the owner adds a member by email',
+  (public.add_team_member('c0000000-0000-0000-0000-000000000001','carol@test.local','member')).user_id::text,
+  '44444444-4444-4444-4444-444444444444');
+select pg_temp.check('adding again changes the team role rather than failing',
+  (public.add_team_member('c0000000-0000-0000-0000-000000000001','carol@test.local','manager')).role::text,
+  'manager');
+select pg_temp.check('the owner sees the whole roster',
+  (select count(*)::text from public.team_roster('c0000000-0000-0000-0000-000000000001')), '2');
+
+-- A team may only be granted access inside its own space. Without this, an
+-- administrator could point a roster the space owner cannot see at their
+-- content, and every later membership change would silently move the boundary.
+do $$
+begin
+  begin
+    perform public.grant_to_team(
+      'b0000000-0000-0000-0000-000000000004',
+      'c0000000-0000-0000-0000-000000000002',
+      'viewer');
+    raise exception 'FAIL: a team from another space was granted access';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+select pg_temp.check('a team from the same space can be granted',
+  (public.grant_to_team(
+     'b0000000-0000-0000-0000-000000000004',
+     'c0000000-0000-0000-0000-000000000001',
+     'viewer')).role::text,
+  'viewer');
+
+reset role;
+
+-- Carol reaches the file only through her new membership.
+select pg_temp.check('joining a team confers the team grant',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000004')::text, 'true');
+select pg_temp.check('joining a team confers every grant that team holds',
+  public.can_edit('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000003')::text, 'true');
+select pg_temp.check('and no more than the role those grants carry',
+  public.can_admin('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000003')::text, 'false');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.remove_team_member(
+  'c0000000-0000-0000-0000-000000000001','44444444-4444-4444-4444-444444444444');
+reset role;
+
+select pg_temp.check('leaving the team takes the access with it',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000004')::text, 'false');
+select pg_temp.check('the remaining member keeps theirs',
+  public.can_read('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-000000000003')::text, 'true');
+
+-- Deleting a team removes the access it conferred, rather than leaving a grant
+-- pointing at nothing.
+insert into public.team_members (team_id, user_id) values
+  ('c0000000-0000-0000-0000-000000000001','44444444-4444-4444-4444-444444444444');
+select pg_temp.check('rejoining restores it',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000004')::text, 'true');
+
+delete from public.teams where id = 'c0000000-0000-0000-0000-000000000001';
+
+select pg_temp.check('deleting the team removes the grant it carried',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000004')::text, 'false');
+select pg_temp.check('and the grant row is gone, not orphaned',
+  (select count(*)::text from public.grants where grantee_type = 'team'), '0');
+
 rollback;

@@ -47,7 +47,9 @@ export default async function NodePage({
   const actions =
     canEdit || canAdmin ? (
       <div className="page-actions">
-        {canAdmin ? <Share nodeId={node.id} nodeName={node.name} /> : null}
+        {canAdmin ? (
+          <Share nodeId={node.id} nodeName={node.name} spaceId={space.id} />
+        ) : null}
         {canEdit ? (
           <Link
             className="btn btn-secondary btn-small"

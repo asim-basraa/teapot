@@ -1,7 +1,6 @@
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { listEffectiveGrants, shareByEmail, isRole } from "@/lib/grants";
-import { shareWithTeam } from "@/lib/teams";
+import { teamRoster, addTeamMember } from "@/lib/teams";
 
 export const dynamic = "force-dynamic";
 
@@ -15,14 +14,14 @@ async function requireUser() {
   return user;
 }
 
-/** Who can reach this node, and through which grant. Admin only, enforced in SQL. */
+/** The roster, which the database will only return to the space owner. */
 export async function GET(_request: NextRequest, { params }: Params) {
   if (!(await requireUser())) {
     return Response.json({ error: "Not found." }, { status: 404 });
   }
 
   const { id } = await params;
-  return Response.json({ grants: await listEffectiveGrants(id) });
+  return Response.json({ members: await teamRoster(id) });
 }
 
 export async function POST(request: NextRequest, { params }: Params) {
@@ -39,32 +38,20 @@ export async function POST(request: NextRequest, { params }: Params) {
     return Response.json({ error: "Invalid JSON." }, { status: 400 });
   }
 
-  const { email, team_id: teamId, role } = (body ?? {}) as Record<
-    string,
-    unknown
-  >;
+  const { email, role } = (body ?? {}) as Record<string, unknown>;
 
-  if (typeof email !== "string" && typeof teamId !== "string") {
-    return Response.json(
-      { error: "An email or a team is required." },
-      { status: 400 },
-    );
+  if (typeof email !== "string") {
+    return Response.json({ error: "An email is required." }, { status: 400 });
   }
-  if (!isRole(role)) {
+  if (role !== undefined && role !== "member" && role !== "manager") {
     return Response.json(
-      { error: "role must be viewer, editor or admin." },
+      { error: "role must be member or manager." },
       { status: 400 },
     );
   }
 
-  // A team grant and a personal grant are the same operation with a different
-  // grantee, so they share a route rather than diverging into two shapes the
-  // client has to know about.
-  const result =
-    typeof teamId === "string"
-      ? await shareWithTeam(id, teamId, role)
-      : await shareByEmail(id, email as string, role);
+  const result = await addTeamMember(id, email, role ?? "member");
   return result.ok
-    ? Response.json({ grants: await listEffectiveGrants(id) }, { status: 201 })
+    ? Response.json({ members: await teamRoster(id) }, { status: 201 })
     : Response.json({ error: result.error }, { status: result.status });
 }

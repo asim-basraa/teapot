@@ -2,18 +2,26 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { EffectiveGrant, GrantRole } from "@/lib/grants";
+import type { Team } from "@/lib/teams";
+
+type Grantee = "person" | "team";
 
 export function Share({
   nodeId,
   nodeName,
+  spaceId,
 }: {
   nodeId: string;
   nodeName: string;
+  spaceId: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
   const [grants, setGrants] = useState<EffectiveGrant[] | null>(null);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [grantee, setGrantee] = useState<Grantee>("person");
   const [email, setEmail] = useState("");
+  const [teamId, setTeamId] = useState("");
   const [role, setRole] = useState<GrantRole>("viewer");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,10 +45,22 @@ export function Share({
     setGrants(body.grants ?? []);
   }
 
+  // Teams are loaded alongside the grants rather than lazily: whether the
+  // "Team" option is worth offering at all depends on there being any.
+  async function loadTeams() {
+    const res = await fetch(`/api/v1/spaces/${spaceId}/teams`);
+    if (!res.ok) return;
+    const body = await res.json();
+    const list: Team[] = body.teams ?? [];
+    setTeams(list);
+    if (list.length > 0) setTeamId((current) => current || list[0].id);
+  }
+
   function show() {
     setOpen(true);
     setGrants(null);
     void load();
+    void loadTeams();
   }
 
   async function share(event: React.FormEvent) {
@@ -48,10 +68,13 @@ export function Share({
     setBusy(true);
     setError(null);
 
+    const payload =
+      grantee === "team" ? { team_id: teamId, role } : { email, role };
+
     const res = await fetch(`/api/v1/nodes/${nodeId}/grants`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email, role }),
+      body: JSON.stringify(payload),
     });
 
     const body = await res.json().catch(() => ({}));
@@ -62,7 +85,7 @@ export function Share({
       return;
     }
 
-    setEmail("");
+    if (grantee === "person") setEmail("");
     setGrants(body.grants ?? []);
   }
 
@@ -108,17 +131,48 @@ export function Share({
         ) : null}
 
         <form className="share-form" onSubmit={share}>
-          <label className="field">
-            <span className="field-label">Email</span>
-            <input
-              className="input"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="colleague@maqsoodlabs.com"
-              required
-            />
-          </label>
+          {teams.length > 0 ? (
+            <label className="field share-with">
+              <span className="field-label">Share with</span>
+              <select
+                className="input"
+                value={grantee}
+                onChange={(e) => setGrantee(e.target.value as Grantee)}
+              >
+                <option value="person">A person</option>
+                <option value="team">A team</option>
+              </select>
+            </label>
+          ) : null}
+
+          {grantee === "team" ? (
+            <label className="field">
+              <span className="field-label">Team</span>
+              <select
+                className="input"
+                value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+              >
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <label className="field">
+              <span className="field-label">Email</span>
+              <input
+                className="input"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="colleague@maqsoodlabs.com"
+                required
+              />
+            </label>
+          )}
 
           <label className="field share-role">
             <span className="field-label">Role</span>
@@ -148,11 +202,7 @@ export function Share({
           <ul className="share-list">
             {grants.map((g) => (
               <li key={g.grant_id}>
-                <span className="share-who">
-                  {g.grantee_type === "public"
-                    ? "Anyone with the link"
-                    : (g.grantee_email ?? g.grantee_type)}
-                </span>
+                <span className="share-who">{describe(g)}</span>
                 <span className="share-role-label">{g.role}</span>
                 {g.inherited ? (
                   // Naming the origin is what makes an audit possible: "why can
@@ -166,7 +216,7 @@ export function Share({
                     type="button"
                     onClick={() => revoke(g.grant_id)}
                     disabled={busy}
-                    aria-label={`Revoke access for ${g.grantee_email ?? "this grantee"}`}
+                    aria-label={`Revoke access for ${describe(g)}`}
                   >
                     Revoke
                   </button>
@@ -178,4 +228,18 @@ export function Share({
       </dialog>
     </>
   );
+}
+
+/**
+ * How a grantee is named in the list.
+ *
+ * A team grant used to read as the bare word "team", which answers nothing when
+ * a space has several. Naming it is what makes the list auditable.
+ */
+function describe(grant: EffectiveGrant): string {
+  if (grant.grantee_type === "public") return "Anyone with the link";
+  if (grant.grantee_type === "team") {
+    return `${grant.grantee_name ?? "A team"} (team)`;
+  }
+  return grant.grantee_email ?? "Someone";
 }

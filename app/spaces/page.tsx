@@ -32,6 +32,9 @@ export default async function SpacesPage() {
       </header>
 
       <h1>Your spaces</h1>
+      <p>
+        <Link href="/settings/mcp">Connect Teapot to Claude</Link>
+      </p>
       <p className="lede">
         Spaces you own, and spaces others have shared with you.
       </p>

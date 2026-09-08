@@ -1,4 +1,9 @@
-import { test, expect, type Page } from "@playwright/test";
+import {
+  test,
+  expect,
+  type Page,
+  type BrowserContext,
+} from "@playwright/test";
 import { waitForConfirmationLink, clearMail } from "./mail";
 
 // Each run needs addresses and slugs nobody has used, since both are unique
@@ -10,53 +15,71 @@ const PASSWORD = "correct-horse-battery";
 const SPACE_SLUG = `garden-${RUN}`;
 const SPACE_NAME = "Engineering Notes";
 
-async function signUp(page: Page, email: string, password: string) {
-  await page.goto("/signup");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Create account" }).click();
-}
-
 // Next.js renders its own <div role="alert"> route announcer on every page, so
 // an unscoped getByRole("alert") is ambiguous. Scope to the form, which is
 // where our own messages live.
-const formAlert = (page: Page) =>
-  page.locator("form.auth-form").getByRole("alert");
-const formStatus = (page: Page) =>
-  page.locator("form.auth-form").getByRole("status");
+const formAlert = (p: Page) => p.locator("form.auth-form").getByRole("alert");
+const formStatus = (p: Page) => p.locator("form.auth-form").getByRole("status");
 
 test.describe.configure({ mode: "serial" });
 
 test.describe("Slice 1: signup, confirmation and first rendered page", () => {
-  test("rejects an address outside the allowed domain", async ({ page }) => {
-    await signUp(page, OUTSIDER_EMAIL, PASSWORD);
+  // One context for the whole flow, deliberately.
+  //
+  // Playwright isolates every test in a fresh context, which would throw away
+  // cookies between steps. That breaks PKCE: signup stores a code verifier in
+  // the browser, and the confirmation link cannot be exchanged without it.
+  // These steps are one user's journey, so they share one browser.
+  let context: BrowserContext;
+  let page: Page;
+
+  test.beforeAll(async ({ browser }) => {
+    context = await browser.newContext();
+    page = await context.newPage();
+  });
+
+  test.afterAll(async () => {
+    await context.close();
+  });
+
+  async function signUp(email: string, password: string) {
+    await page.goto("/signup");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: "Create account" }).click();
+  }
+
+  async function signIn(email: string, password: string) {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(password);
+    await page.getByRole("button", { name: "Sign in" }).click();
+  }
+
+  test("rejects an address outside the allowed domain", async () => {
+    await signUp(OUTSIDER_EMAIL, PASSWORD);
 
     // The before-user-created hook's own message, surfaced to the reader.
     await expect(formAlert(page)).toContainText(/invitation only/i);
     await expect(page).toHaveURL(/\/signup/);
   });
 
-  test("accepts an allowed address and requires email confirmation", async ({
-    page,
-  }) => {
+  test("accepts an allowed address and requires email confirmation", async () => {
     await clearMail();
-    await signUp(page, OWNER_EMAIL, PASSWORD);
+    await signUp(OWNER_EMAIL, PASSWORD);
 
     await expect(formStatus(page)).toContainText(OWNER_EMAIL);
     await expect(formStatus(page)).toContainText(/confirmation link/i);
   });
 
-  test("refuses sign-in before the email is confirmed", async ({ page }) => {
-    await page.goto("/login");
-    await page.getByLabel("Email").fill(OWNER_EMAIL);
-    await page.getByLabel("Password").fill(PASSWORD);
-    await page.getByRole("button", { name: "Sign in" }).click();
+  test("refuses sign-in before the email is confirmed", async () => {
+    await signIn(OWNER_EMAIL, PASSWORD);
 
     await expect(formAlert(page)).toContainText(/not valid/i);
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test("confirming the emailed link signs the user in", async ({ page }) => {
+  test("confirming the emailed link signs the user in", async () => {
     const link = await waitForConfirmationLink(OWNER_EMAIL);
     await page.goto(link);
 
@@ -66,11 +89,8 @@ test.describe("Slice 1: signup, confirmation and first rendered page", () => {
     ).toBeVisible();
   });
 
-  test("a confirmed user can create a space and read its index page", async ({
-    page,
-  }) => {
+  test("a confirmed user can create a space and read its index page", async () => {
     await page.goto("/spaces");
-    await expect(page).toHaveURL(/\/spaces/);
 
     await page.getByLabel("Name").fill(SPACE_NAME);
     await page.getByLabel("Address").fill(SPACE_SLUG);
@@ -82,9 +102,7 @@ test.describe("Slice 1: signup, confirmation and first rendered page", () => {
     ).toBeVisible();
   });
 
-  test("the index page renders callouts, highlighting and LaTeX", async ({
-    page,
-  }) => {
+  test("the index page renders callouts, highlighting and LaTeX", async () => {
     await page.goto(`/s/${SPACE_SLUG}`);
 
     await expect(page.locator(".callout.callout-tip")).toBeVisible();
@@ -98,32 +116,37 @@ test.describe("Slice 1: signup, confirmation and first rendered page", () => {
     await expect(page.locator("mark")).toContainText("highlight");
   });
 
-  test("an unresolvable wikilink is inert, not a link", async ({ page }) => {
+  test("an unresolvable wikilink is inert, not a link", async () => {
     await page.goto(`/s/${SPACE_SLUG}`);
 
-    const unresolved = page.locator("span.wikilink-unresolved");
-    await expect(unresolved).toContainText("another-page");
+    await expect(page.locator("span.wikilink-unresolved")).toContainText(
+      "another-page",
+    );
     // It must not be clickable: a working link would confirm the target exists.
     await expect(page.locator("a", { hasText: "another-page" })).toHaveCount(0);
   });
 
-  test("signing out ends the session", async ({ page }) => {
+  test("an anonymous visitor gets a 404, never a 403", async ({ browser }) => {
+    // A genuinely separate context: this assertion is meaningless if it
+    // inherits the signed-in session.
+    const anon = await browser.newContext();
+    const anonPage = await anon.newPage();
+
+    const response = await anonPage.goto(`/s/${SPACE_SLUG}`);
+    expect(response?.status()).toBe(404);
+
+    await anon.close();
+  });
+
+  test("signing out ends the session", async () => {
     await page.goto("/spaces");
     await page.getByRole("button", { name: "Sign out" }).click();
 
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test("an anonymous visitor gets a 404, never a 403", async ({ page }) => {
-    const response = await page.goto(`/s/${SPACE_SLUG}`);
-    expect(response?.status()).toBe(404);
-  });
-
-  test("a confirmed user can sign back in", async ({ page }) => {
-    await page.goto("/login");
-    await page.getByLabel("Email").fill(OWNER_EMAIL);
-    await page.getByLabel("Password").fill(PASSWORD);
-    await page.getByRole("button", { name: "Sign in" }).click();
+  test("a confirmed user can sign back in", async () => {
+    await signIn(OWNER_EMAIL, PASSWORD);
 
     await expect(page).toHaveURL(/\/spaces/);
     await expect(page.getByText(SPACE_NAME)).toBeVisible();

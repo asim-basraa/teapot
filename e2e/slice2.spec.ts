@@ -40,18 +40,49 @@ test.describe("Slice 2: file tree and node CRUD", () => {
     });
   }
 
+  /**
+   * Clicks a tree action and returns the API response it triggered.
+   *
+   * Asserting on the response rather than only on the resulting DOM means a
+   * server-side failure reports its own status and message, instead of the
+   * test timing out on an element that was never going to appear.
+   */
+  async function actAndAwait(
+    buttonName: string,
+    method: "POST" | "PATCH" | "DELETE",
+    promptValue?: string,
+  ) {
+    const waitForApi = page.waitForResponse(
+      (r) =>
+        r.url().includes("/api/v1/nodes") && r.request().method() === method,
+    );
+    answer(promptValue);
+    await page.getByRole("button", { name: buttonName }).click();
+    return waitForApi;
+  }
+
   test("creates a top-level folder", async () => {
     await page.goto(`/s/${SPACE_SLUG}`);
 
-    answer("Projects");
-    await page.getByRole("button", { name: "+ Folder" }).click();
+    const response = await actAndAwait("New folder at the top level", "POST", "Projects");
+    expect(
+      response.status(),
+      await response.text().catch(() => ""),
+    ).toBe(201);
 
     await expect(page.locator(".tree-folder-name")).toContainText("Projects");
   });
 
   test("creates a page inside that folder", async () => {
-    answer("Road Map");
-    await page.getByRole("button", { name: "New page in Projects" }).click();
+    const response = await actAndAwait(
+      "New page in Projects",
+      "POST",
+      "Road Map",
+    );
+    expect(
+      response.status(),
+      await response.text().catch(() => ""),
+    ).toBe(201);
 
     const link = page.getByRole("link", { name: "Road Map" });
     await expect(link).toBeVisible();
@@ -94,7 +125,7 @@ test.describe("Slice 2: file tree and node CRUD", () => {
     await page.goto(`/s/${SPACE_SLUG}`);
 
     answer("Active Projects");
-    await page.getByRole("button", { name: "+ Folder" }).click();
+    await page.getByRole("button", { name: "New folder at the top level" }).click();
 
     await expect(page.locator(".tree-error")).toContainText(/already exists/i);
   });

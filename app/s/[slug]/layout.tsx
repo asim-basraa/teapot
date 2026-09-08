@@ -36,7 +36,9 @@ export default async function SpaceLayout({
   const canEdit = !!user && space.owner_id === user.id;
 
   return (
-    <div className="space-shell">
+    // The space id is in the markup because the tree's client actions need it
+    // to create nodes, and tests read it rather than guessing at a UUID.
+    <div className="space-shell" data-space-id={space.id}>
       <header className="shell-header space-header">
         <Link href={user ? "/spaces" : "/"} className="shell-brand">
           Teapot

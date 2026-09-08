@@ -85,14 +85,14 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit }: Props) {
             <button
               type="button"
               onClick={() => create(null, "folder")}
-              title="New folder at the top level"
+              aria-label="New folder at the top level"
             >
               + Folder
             </button>
             <button
               type="button"
               onClick={() => create(null, "file")}
-              title="New page at the top level"
+              aria-label="New page at the top level"
             >
               + Page
             </button>
@@ -173,14 +173,14 @@ function TreeLevel({
                       <button
                         type="button"
                         onClick={() => onCreate(node.id, "folder")}
-                        title={`New folder in ${node.name}`}
+                        aria-label={`New folder in ${node.name}`}
                       >
                         +F
                       </button>
                       <button
                         type="button"
                         onClick={() => onCreate(node.id, "file")}
-                        title={`New page in ${node.name}`}
+                        aria-label={`New page in ${node.name}`}
                       >
                         +P
                       </button>
@@ -189,14 +189,14 @@ function TreeLevel({
                   <button
                     type="button"
                     onClick={() => onRename(node)}
-                    title={`Rename ${node.name}`}
+                    aria-label={`Rename ${node.name}`}
                   >
                     Rename
                   </button>
                   <button
                     type="button"
                     onClick={() => onDelete(node)}
-                    title={`Delete ${node.name}`}
+                    aria-label={`Delete ${node.name}`}
                   >
                     Delete
                   </button>

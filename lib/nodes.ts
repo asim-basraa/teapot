@@ -138,6 +138,64 @@ export async function moveNode(
   return { ok: true, node: data };
 }
 
+export type SaveResult =
+  | { ok: true; node: Node }
+  | { ok: false; error: string; status: number; currentContent?: string };
+
+/**
+ * Saves page content, refusing to overwrite a concurrent edit.
+ *
+ * The update is conditional on `content_version`, so two people who loaded the
+ * same revision cannot both save: the second write matches no row.
+ *
+ * A no-match is ambiguous on its own, since RLS also yields no row when the
+ * caller may not edit. We disambiguate by reading the node back: if it is
+ * visible, somebody else moved the version on and this is a conflict; if it is
+ * not, the honest answer is 404, exactly as for a read.
+ */
+export async function saveNodeContent(
+  nodeId: string,
+  content: string,
+  expectedVersion: number,
+): Promise<SaveResult> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("nodes")
+    .update({
+      content,
+      content_version: expectedVersion + 1,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", nodeId)
+    .eq("content_version", expectedVersion)
+    .select(SELECT)
+    .maybeSingle();
+
+  if (error) return translate(error);
+  if (data) return { ok: true, node: data };
+
+  const { data: current } = await supabase
+    .from("nodes")
+    .select(SELECT)
+    .eq("id", nodeId)
+    .maybeSingle();
+
+  if (!current) {
+    return { ok: false, error: "Not found.", status: 404 };
+  }
+
+  return {
+    ok: false,
+    status: 409,
+    error:
+      "Someone else saved this page while you were editing. Your text is untouched below; copy anything you need before reloading.",
+    // Returned so the editor can show both versions rather than silently
+    // discarding one of them.
+    currentContent: current.content ?? "",
+  };
+}
+
 export async function deleteNode(
   nodeId: string,
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {

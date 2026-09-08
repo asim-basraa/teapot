@@ -1,6 +1,11 @@
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { renameNode, moveNode, deleteNode } from "@/lib/nodes";
+import {
+  renameNode,
+  moveNode,
+  deleteNode,
+  saveNodeContent,
+} from "@/lib/nodes";
 
 export const dynamic = "force-dynamic";
 
@@ -36,12 +41,31 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     return Response.json({ error: "Invalid JSON." }, { status: 400 });
   }
 
-  const { name, parent_id } = (body ?? {}) as Record<string, unknown>;
-  const wantsMove = "parent_id" in ((body ?? {}) as object);
+  const fields = (body ?? {}) as Record<string, unknown>;
+  const { name, parent_id, content, content_version } = fields;
+  const wantsMove = "parent_id" in fields;
+  const wantsContent = "content" in fields;
+
+  if (wantsContent) {
+    if (typeof content !== "string" || typeof content_version !== "number") {
+      return Response.json(
+        { error: "content and content_version are both required." },
+        { status: 400 },
+      );
+    }
+
+    const saved = await saveNodeContent(id, content, content_version);
+    if (saved.ok) return Response.json({ node: saved.node });
+
+    return Response.json(
+      { error: saved.error, current_content: saved.currentContent },
+      { status: saved.status },
+    );
+  }
 
   if (typeof name !== "string" && !wantsMove) {
     return Response.json(
-      { error: "Provide a name to rename, or parent_id to move." },
+      { error: "Provide a name, parent_id, or content." },
       { status: 400 },
     );
   }

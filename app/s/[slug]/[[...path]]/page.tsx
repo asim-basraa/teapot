@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { renderMarkdown } from "@teapot/renderer";
 import {
@@ -29,34 +28,28 @@ export default async function NodePage({
   if (!space) notFound();
 
   const node = await getNodeByPath(space.id, nodePath);
-  if (!node || node.kind !== "file") notFound();
+  if (!node) notFound();
+
+  // A folder has no content of its own. Rather than 404, show it as an empty
+  // section so the sidebar selection still makes sense.
+  if (node.kind === "folder") {
+    return (
+      <article className="prose">
+        <h1>{node.name}</h1>
+        <p className="empty">This folder has no page of its own.</p>
+      </article>
+    );
+  }
 
   const ctx = await buildSpaceContext(space.id, space.slug);
   const { html } = await renderMarkdown(node.content ?? "", ctx);
 
   return (
-    <main className="shell">
-      <header className="shell-header">
-        <Link href="/spaces" className="shell-brand">
-          Teapot
-        </Link>
-        <nav className="crumbs">
-          <Link href={`/s/${space.slug}`}>{space.name}</Link>
-          {nodePath !== INDEX_PATH ? (
-            <>
-              <span aria-hidden="true"> / </span>
-              <span>{node.name}</span>
-            </>
-          ) : null}
-        </nav>
-      </header>
-
-      <article
-        className="prose"
-        // Safe: renderMarkdown sanitizes author HTML before KaTeX and Shiki
-        // add their own trusted markup. See packages/renderer/src/sanitize.ts.
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-    </main>
+    <article
+      className="prose"
+      // Safe: renderMarkdown sanitizes author HTML before KaTeX and Shiki
+      // add their own trusted markup. See packages/renderer/src/sanitize.ts.
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   );
 }

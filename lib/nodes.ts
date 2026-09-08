@@ -1,0 +1,182 @@
+import { createClient } from "@/lib/supabase/server";
+import type { Node } from "@/lib/spaces";
+
+export type TreeNode = Node & { children: TreeNode[] };
+
+export type NodeResult =
+  | { ok: true; node: Node }
+  | { ok: false; error: string; status: number };
+
+/**
+ * Every node in a space the caller can read, flat and path-ordered.
+ *
+ * The filtering is RLS's job, not ours: unreadable rows never arrive, so the
+ * tree drawn from this list cannot reveal a node the viewer is not allowed to
+ * know exists.
+ */
+export async function listNodes(spaceId: string): Promise<Node[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("nodes")
+    .select(
+      "id, space_id, parent_id, kind, name, slug, path, content, content_version",
+    )
+    .eq("space_id", spaceId)
+    .order("kind", { ascending: true })
+    .order("name", { ascending: true });
+  return data ?? [];
+}
+
+/**
+ * Nests a flat node list.
+ *
+ * A node whose parent is missing from the list is treated as a root rather
+ * than dropped. That happens legitimately: a viewer granted a deep file but
+ * not its folders can read the file and must still see it somewhere.
+ */
+export function buildTree(nodes: Node[]): TreeNode[] {
+  const byId = new Map<string, TreeNode>(
+    nodes.map((n) => [n.id, { ...n, children: [] }]),
+  );
+  const roots: TreeNode[] = [];
+
+  for (const node of byId.values()) {
+    const parent = node.parent_id ? byId.get(node.parent_id) : undefined;
+    if (parent) {
+      parent.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  // Folders before files, then alphabetical, at every level.
+  const sort = (list: TreeNode[]) => {
+    list.sort((a, b) =>
+      a.kind === b.kind
+        ? a.name.localeCompare(b.name)
+        : a.kind === "folder"
+          ? -1
+          : 1,
+    );
+    for (const child of list) sort(child.children);
+  };
+  sort(roots);
+
+  return roots;
+}
+
+const SELECT =
+  "id, space_id, parent_id, kind, name, slug, path, content, content_version";
+
+export async function createNode(input: {
+  spaceId: string;
+  parentId: string | null;
+  kind: "folder" | "file";
+  name: string;
+}): Promise<NodeResult> {
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "A name is required.", status: 400 };
+
+  const supabase = await createClient();
+  // `slug` and `path` are deliberately omitted: a database trigger derives
+  // them from the parent, so a caller cannot place a node at a path that
+  // disagrees with its position in the tree.
+  const { data, error } = await supabase
+    .from("nodes")
+    .insert({
+      space_id: input.spaceId,
+      parent_id: input.parentId,
+      kind: input.kind,
+      name,
+      content: input.kind === "file" ? `# ${name}\n\n` : null,
+    })
+    .select(SELECT)
+    .single();
+
+  if (error) return translate(error);
+  return { ok: true, node: data };
+}
+
+export async function renameNode(
+  nodeId: string,
+  name: string,
+): Promise<NodeResult> {
+  const trimmed = name.trim();
+  if (!trimmed) return { ok: false, error: "A name is required.", status: 400 };
+
+  const supabase = await createClient();
+  // move_node rewrites descendant paths too; a plain update would rename the
+  // folder and strand its children at the old prefix.
+  const { data, error } = await supabase
+    .rpc("move_node", {
+      p_node_id: nodeId,
+      p_new_name: trimmed,
+      p_reparent: false,
+    })
+    .select(SELECT)
+    .single();
+
+  if (error) return translate(error);
+  return { ok: true, node: data };
+}
+
+export async function moveNode(
+  nodeId: string,
+  newParentId: string | null,
+): Promise<NodeResult> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .rpc("move_node", {
+      p_node_id: nodeId,
+      p_new_parent_id: newParentId,
+      p_reparent: true,
+    })
+    .select(SELECT)
+    .single();
+
+  if (error) return translate(error);
+  return { ok: true, node: data };
+}
+
+export async function deleteNode(
+  nodeId: string,
+): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  const supabase = await createClient();
+  // Descendants go with it through ON DELETE CASCADE on parent_id.
+  const { error } = await supabase.from("nodes").delete().eq("id", nodeId);
+  if (error) return translate(error);
+  return { ok: true };
+}
+
+/**
+ * Maps a Postgres error onto an HTTP status and a message worth showing.
+ *
+ * RLS makes a forbidden write look like a missing row, so the honest status
+ * is 404 rather than 403, consistent with how reads behave.
+ */
+function translate(error: {
+  code?: string;
+  message: string;
+}): { ok: false; error: string; status: number } {
+  if (error.code === "23505") {
+    return {
+      ok: false,
+      error: "Something with that name already exists here.",
+      status: 409,
+    };
+  }
+  if (error.code === "PGRST116" || error.code === "no_data_found") {
+    return { ok: false, error: "Not found.", status: 404 };
+  }
+  if (/inside itself|own subtree/i.test(error.message)) {
+    return {
+      ok: false,
+      error: "A folder cannot be moved inside itself.",
+      status: 400,
+    };
+  }
+  if (/not a folder/i.test(error.message)) {
+    return { ok: false, error: "Only folders can contain items.", status: 400 };
+  }
+  return { ok: false, error: error.message, status: 400 };
+}

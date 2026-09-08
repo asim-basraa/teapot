@@ -351,3 +351,61 @@ footer {
 .soon-signin { margin: 1.25rem 0 0; font-size: 0.86rem; }
 .soon-signin a { color: var(--muted); }
 .soon-signin a:hover { color: var(--text); }
+
+/* Space shell with sidebar */
+.space-shell { max-width: 68rem; margin: 0 auto; padding: 2rem 1.5rem 6rem; }
+
+.space-header { display: flex; align-items: center; gap: 1rem; }
+.space-title { flex: 1; color: var(--muted); font-size: 0.9rem; }
+
+.space-body { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 2.5rem; }
+
+@media (max-width: 48rem) {
+  .space-body { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+  .space-sidebar { order: 2; border-top: 1px solid var(--border); padding-top: 1.5rem; }
+}
+
+.space-content { min-width: 0; }
+
+.tree { font-size: 0.88rem; position: sticky; top: 2rem; }
+
+.tree-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--muted); margin-bottom: 0.85rem;
+}
+
+.tree-empty, .tree-pending { color: var(--muted); font-size: 0.82rem; margin: 0.5rem 0 0; }
+.tree-error { margin: 0 0 0.75rem; font-size: 0.78rem; }
+
+.tree-level { list-style: none; margin: 0; padding: 0; }
+.tree-item { border-left: 1px solid transparent; }
+.tree-level .tree-level { border-left: 1px solid var(--border); margin-left: 0.35rem; }
+
+.tree-row {
+  display: flex; align-items: center; gap: 0.4rem;
+  padding: 0.2rem 0; min-height: 1.7rem;
+}
+
+.tree-name {
+  flex: 1; min-width: 0; color: var(--text); text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+a.tree-name:hover { color: var(--accent); }
+a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
+.tree-folder-name { color: var(--muted); font-weight: 600; }
+
+.tree-actions { display: flex; gap: 0.25rem; opacity: 0; transition: opacity 0.12s; }
+.tree-row:hover .tree-actions,
+.tree-actions:focus-within,
+.tree-header .tree-actions { opacity: 1; }
+
+.tree-actions button {
+  font: inherit; font-size: 0.72rem; line-height: 1;
+  color: var(--muted); background: transparent;
+  border: 1px solid var(--border); border-radius: 5px;
+  padding: 0.2rem 0.35rem; cursor: pointer;
+}
+
+.tree-actions button:hover { color: var(--text); border-color: var(--muted); }

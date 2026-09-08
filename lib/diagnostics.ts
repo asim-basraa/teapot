@@ -92,16 +92,11 @@ export async function collectDiagnostics(): Promise<{
       ok: present(anonKey),
     },
     {
+      // Used for one thing only: asking Supabase for a user's session when an
+      // MCP token is presented. Without it the MCP endpoint refuses everything.
       key: "SUPABASE_SERVICE_ROLE_KEY",
       value: secretStatus(env.SUPABASE_SERVICE_ROLE_KEY),
       ok: present(env.SUPABASE_SERVICE_ROLE_KEY),
-    },
-    {
-      // What the MCP endpoint signs a user's access token with. Without it the
-      // endpoint refuses every token, so it is worth seeing at a glance.
-      key: "SUPABASE_JWT_SECRET",
-      value: secretStatus(env.SUPABASE_JWT_SECRET),
-      ok: present(env.SUPABASE_JWT_SECRET),
     },
     await pingSupabase(supabaseUrl, anonKey),
   ];

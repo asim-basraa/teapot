@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import {
   createClient as createSupabaseClient,
   type SupabaseClient,
@@ -13,21 +12,20 @@ export type McpSession = {
   supabase: SupabaseClient;
 };
 
-/** How long a minted access token lives. Short, because it is trivial to remint. */
-const TOKEN_TTL_SECONDS = 300;
-
 /**
  * Turns a presented MCP token into a session that behaves like a signed-in user.
  *
  * The whole design rests on this one function. It resolves the token to an
- * account, mints a Supabase access token for that account, and hands back a
+ * account, obtains a Supabase access token for that account, and hands back a
  * client carrying it. Everything downstream is then an ordinary authenticated
  * request: RLS and the can_read family decide what is visible, exactly as they
  * do for the browser, and no tool has any filtering of its own to get wrong.
  *
  * The alternative, a service-role client plus hand-written filters, would be a
  * second authorization seam. That is precisely what this codebase exists to
- * avoid, so it is not on the table however convenient it looks.
+ * avoid, so it is not on the table however convenient it looks. The service
+ * role is used here only to ask Supabase for a user's session, never to read
+ * or write content.
  *
  * Returns null for an unknown, revoked or expired token, without saying which.
  */
@@ -36,9 +34,8 @@ export async function resolveSession(
 ): Promise<McpSession | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const secret = process.env.SUPABASE_JWT_SECRET;
 
-  if (!url || !anonKey || !secret) return null;
+  if (!url || !anonKey) return null;
 
   // Resolved through a SECURITY DEFINER function that hashes the token itself,
   // so a leaked database yields hashes this refuses rather than usable keys.
@@ -61,7 +58,8 @@ export async function resolveSession(
 
   const { token_id: tokenId, user_id: userId, space_id: spaceId } = rows[0];
 
-  const accessToken = signAccessToken(userId, url, secret);
+  const accessToken = await accessTokenFor(userId, url);
+  if (!accessToken) return null;
 
   const supabase = createSupabaseClient(url, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -71,38 +69,89 @@ export async function resolveSession(
   return { tokenId, userId, spaceId, supabase };
 }
 
+type CachedToken = { accessToken: string; expiresAt: number };
+
 /**
- * Mints a Supabase access token for a user.
+ * Access tokens already obtained, by user.
  *
- * Signed with the project's JWT secret, which is the mechanism Supabase
- * provides for exactly this: a server that has already established who the
- * caller is needs to speak to PostgREST as them. The token is short-lived and
- * never leaves this process.
+ * Minting one costs two round trips to the auth server and counts against its
+ * rate limits, so doing it per request would be both slow and fragile. Held in
+ * memory rather than in the database because it is a cache of something
+ * reissuable, not a fact worth persisting: losing it on a restart costs one
+ * round trip.
  */
-function signAccessToken(userId: string, url: string, secret: string): string {
-  const now = Math.floor(Date.now() / 1000);
+const cache = new Map<string, CachedToken>();
 
-  const header = { alg: "HS256", typ: "JWT" };
-  const payload = {
-    sub: userId,
-    role: "authenticated",
-    aud: "authenticated",
-    iss: `${url.replace(/\/$/, "")}/auth/v1`,
-    iat: now,
-    exp: now + TOKEN_TTL_SECONDS,
-  };
+/** Refresh a little before expiry, so a long call cannot outlive its token. */
+const REFRESH_MARGIN_MS = 5 * 60_000;
 
-  const body = `${base64url(JSON.stringify(header))}.${base64url(
-    JSON.stringify(payload),
-  )}`;
+/**
+ * A Supabase access token for a user, minted by Supabase itself.
+ *
+ * Signing our own would mean holding the key that signs every token in the
+ * project. Supabase has moved to asymmetric signing keys whose private half
+ * never leaves their infrastructure, and the legacy shared secret it replaced
+ * is verify-only and revocable. Asking the auth server for a session instead
+ * means this keeps working across a key rotation, and means Teapot never holds
+ * signing material at all.
+ *
+ * The service role key is required and is used for nothing else.
+ */
+async function accessTokenFor(
+  userId: string,
+  url: string,
+): Promise<string | null> {
+  const cached = cache.get(userId);
+  if (cached && cached.expiresAt - REFRESH_MARGIN_MS > Date.now()) {
+    return cached.accessToken;
+  }
 
-  const signature = createHmac("sha256", secret).update(body).digest("base64url");
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) return null;
 
-  return `${body}.${signature}`;
-}
+  const admin = createSupabaseClient(url, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
-function base64url(value: string): string {
-  return Buffer.from(value, "utf8").toString("base64url");
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("email")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const email = (profile as { email: string } | null)?.email;
+  if (!email) return null;
+
+  // generateLink returns the link rather than sending it, which is what makes
+  // it usable here: no email is dispatched, and the token it yields is
+  // exchanged immediately below and never leaves this process.
+  const { data: link, error: linkError } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+  });
+
+  const hashedToken = link?.properties?.hashed_token;
+  if (linkError || !hashedToken) return null;
+
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const verifier = createSupabaseClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data: verified, error: verifyError } = await verifier.auth.verifyOtp({
+    type: "magiclink",
+    token_hash: hashedToken,
+  });
+
+  const session = verified?.session;
+  if (verifyError || !session?.access_token) return null;
+
+  cache.set(userId, {
+    accessToken: session.access_token,
+    expiresAt: (session.expires_at ?? 0) * 1000,
+  });
+
+  return session.access_token;
 }
 
 /**
@@ -120,15 +169,7 @@ export function bearerToken(request: Request): string | null {
   return match ? match[1].trim() : null;
 }
 
-/**
- * Constant-time comparison, for anywhere a secret is compared in this process.
- *
- * Not used on the token itself, which is compared inside Postgres by hash, but
- * exported so that anything added later has an obvious right answer to hand.
- */
-export function secretsMatch(a: string, b: string): boolean {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  if (left.length !== right.length) return false;
-  return timingSafeEqual(left, right);
+/** Test seam: the cache is process-global, and a suite needs a clean slate. */
+export function clearSessionCache(): void {
+  cache.clear();
 }

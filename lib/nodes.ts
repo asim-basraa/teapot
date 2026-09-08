@@ -78,22 +78,37 @@ export async function createNode(input: {
   if (!name) return { ok: false, error: "A name is required.", status: 400 };
 
   const supabase = await createClient();
+
+  // The id is generated here rather than by the database so the row can be
+  // read back in a separate statement. Insert and read cannot be combined:
+  // `INSERT ... RETURNING` makes Postgres apply the SELECT policy to the new
+  // row, that policy calls can_read, and can_read is STABLE so it runs against
+  // the snapshot taken before the insert. It therefore cannot see the very row
+  // being inserted and correctly reports no such node, which RLS turns into a
+  // policy violation. Splitting the two lets the read use a fresh snapshot.
+  const id = crypto.randomUUID();
+
   // `slug` and `path` are deliberately omitted: a database trigger derives
   // them from the parent, so a caller cannot place a node at a path that
   // disagrees with its position in the tree.
-  const { data, error } = await supabase
-    .from("nodes")
-    .insert({
-      space_id: input.spaceId,
-      parent_id: input.parentId,
-      kind: input.kind,
-      name,
-      content: input.kind === "file" ? `# ${name}\n\n` : null,
-    })
-    .select(SELECT)
-    .single();
+  const { error } = await supabase.from("nodes").insert({
+    id,
+    space_id: input.spaceId,
+    parent_id: input.parentId,
+    kind: input.kind,
+    name,
+    content: input.kind === "file" ? `# ${name}\n\n` : null,
+  });
 
   if (error) return translate(error);
+
+  const { data, error: readError } = await supabase
+    .from("nodes")
+    .select(SELECT)
+    .eq("id", id)
+    .single();
+
+  if (readError) return translate(readError);
   return { ok: true, node: data };
 }
 

@@ -32,7 +32,7 @@ test.describe("Slice 3: editing with optimistic locking", () => {
 
   test("edits a page and sees the rendered result", async () => {
     await page.goto(INDEX);
-    await page.getByRole("link", { name: "Edit" }).click();
+    await page.getByRole("link", { name: "Edit", exact: true }).click();
 
     await expect(page).toHaveURL(/\?edit=1/);
 

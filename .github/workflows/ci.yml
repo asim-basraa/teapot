@@ -100,9 +100,11 @@ jobs:
 
       - run: npm run test:e2e
 
-      - name: Supabase logs on failure
+      # Deliberately terse: a full `supabase status` dump here pushes the
+      # Playwright failure output out of the readable tail of the log.
+      - name: Container health on failure
         if: failure()
-        run: supabase status && docker ps -a
+        run: docker ps --format '{{.Names}}\t{{.Status}}'
 
       - uses: actions/upload-artifact@v4
         if: failure()

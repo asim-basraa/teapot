@@ -13,6 +13,7 @@ import rehypeStringify from "rehype-stringify";
 import { remarkWikilinks, extractWikilinkTargets } from "./wikilinks";
 import { remarkCallouts } from "./callouts";
 import { remarkHighlights } from "./highlights";
+import { rehypeMermaid } from "./mermaid";
 import { sanitizeSchema } from "./sanitize";
 import type { SpaceContext, RenderResult } from "./context";
 
@@ -49,6 +50,9 @@ export async function renderMarkdown(
     .use(rehypeSanitize, sanitizeSchema)
     .use(rehypeSlug)
     .use(rehypeKatex)
+    // Before Shiki: a mermaid fence must reach the client as source, and the
+    // highlighter would have turned it into coloured markup with no source left.
+    .use(rehypeMermaid)
     .use(rehypeShiki, { theme: "github-light" })
     .use(rehypeStringify)
     .process(markdown);

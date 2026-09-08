@@ -4,6 +4,7 @@ import { renderMarkdown } from "@teapot/renderer";
 import { nodeCapabilities } from "@/lib/nodes";
 import { listBacklinks } from "@/lib/links";
 import { Share } from "../Share";
+import { Mermaid } from "../Mermaid";
 import {
   getSpaceBySlug,
   getNodeByPath,
@@ -100,6 +101,10 @@ export default async function NodePage({
         // add their own trusted markup. See packages/renderer/src/sanitize.ts.
         dangerouslySetInnerHTML={{ __html: html }}
       />
+
+      {/* Hydrates any ```mermaid blocks the document contains. Renders
+          nothing itself, and loads mermaid only if a diagram is present. */}
+      <Mermaid />
 
       {backlinks.length > 0 ? (
         // Only what this viewer can read reaches here: the policy on `links`

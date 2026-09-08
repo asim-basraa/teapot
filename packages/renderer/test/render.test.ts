@@ -193,3 +193,60 @@ describe("purity", () => {
     expect(a.html).toBe(b.html);
   });
 });
+
+describe("mermaid", () => {
+  const DIAGRAM = "```mermaid\ngraph TD;\n  A-->B;\n```";
+
+  it("emits a mermaid block the client can hydrate", async () => {
+    const { html } = await renderMarkdown(DIAGRAM, space);
+    expect(html).toContain('<pre class="mermaid">');
+    // The source must survive intact: the client reads it back with
+    // textContent, so entity escaping is fine but the characters must be there.
+    expect(html).toContain("graph TD;");
+    expect(html).toMatch(/A--(&#x3E;|&gt;|>)B;/);
+  });
+
+  it("does not hand the diagram to the highlighter", async () => {
+    const { html } = await renderMarkdown(DIAGRAM, space);
+    // Shiki would leave its class and per-token colour behind, and there would
+    // be no source left for mermaid to read.
+    expect(html).not.toContain("shiki");
+    expect(html).not.toMatch(/style="[^"]*color:/);
+    expect(html).not.toContain("language-mermaid");
+  });
+
+  it("still highlights ordinary code blocks alongside a diagram", async () => {
+    const { html } = await renderMarkdown(
+      `${DIAGRAM}\n\n\`\`\`ts\nconst x = 1;\n\`\`\``,
+      space,
+    );
+    expect(html).toContain('<pre class="mermaid">');
+    expect(html).toContain("shiki");
+  });
+
+  // Whether a diagram parses is mermaid's business, in the browser. What
+  // matters here is that malformed source is passed through rather than
+  // swallowed, so the client has something to show the author.
+  it("passes malformed diagram source through untouched", async () => {
+    const { html } = await renderMarkdown(
+      "```mermaid\nthis is not a diagram(((\n```",
+      space,
+    );
+    expect(html).toContain('<pre class="mermaid">');
+    expect(html).toContain("this is not a diagram(((");
+  });
+
+  it("cannot be used to smuggle markup through the sanitizer", async () => {
+    const { html } = await renderMarkdown(
+      '```mermaid\ngraph TD;\n  A["<img src=x onerror=alert(1)>"]-->B;\n```',
+      space,
+    );
+    expect(html).toContain('<pre class="mermaid">');
+    // The angle bracket is escaped, so this is text inside the block rather
+    // than an element. The words "onerror" and "img" are still present, and
+    // that is fine: they are characters in a diagram label, not an attribute
+    // on anything, and textContent hands them to mermaid as such.
+    expect(html).not.toContain("<img");
+    expect(html).toContain("&#x3C;img");
+  });
+});

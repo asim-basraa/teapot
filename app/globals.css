@@ -603,3 +603,25 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .search-snippet mark {
   background: transparent; color: var(--text); font-weight: 600;
 }
+
+/* Mermaid */
+.prose pre.mermaid {
+  background: transparent; border: 0; padding: 0;
+  display: flex; justify-content: center;
+  overflow-x: auto;
+}
+
+.prose pre.mermaid svg { max-width: 100%; height: auto; }
+
+.prose pre.mermaid.mermaid-error {
+  display: block; background: var(--panel);
+  border: 1px solid var(--border); border-left: 3px solid #c0392b;
+  border-radius: 6px; padding: 0.9rem 1rem;
+}
+
+.mermaid-message {
+  margin: 0 0 0.5rem; font-size: 0.82rem; color: #c0392b;
+  font-family: var(--font-sans, system-ui);
+}
+
+.mermaid-error code { white-space: pre-wrap; font-size: 0.8rem; }

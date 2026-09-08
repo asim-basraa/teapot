@@ -10,11 +10,11 @@ import rehypeKatex from "rehype-katex";
 import rehypeShiki from "@shikijs/rehype";
 import rehypeStringify from "rehype-stringify";
 
-import { remarkWikilinks, extractWikilinkTargets } from "./wikilinks.js";
-import { remarkCallouts } from "./callouts.js";
-import { remarkHighlights } from "./highlights.js";
-import { sanitizeSchema } from "./sanitize.js";
-import type { SpaceContext, RenderResult } from "./context.js";
+import { remarkWikilinks, extractWikilinkTargets } from "./wikilinks";
+import { remarkCallouts } from "./callouts";
+import { remarkHighlights } from "./highlights";
+import { sanitizeSchema } from "./sanitize";
+import type { SpaceContext, RenderResult } from "./context";
 
 export type { SpaceContext, RenderResult };
 export { extractWikilinkTargets };

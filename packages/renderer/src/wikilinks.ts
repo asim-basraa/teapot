@@ -1,6 +1,6 @@
 import { findAndReplace } from "mdast-util-find-and-replace";
 import type { Root, PhrasingContent } from "mdast";
-import type { SpaceContext } from "./context.js";
+import type { SpaceContext } from "./context";
 
 // [[target]], [[target|alias]], [[target#heading]], and the ![[embed]] form.
 // Targets cannot contain [ ] | or #, which keeps the pattern unambiguous.

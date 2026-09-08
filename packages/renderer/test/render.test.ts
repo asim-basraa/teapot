@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { renderMarkdown, extractWikilinkTargets } from "../src/index.js";
-import type { SpaceContext } from "../src/index.js";
+import { renderMarkdown, extractWikilinkTargets } from "../src/index";
+import type { SpaceContext } from "../src/index";
 
 /**
  * A space where `readable` resolves and everything else does not. The renderer

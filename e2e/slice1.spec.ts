@@ -17,6 +17,14 @@ async function signUp(page: Page, email: string, password: string) {
   await page.getByRole("button", { name: "Create account" }).click();
 }
 
+// Next.js renders its own <div role="alert"> route announcer on every page, so
+// an unscoped getByRole("alert") is ambiguous. Scope to the form, which is
+// where our own messages live.
+const formAlert = (page: Page) =>
+  page.locator("form.auth-form").getByRole("alert");
+const formStatus = (page: Page) =>
+  page.locator("form.auth-form").getByRole("status");
+
 test.describe.configure({ mode: "serial" });
 
 test.describe("Slice 1: signup, confirmation and first rendered page", () => {
@@ -24,7 +32,7 @@ test.describe("Slice 1: signup, confirmation and first rendered page", () => {
     await signUp(page, OUTSIDER_EMAIL, PASSWORD);
 
     // The before-user-created hook's own message, surfaced to the reader.
-    await expect(page.getByRole("alert")).toContainText(/invitation only/i);
+    await expect(formAlert(page)).toContainText(/invitation only/i);
     await expect(page).toHaveURL(/\/signup/);
   });
 
@@ -34,8 +42,8 @@ test.describe("Slice 1: signup, confirmation and first rendered page", () => {
     await clearMail();
     await signUp(page, OWNER_EMAIL, PASSWORD);
 
-    await expect(page.getByRole("status")).toContainText(OWNER_EMAIL);
-    await expect(page.getByRole("status")).toContainText(/confirmation link/i);
+    await expect(formStatus(page)).toContainText(OWNER_EMAIL);
+    await expect(formStatus(page)).toContainText(/confirmation link/i);
   });
 
   test("refuses sign-in before the email is confirmed", async ({ page }) => {
@@ -44,7 +52,7 @@ test.describe("Slice 1: signup, confirmation and first rendered page", () => {
     await page.getByLabel("Password").fill(PASSWORD);
     await page.getByRole("button", { name: "Sign in" }).click();
 
-    await expect(page.getByRole("alert")).toContainText(/not valid/i);
+    await expect(formAlert(page)).toContainText(/not valid/i);
     await expect(page).toHaveURL(/\/login/);
   });
 

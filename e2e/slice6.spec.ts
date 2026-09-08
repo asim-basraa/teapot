@@ -72,7 +72,19 @@ test.describe("Slice 6: public sharing", () => {
 
     const toggle = owner.getByLabel("Anyone with the link can read this");
     await expect(toggle).not.toBeChecked();
-    await toggle.check();
+
+    // Waiting on the response, not on the toggle. The toggle is optimistic, so
+    // it moves before the server has agreed, and asserting on it alone would
+    // let the next test race ahead of a write that has not landed.
+    const [response] = await Promise.all([
+      owner.waitForResponse(
+        (r) =>
+          r.url().includes(`/api/v1/nodes/${folderId}/public`) &&
+          r.request().method() === "PUT",
+      ),
+      toggle.check(),
+    ]);
+    expect(response.status(), await response.text()).toBe(200);
 
     await expect(
       owner.getByText("No sign-in needed", { exact: false }),
@@ -129,7 +141,16 @@ test.describe("Slice 6: public sharing", () => {
 
     const toggle = owner.getByLabel("Anyone with the link can read this");
     await expect(toggle).toBeChecked();
-    await toggle.uncheck();
+
+    const [response] = await Promise.all([
+      owner.waitForResponse(
+        (r) =>
+          r.url().includes(`/api/v1/nodes/${folderId}/public`) &&
+          r.request().method() === "PUT",
+      ),
+      toggle.uncheck(),
+    ]);
+    expect(response.status(), await response.text()).toBe(200);
 
     await expect(toggle).not.toBeChecked();
 

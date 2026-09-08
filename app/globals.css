@@ -586,3 +586,20 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 
 .backlinks ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
 .backlinks a { font-size: 0.9rem; }
+
+/* Search */
+.search { margin-bottom: 1.25rem; }
+.input-small { padding: 0.35rem 0.55rem; font-size: 0.85rem; }
+
+.search-results { margin-top: 0.75rem; }
+.search-results ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+.search-name { font-size: 0.88rem; font-weight: 600; }
+
+.search-snippet {
+  margin: 0.2rem 0 0; font-size: 0.78rem; color: var(--muted);
+  line-height: 1.45;
+}
+
+.search-snippet mark {
+  background: transparent; color: var(--text); font-weight: 600;
+}

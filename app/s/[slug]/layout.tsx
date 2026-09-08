@@ -6,6 +6,7 @@ import { getSpaceBySlug } from "@/lib/spaces";
 import { listNodes, buildTree } from "@/lib/nodes";
 import { signOut } from "../../(auth)/actions";
 import { Tree } from "./Tree";
+import { Search } from "./Search";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,7 @@ export default async function SpaceLayout({
 
       <div className="space-body">
         <aside className="space-sidebar">
+          <Search spaceId={space.id} />
           <Tree
             spaceSlug={space.slug}
             spaceId={space.id}

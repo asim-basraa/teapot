@@ -525,4 +525,65 @@ select pg_temp.check('a stranger sees no memberships',
 
 reset role;
 
+-- Search ---------------------------------------------------------------------
+--
+-- Search is the easiest place in a product like this to leak: an index built
+-- once and queried by everyone will happily quote a paragraph nobody was meant
+-- to read. search_nodes runs as the caller and so is filtered by the same
+-- policy that decides whether the page renders at all. These assertions check
+-- that, from every side.
+
+insert into public.nodes (id, space_id, parent_id, kind, name, content) values
+  ('b0000000-0000-0000-0000-000000000006','a0000000-0000-0000-0000-000000000001', null, 'file','Open Roadmap',
+   '# Open Roadmap' || chr(10) || chr(10) || 'The quarterly roadmap mentions kumquats.'),
+  ('b0000000-0000-0000-0000-000000000007','a0000000-0000-0000-0000-000000000001', null, 'file','Severance Notes',
+   '# Severance Notes' || chr(10) || chr(10) || 'The private roadmap mentions kumquats, and severance.');
+
+insert into public.grants (node_id, grantee_type, grantee_id, role) values
+  ('b0000000-0000-0000-0000-000000000006','user','44444444-4444-4444-4444-444444444444','viewer');
+
+set local role authenticated;
+
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select pg_temp.check('the owner finds both pages',
+  (select count(*)::text from public.search_nodes(
+     'a0000000-0000-0000-0000-000000000001','kumquats')), '2');
+select pg_temp.check('a name outranks a passing mention in a body',
+  (select name from public.search_nodes(
+     'a0000000-0000-0000-0000-000000000001','roadmap') limit 1), 'Open Roadmap');
+
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+select pg_temp.check('a grantee finds only the page they were given',
+  (select name from public.search_nodes(
+     'a0000000-0000-0000-0000-000000000001','kumquats')), 'Open Roadmap');
+-- The word appears only in the restricted page. Finding it, even without a
+-- snippet, would confirm that page exists.
+select pg_temp.check('a word unique to a restricted page finds nothing at all',
+  (select count(*)::text from public.search_nodes(
+     'a0000000-0000-0000-0000-000000000001','severance')), '0');
+
+reset role;
+
+set local role anon;
+select set_config('request.jwt.claims','', true);
+select pg_temp.check('an anonymous search finds nothing that was not published',
+  (select count(*)::text from public.search_nodes(
+     'a0000000-0000-0000-0000-000000000001','kumquats')), '0');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.set_public('b0000000-0000-0000-0000-000000000006', true);
+reset role;
+
+set local role anon;
+select set_config('request.jwt.claims','', true);
+select pg_temp.check('and finds a published page once it is published',
+  (select name from public.search_nodes(
+     'a0000000-0000-0000-0000-000000000001','kumquats')), 'Open Roadmap');
+select pg_temp.check('while the restricted one stays invisible',
+  (select count(*)::text from public.search_nodes(
+     'a0000000-0000-0000-0000-000000000001','severance')), '0');
+reset role;
+
 rollback;

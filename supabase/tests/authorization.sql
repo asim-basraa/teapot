@@ -686,4 +686,118 @@ select pg_temp.check('somebody with no tokens cannot tell that anyone has any',
 
 reset role;
 
+-- Comments ---------------------------------------------------------------
+--
+-- A comment is exactly as reachable as the page it is about, with one
+-- narrowing: it also requires an account. Following can_read alone would mean
+-- publishing a page publishes its conversation to the internet, in one click
+-- and irreversibly once anything has cached it.
+
+insert into public.nodes (id, space_id, parent_id, kind, name, content) values
+  ('b0000000-0000-0000-0000-00000000000b','a0000000-0000-0000-0000-000000000001', null, 'file','Discussed','# discussed');
+insert into public.grants (node_id, grantee_type, grantee_id, role) values
+  ('b0000000-0000-0000-0000-00000000000b','user','22222222-2222-2222-2222-222222222222','viewer');
+
+set local role authenticated;
+
+-- Reading is enough to comment: a viewer who spots a mistake should be able to
+-- say so without being handed the power to edit.
+select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+insert into public.comments (id, node_id, author_id, body) values
+  ('e0000000-0000-0000-0000-000000000001','b0000000-0000-0000-0000-00000000000b',
+   '22222222-2222-2222-2222-222222222222','A viewer speaks');
+select pg_temp.check('a viewer can comment on a page they can read',
+  (select count(*)::text from public.node_comments('b0000000-0000-0000-0000-00000000000b')), '1');
+
+do $$
+begin
+  begin
+    insert into public.comments (node_id, author_id, body)
+    values ('b0000000-0000-0000-0000-000000000004','22222222-2222-2222-2222-222222222222','Should not land');
+    raise exception 'FAIL: commented on a page they cannot read';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+do $$
+begin
+  begin
+    insert into public.comments (node_id, author_id, body)
+    values ('b0000000-0000-0000-0000-00000000000b','11111111-1111-1111-1111-111111111111','Forged');
+    raise exception 'FAIL: posted a comment as somebody else';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+-- Threading is one level deep, so a conversation stays followable and the data
+-- matches the shape the panel can render.
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+insert into public.comments (id, node_id, author_id, parent_id, body) values
+  ('e0000000-0000-0000-0000-000000000002','b0000000-0000-0000-0000-00000000000b',
+   '11111111-1111-1111-1111-111111111111','e0000000-0000-0000-0000-000000000001','The owner answers');
+do $$
+begin
+  begin
+    insert into public.comments (node_id, author_id, parent_id, body)
+    values ('b0000000-0000-0000-0000-00000000000b','11111111-1111-1111-1111-111111111111',
+            'e0000000-0000-0000-0000-000000000002','Too deep');
+    raise exception 'FAIL: a reply was replied to';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+select pg_temp.check('a stranger sees no conversation',
+  (select count(*)::text from public.comments), '0');
+select pg_temp.check('and the reading function tells them nothing either',
+  (select count(*)::text from public.node_comments('b0000000-0000-0000-0000-00000000000b')), '0');
+do $$
+begin
+  begin
+    perform public.delete_comment('e0000000-0000-0000-0000-000000000001');
+    raise exception 'FAIL: a stranger deleted somebody''s comment';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+-- An author may withdraw their own words, and withdrawing means the text is
+-- gone, not merely flagged.
+select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+select public.delete_comment('e0000000-0000-0000-0000-000000000001');
+reset role;
+
+select pg_temp.check('a withdrawn comment keeps none of its text',
+  (select body from public.comments where id = 'e0000000-0000-0000-0000-000000000001'), '');
+select pg_temp.check('and the reply it carried survives',
+  (select body from public.comments where id = 'e0000000-0000-0000-0000-000000000002'), 'The owner answers');
+
+-- Moderation: an administrator of the page may remove anybody's.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.delete_comment('e0000000-0000-0000-0000-000000000002');
+reset role;
+
+select pg_temp.check('an admin can remove a comment that is not theirs',
+  (select (deleted_at is not null)::text from public.comments
+   where id = 'e0000000-0000-0000-0000-000000000002'), 'true');
+
+-- Publishing the page must not publish the conversation on it.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.set_public('b0000000-0000-0000-0000-00000000000b', true);
+reset role;
+
+set local role anon;
+select set_config('request.jwt.claims','', true);
+select pg_temp.check('an anonymous visitor can read the published page',
+  (select count(*)::text from public.nodes
+   where id = 'b0000000-0000-0000-0000-00000000000b'), '1');
+select pg_temp.check('and sees none of its comments',
+  (select count(*)::text from public.comments), '0');
+reset role;
+
 rollback;

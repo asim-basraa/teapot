@@ -3,8 +3,11 @@ import { notFound } from "next/navigation";
 import { renderMarkdown } from "@teapot/renderer";
 import { nodeCapabilities } from "@/lib/nodes";
 import { listBacklinks } from "@/lib/links";
+import { listComments } from "@/lib/comments";
+import { createClient } from "@/lib/supabase/server";
 import { Share } from "../Share";
 import { Mermaid } from "../Mermaid";
+import { Comments } from "../Comments";
 import {
   getSpaceBySlug,
   getNodeByPath,
@@ -92,6 +95,14 @@ export default async function NodePage({
   const { html } = await renderMarkdown(node.content ?? "", ctx);
   const backlinks = await listBacklinks(space.slug, node.id);
 
+  // Comments require an account, even on a published page. An anonymous
+  // visitor gets the document and no conversation.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const comments = user ? await listComments(node.id) : [];
+
   return (
     <>
       {actions}
@@ -123,6 +134,15 @@ export default async function NodePage({
             ))}
           </ul>
         </nav>
+      ) : null}
+
+      {user ? (
+        <Comments
+          nodeId={node.id}
+          viewerId={user.id}
+          canModerate={canAdmin}
+          initialComments={comments}
+        />
       ) : null}
     </>
   );

@@ -689,3 +689,60 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .token-name { font-weight: 600; }
 .token-scope, .token-used { font-size: 0.78rem; color: var(--muted); }
 .token-used { margin-left: auto; }
+
+/* Comments */
+.comments {
+  margin-top: 3rem; padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.comments h2 {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--muted); margin: 0 0 1rem;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+
+.comment-count {
+  font-size: 0.68rem; letter-spacing: 0;
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 0.02rem 0.4rem;
+}
+
+.comment-list { list-style: none; margin: 0 0 1.5rem; padding: 0; display: grid; gap: 1.25rem; }
+
+.comment-thread {
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--panel); padding: 0.85rem 1rem;
+}
+
+.comment-head {
+  display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+}
+
+.comment-author { font-size: 0.82rem; font-weight: 600; }
+.comment-when { font-size: 0.74rem; color: var(--muted); }
+
+.comment-remove, .comment-reply-link {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font-size: 0.74rem; color: var(--muted); text-decoration: underline;
+}
+
+.comment-remove { margin-left: auto; }
+.comment-remove:hover, .comment-reply-link:hover { color: var(--text); }
+
+.comment-body { margin: 0; font-size: 0.9rem; line-height: 1.55; white-space: pre-wrap; }
+
+.comment-deleted {
+  margin: 0; font-size: 0.84rem; color: var(--muted); font-style: italic;
+}
+
+.comment-replies {
+  list-style: none; margin: 0.85rem 0 0; padding: 0 0 0 1rem;
+  border-left: 2px solid var(--border); display: grid; gap: 0.85rem;
+}
+
+.comment-reply-link { margin-top: 0.6rem; display: inline-block; }
+.comment-form { margin-top: 0.85rem; }
+.comment-input { resize: vertical; font: inherit; line-height: 1.5; }
+.comment-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem; }

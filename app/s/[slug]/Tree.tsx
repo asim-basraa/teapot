@@ -12,14 +12,19 @@ type Props = {
   canEdit: boolean;
 };
 
-async function api(url: string, init: RequestInit): Promise<string | null> {
+type ApiResult = { error: string | null; node?: { path: string } };
+
+async function api(url: string, init: RequestInit): Promise<ApiResult> {
   const res = await fetch(url, {
     ...init,
     headers: { "content-type": "application/json", ...init.headers },
   });
-  if (res.ok) return null;
+
+  if (res.status === 204) return { error: null };
+
   const body = await res.json().catch(() => ({}));
-  return body.error ?? `Request failed (${res.status})`;
+  if (res.ok) return { error: null, node: body.node };
+  return { error: body.error ?? `Request failed (${res.status})` };
 }
 
 export function Tree({ spaceSlug, spaceId, tree, canEdit }: Props) {
@@ -28,14 +33,48 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit }: Props) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
+  const base = `/s/${spaceSlug}`;
+
+  /** True when the page being viewed is `path` itself or lives under it. */
+  const viewing = (path: string) =>
+    pathname === `${base}/${path}` || pathname.startsWith(`${base}/${path}/`);
+
   // The server owns the tree; after any mutation we re-fetch rather than
   // patching local state, so what is shown always matches what RLS allows.
   const refresh = () => startTransition(() => router.refresh());
 
-  async function run(work: Promise<string | null>) {
-    const message = await work;
-    setError(message);
-    if (!message) refresh();
+  /**
+   * Navigates somewhere that still exists after a mutation.
+   *
+   * Refreshing is only correct while the current URL survives. Renaming or
+   * deleting the folder you are reading inside destroys the path you are on,
+   * and refreshing it would reload a 404 behind a stale sidebar. So a move
+   * carries the reader to the node's new path, and a delete falls back to the
+   * space root.
+   */
+  function settle(oldPath: string, newPath: string | null) {
+    if (!viewing(oldPath)) {
+      refresh();
+      return;
+    }
+
+    const destination =
+      newPath === null
+        ? base
+        : `${base}/${newPath}${pathname.slice(`${base}/${oldPath}`.length)}`;
+
+    startTransition(() => {
+      router.replace(destination);
+      router.refresh();
+    });
+  }
+
+  async function run(work: Promise<ApiResult>, onDone?: (r: ApiResult) => void) {
+    const result = await work;
+    setError(result.error);
+    if (result.error) return;
+    if (onDone) onDone(result);
+    else refresh();
   }
 
   const create = (parentId: string | null, kind: "folder" | "file") => {
@@ -59,11 +98,13 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit }: Props) {
   const rename = (node: TreeNode) => {
     const name = window.prompt("New name", node.name)?.trim();
     if (!name || name === node.name) return;
+    const oldPath = node.path;
     void run(
       api(`/api/v1/nodes/${node.id}`, {
         method: "PATCH",
         body: JSON.stringify({ name }),
       }),
+      (result) => settle(oldPath, result.node?.path ?? null),
     );
   };
 
@@ -73,7 +114,10 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit }: Props) {
         ? `Delete "${node.name}" and everything inside it?`
         : `Delete "${node.name}"?`;
     if (!window.confirm(warning)) return;
-    void run(api(`/api/v1/nodes/${node.id}`, { method: "DELETE" }));
+    const oldPath = node.path;
+    void run(api(`/api/v1/nodes/${node.id}`, { method: "DELETE" }), () =>
+      settle(oldPath, null),
+    );
   };
 
   return (
@@ -146,7 +190,10 @@ function TreeLevel({
   onDelete: (node: TreeNode) => void;
 }) {
   return (
-    <ul className="tree-level" style={{ paddingLeft: depth === 0 ? 0 : "0.8rem" }}>
+    <ul
+      className="tree-level"
+      style={{ paddingLeft: depth === 0 ? 0 : "0.8rem" }}
+    >
       {nodes.map((node) => {
         const href = `/s/${spaceSlug}/${node.path}`;
         const current = pathname === href;

@@ -112,6 +112,13 @@ test.describe("Slice 2: file tree and node CRUD", () => {
       await response.text().catch(() => ""),
     ).toBe(200);
 
+    // This test renames the folder while reading a page inside it, which is
+    // the case that strands the reader: the URL they are on ceases to exist.
+    // The app must carry them to the node's new path.
+    await expect(page).toHaveURL(
+      `/s/${SPACE_SLUG}/active-projects/road-map`,
+    );
+
     // The child's href must follow the parent's new path, which only holds if
     // the rename rewrote descendant paths rather than just the folder's own.
     await expect(page.getByRole("link", { name: "Road Map" })).toHaveAttribute(

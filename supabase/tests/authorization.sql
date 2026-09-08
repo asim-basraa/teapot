@@ -46,11 +46,12 @@ insert into auth.users (id, instance_id, aud, role, email) values
   ('33333333-3333-3333-3333-333333333333','00000000-0000-0000-0000-000000000000','authenticated','authenticated','bob@test.local'),
   ('44444444-4444-4444-4444-444444444444','00000000-0000-0000-0000-000000000000','authenticated','authenticated','carol@test.local');
 
-insert into public.profiles (id, email) values
-  ('11111111-1111-1111-1111-111111111111','owner@test.local'),
-  ('22222222-2222-2222-2222-222222222222','alice@test.local'),
-  ('33333333-3333-3333-3333-333333333333','bob@test.local'),
-  ('44444444-4444-4444-4444-444444444444','carol@test.local');
+-- No explicit profiles insert: the handle_new_user trigger on auth.users
+-- creates them. Letting it do so keeps the fixture faithful to how real
+-- accounts come into being, and quietly asserts that the trigger works.
+select pg_temp.check('signing up provisions a profile',
+  (select count(*)::text from public.profiles
+   where email like '%@test.local'), '4');
 
 insert into public.spaces (id, slug, name, owner_id) values
   ('a0000000-0000-0000-0000-000000000001','authz-test','Authz Test',

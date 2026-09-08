@@ -21,6 +21,9 @@ const SECRET_WORD = `severance${RUN}`;
 test.describe.configure({ mode: "serial" });
 
 test.describe("Slice 8: permission-filtered search", () => {
+  // Located by role rather than by label: the tree's own "Rename <space>" and
+  // "Delete <space>" buttons carry the space name in their accessible names,
+  // and getByLabel matches on a substring.
   let ownerCtx: BrowserContext;
   let guestCtx: BrowserContext;
   let visitorCtx: BrowserContext;
@@ -83,7 +86,7 @@ test.describe("Slice 8: permission-filtered search", () => {
 
   test("the owner finds both pages, with a snippet", async () => {
     await owner.goto(`/s/${SPACE}/open-page`);
-    await owner.getByLabel("Search").fill(SHARED_WORD);
+    await owner.getByRole("searchbox", { name: "Search" }).fill(SHARED_WORD);
 
     const results = owner.locator(".search-results");
     await expect(results.getByRole("link", { name: "Open Page" })).toBeVisible();
@@ -95,7 +98,7 @@ test.describe("Slice 8: permission-filtered search", () => {
 
   test("a grantee finds only the page they can read", async () => {
     await guest.goto(`/s/${SPACE}/open-page`);
-    await guest.getByLabel("Search").fill(SHARED_WORD);
+    await guest.getByRole("searchbox", { name: "Search" }).fill(SHARED_WORD);
 
     const results = guest.locator(".search-results");
     await expect(results.getByRole("link", { name: "Open Page" })).toBeVisible();
@@ -106,7 +109,7 @@ test.describe("Slice 8: permission-filtered search", () => {
 
   test("a word unique to a restricted page finds nothing", async () => {
     await guest.goto(`/s/${SPACE}/open-page`);
-    await guest.getByLabel("Search").fill(SECRET_WORD);
+    await guest.getByRole("searchbox", { name: "Search" }).fill(SECRET_WORD);
 
     await expect(guest.getByText("Nothing matched.")).toBeVisible();
 
@@ -133,7 +136,7 @@ test.describe("Slice 8: permission-filtered search", () => {
     expect(published.status(), await published.text()).toBe(200);
 
     await visitor.goto(`/s/${SPACE}/open-page`);
-    await visitor.getByLabel("Search").fill(SHARED_WORD);
+    await visitor.getByRole("searchbox", { name: "Search" }).fill(SHARED_WORD);
 
     const results = visitor.locator(".search-results");
     await expect(results.getByRole("link", { name: "Open Page" })).toBeVisible();

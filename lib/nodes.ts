@@ -4,6 +4,12 @@ import { resolveLinkTargets, type Node } from "@/lib/spaces";
 
 export type TreeNode = Node & { children: TreeNode[] };
 
+export type ContentType = "article" | "skill";
+
+export function isContentType(value: unknown): value is ContentType {
+  return value === "article" || value === "skill";
+}
+
 export type NodeResult =
   | { ok: true; node: Node }
   | { ok: false; error: string; status: number };
@@ -15,16 +21,26 @@ export type NodeResult =
  * tree drawn from this list cannot reveal a node the viewer is not allowed to
  * know exists.
  */
-export async function listNodes(spaceId: string): Promise<Node[]> {
+export async function listNodes(
+  spaceId: string,
+  contentType?: ContentType,
+): Promise<Node[]> {
   const supabase = await createClient();
-  const { data } = await supabase
+  let query = supabase
     .from("nodes")
     .select(
-      "id, space_id, parent_id, kind, name, slug, path, content, content_version",
+      "id, space_id, parent_id, kind, name, slug, path, content, content_version, content_type",
     )
-    .eq("space_id", spaceId)
+    .eq("space_id", spaceId);
+
+  // Filtering by type also drops folders, which carry no type. That is the
+  // intent: "give me my skills" means the documents, not their containers.
+  if (contentType) query = query.eq("content_type", contentType);
+
+  const { data } = await query
     .order("kind", { ascending: true })
     .order("name", { ascending: true });
+
   return data ?? [];
 }
 
@@ -67,13 +83,14 @@ export function buildTree(nodes: Node[]): TreeNode[] {
 }
 
 const SELECT =
-  "id, space_id, parent_id, kind, name, slug, path, content, content_version";
+  "id, space_id, parent_id, kind, name, slug, path, content, content_version, content_type";
 
 export async function createNode(input: {
   spaceId: string;
   parentId: string | null;
   kind: "folder" | "file";
   name: string;
+  contentType?: ContentType;
 }): Promise<NodeResult> {
   const name = input.name.trim();
   if (!name) return { ok: false, error: "A name is required.", status: 400 };
@@ -98,7 +115,10 @@ export async function createNode(input: {
     parent_id: input.parentId,
     kind: input.kind,
     name,
-    content: input.kind === "file" ? `# ${name}\n\n` : null,
+    // A trigger nulls this for folders and defaults it to article for files,
+    // so passing it for a folder is harmless rather than an error.
+    content_type: input.contentType ?? null,
+    content: input.kind === "file" ? startingContent(name, input.contentType) : null,
   });
 
   if (error) return translate(error);
@@ -111,6 +131,18 @@ export async function createNode(input: {
 
   if (readError) return translate(readError);
   return { ok: true, node: data };
+}
+
+/**
+ * What a new document starts as.
+ *
+ * A skill starts with its frontmatter already in place, because the metadata is
+ * the part authors forget and the part a client needs. Prefilling it is cheaper
+ * than flagging its absence later.
+ */
+function startingContent(name: string, contentType?: ContentType): string {
+  if (contentType !== "skill") return `# ${name}\n\n`;
+  return `---\nname: ${name}\ndescription: \n---\n\n# ${name}\n\n`;
 }
 
 export async function renameNode(
@@ -138,6 +170,36 @@ export async function moveNode(
     p_new_parent_id: newParentId,
     p_reparent: true,
   });
+}
+
+/**
+ * Changes what kind of document a page is.
+ *
+ * A plain update: RLS requires edit on the node, and the trigger refuses to
+ * type a folder, so there is nothing left for this to decide.
+ */
+export async function setContentType(
+  nodeId: string,
+  contentType: ContentType,
+): Promise<NodeResult> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("nodes")
+    .update({ content_type: contentType, updated_at: new Date().toISOString() })
+    .eq("id", nodeId);
+
+  if (error) return translate(error);
+
+  const { data, error: readError } = await supabase
+    .from("nodes")
+    .select(SELECT)
+    .eq("id", nodeId)
+    .maybeSingle();
+
+  if (readError) return translate(readError);
+  if (!data) return { ok: false, error: "Not found.", status: 404 };
+  return { ok: true, node: data };
 }
 
 /**

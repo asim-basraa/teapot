@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { readSkillMetadata } from "@teapot/renderer";
+import type { ContentType } from "@/lib/nodes";
 
 type Props = {
   nodeId: string;
   nodeName: string;
   initialContent: string;
   initialVersion: number;
+  initialContentType: ContentType;
   viewHref: string;
 };
 
@@ -16,6 +19,7 @@ export function Editor({
   nodeName,
   initialContent,
   initialVersion,
+  initialContentType,
   viewHref,
 }: Props) {
   const router = useRouter();
@@ -24,8 +28,34 @@ export function Editor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [theirs, setTheirs] = useState<string | null>(null);
+  const [contentType, setContentType] = useState<ContentType>(
+    initialContentType,
+  );
 
   const dirty = content !== initialContent;
+
+  // Advisory, never blocking. A skill missing a description still saves: losing
+  // somebody's writing over a formatting detail is a much worse outcome than an
+  // incomplete skill, so this warns and gets out of the way.
+  const missing =
+    contentType === "skill" ? readSkillMetadata(content).missing : [];
+
+  async function retype(next: ContentType) {
+    const previous = contentType;
+    setContentType(next);
+    setError(null);
+
+    const res = await fetch(`/api/v1/nodes/${nodeId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content_type: next }),
+    });
+
+    if (!res.ok) {
+      setContentType(previous);
+      setError("Could not change the type of this page.");
+    }
+  }
 
   async function save() {
     setSaving(true);
@@ -69,6 +99,17 @@ export function Editor({
       <div className="editor-bar">
         <h1>{nodeName}</h1>
         <div className="editor-actions">
+          <label className="editor-type">
+            <span className="field-label">Type</span>
+            <select
+              className="input input-small"
+              value={contentType}
+              onChange={(e) => void retype(e.target.value as ContentType)}
+            >
+              <option value="article">Article</option>
+              <option value="skill">Skill</option>
+            </select>
+          </label>
           <a className="btn btn-secondary btn-small" href={viewHref}>
             Cancel
           </a>
@@ -86,6 +127,14 @@ export function Editor({
       {error ? (
         <p className="msg msg-error" role="alert">
           {error}
+        </p>
+      ) : null}
+
+      {missing.length > 0 ? (
+        <p className="msg msg-warn">
+          This skill has no {missing.join(" or ")}. Add it to the frontmatter at
+          the top so a client can tell what the skill is for. Saving still
+          works.
         </p>
       ) : null}
 

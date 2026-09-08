@@ -5,6 +5,8 @@ import {
   moveNode,
   deleteNode,
   saveNodeContent,
+  setContentType,
+  isContentType,
 } from "@/lib/nodes";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +45,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
   const fields = (body ?? {}) as Record<string, unknown>;
   const { name, parent_id, content, content_version } = fields;
+  const contentType = fields.content_type;
   const wantsMove = "parent_id" in fields;
   const wantsContent = "content" in fields;
 
@@ -63,9 +66,25 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     );
   }
 
+  // Changing the type is its own edit rather than a field on a content save,
+  // so an author can reclassify a page without rewriting it.
+  if (contentType !== undefined) {
+    if (!isContentType(contentType)) {
+      return Response.json(
+        { error: "content_type must be article or skill." },
+        { status: 400 },
+      );
+    }
+
+    const typed = await setContentType(id, contentType);
+    return typed.ok
+      ? Response.json({ node: typed.node })
+      : Response.json({ error: typed.error }, { status: typed.status });
+  }
+
   if (typeof name !== "string" && !wantsMove) {
     return Response.json(
-      { error: "Provide a name, parent_id, or content." },
+      { error: "Provide a name, parent_id, content, or content_type." },
       { status: 400 },
     );
   }

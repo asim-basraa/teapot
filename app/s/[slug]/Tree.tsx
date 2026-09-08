@@ -77,9 +77,17 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit }: Props) {
     else refresh();
   }
 
-  const create = (parentId: string | null, kind: "folder" | "file") => {
+  const create = (
+    parentId: string | null,
+    kind: "folder" | "file",
+    contentType?: "article" | "skill",
+  ) => {
     const name = window.prompt(
-      kind === "folder" ? "Folder name" : "Page name",
+      kind === "folder"
+        ? "Folder name"
+        : contentType === "skill"
+          ? "Skill name"
+          : "Page name",
     )?.trim();
     if (!name) return;
     void run(
@@ -90,6 +98,7 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit }: Props) {
           parent_id: parentId,
           kind,
           name,
+          content_type: contentType,
         }),
       }),
     );
@@ -139,6 +148,13 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit }: Props) {
               aria-label="New page at the top level"
             >
               + Page
+            </button>
+            <button
+              type="button"
+              onClick={() => create(null, "file", "skill")}
+              aria-label="New skill at the top level"
+            >
+              + Skill
             </button>
           </span>
         ) : null}
@@ -210,6 +226,12 @@ function TreeLevel({
                   aria-current={current ? "page" : undefined}
                 >
                   {node.name}
+                  {node.content_type === "skill" ? (
+                    // A badge rather than an icon: a skill and an article are
+                    // both Markdown, and the difference is worth spelling out
+                    // where somebody is choosing between them.
+                    <span className="tree-badge">skill</span>
+                  ) : null}
                 </Link>
               )}
 

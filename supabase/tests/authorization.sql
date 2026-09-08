@@ -586,4 +586,52 @@ select pg_temp.check('while the restricted one stays invisible',
      'a0000000-0000-0000-0000-000000000001','severance')), '0');
 reset role;
 
+-- Content types ---------------------------------------------------------------
+--
+-- A trigger, not a column default, keeps content_type consistent with kind: a
+-- default would type folders too, and would not correct a caller who supplies
+-- a type for one. Doing it in a trigger is what lets the check constraint be an
+-- assertion rather than an error message users see.
+
+insert into public.nodes (id, space_id, parent_id, kind, name, content) values
+  ('b0000000-0000-0000-0000-000000000008','a0000000-0000-0000-0000-000000000001', null, 'file','Untyped Page','# untyped');
+insert into public.nodes (id, space_id, parent_id, kind, name) values
+  ('b0000000-0000-0000-0000-000000000009','a0000000-0000-0000-0000-000000000001', null, 'folder','Untyped Folder');
+
+select pg_temp.check('a new page defaults to article',
+  (select content_type::text from public.nodes
+   where id = 'b0000000-0000-0000-0000-000000000008'), 'article');
+select pg_temp.check('a folder carries no type',
+  (select content_type::text from public.nodes
+   where id = 'b0000000-0000-0000-0000-000000000009'), null);
+
+-- A type asked for on a folder is discarded rather than rejected: the caller
+-- gets a folder, which is what they asked for, and no row exists that the
+-- constraint would refuse.
+insert into public.nodes (id, space_id, parent_id, kind, name, content_type) values
+  ('b0000000-0000-0000-0000-00000000000a','a0000000-0000-0000-0000-000000000001', null, 'folder','Typed Folder','skill');
+
+select pg_temp.check('a type asked for on a folder is dropped',
+  (select content_type::text from public.nodes
+   where id = 'b0000000-0000-0000-0000-00000000000a'), null);
+
+update public.nodes set content_type = 'skill'
+ where id = 'b0000000-0000-0000-0000-000000000008';
+select pg_temp.check('a page can be reclassified',
+  (select content_type::text from public.nodes
+   where id = 'b0000000-0000-0000-0000-000000000008'), 'skill');
+
+-- Clearing the type on a file is not a way to make an untyped document.
+update public.nodes set content_type = null
+ where id = 'b0000000-0000-0000-0000-000000000008';
+select pg_temp.check('clearing a page''s type puts it back to article',
+  (select content_type::text from public.nodes
+   where id = 'b0000000-0000-0000-0000-000000000008'), 'article');
+
+select pg_temp.check('filtering by type finds documents, not folders',
+  (select count(*)::text from public.nodes
+   where space_id = 'a0000000-0000-0000-0000-000000000001'
+     and content_type = 'article'
+     and kind = 'folder'), '0');
+
 rollback;

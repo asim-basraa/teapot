@@ -625,3 +625,19 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 }
 
 .mermaid-error code { white-space: pre-wrap; font-size: 0.8rem; }
+
+/* Content types */
+.tree-badge {
+  display: inline-block; margin-left: 0.4rem;
+  font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--muted); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0.02rem 0.35rem; vertical-align: middle;
+}
+
+.editor-type { display: flex; align-items: center; gap: 0.4rem; }
+.editor-type .field-label { margin: 0; }
+
+.msg-warn {
+  background: var(--panel); border: 1px solid var(--border);
+  border-left: 3px solid #b7791f; color: var(--text);
+}

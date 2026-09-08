@@ -82,6 +82,7 @@ export default async function NodePage({
         nodeName={node.name}
         initialContent={node.content ?? ""}
         initialVersion={node.content_version}
+        initialContentType={node.content_type ?? "article"}
         viewHref={viewHref}
       />
     );

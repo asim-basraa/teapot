@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createNode, listNodes } from "@/lib/nodes";
+import { createNode, listNodes, isContentType } from "@/lib/nodes";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +31,17 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: "space_id is required." }, { status: 400 });
   }
 
-  return Response.json({ nodes: await listNodes(spaceId) });
+  const contentType = request.nextUrl.searchParams.get("content_type");
+  if (contentType !== null && !isContentType(contentType)) {
+    return Response.json(
+      { error: "content_type must be article or skill." },
+      { status: 400 },
+    );
+  }
+
+  return Response.json({
+    nodes: await listNodes(spaceId, contentType ?? undefined),
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -46,10 +56,8 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Invalid JSON." }, { status: 400 });
   }
 
-  const { space_id, parent_id, kind, name } = (body ?? {}) as Record<
-    string,
-    unknown
-  >;
+  const { space_id, parent_id, kind, name, content_type: contentType } =
+    (body ?? {}) as Record<string, unknown>;
 
   if (typeof space_id !== "string" || typeof name !== "string") {
     return Response.json(
@@ -63,12 +71,19 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
+  if (contentType !== undefined && !isContentType(contentType)) {
+    return Response.json(
+      { error: "content_type must be article or skill." },
+      { status: 400 },
+    );
+  }
 
   const result = await createNode({
     spaceId: space_id,
     parentId: typeof parent_id === "string" ? parent_id : null,
     kind,
     name,
+    contentType: isContentType(contentType) ? contentType : undefined,
   });
 
   return result.ok

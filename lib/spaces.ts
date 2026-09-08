@@ -18,6 +18,8 @@ export type Node = {
   path: string;
   content: string | null;
   content_version: number;
+  /** null for folders, which are neither prose nor a skill. */
+  content_type: "article" | "skill" | null;
 };
 
 /** The path of the page shown at a space's root. */
@@ -147,7 +149,7 @@ export async function getNodeByPath(
   const { data } = await supabase
     .from("nodes")
     .select(
-      "id, space_id, parent_id, kind, name, slug, path, content, content_version",
+      "id, space_id, parent_id, kind, name, slug, path, content, content_version, content_type",
     )
     .eq("space_id", spaceId)
     .eq("path", path)

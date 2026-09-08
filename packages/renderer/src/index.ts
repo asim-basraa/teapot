@@ -15,10 +15,13 @@ import { remarkCallouts } from "./callouts";
 import { remarkHighlights } from "./highlights";
 import { rehypeMermaid } from "./mermaid";
 import { sanitizeSchema } from "./sanitize";
+import { parseFrontmatter } from "./frontmatter";
 import type { SpaceContext, RenderResult } from "./context";
 
 export type { SpaceContext, RenderResult };
 export { extractWikilinkTargets };
+export { parseFrontmatter, readSkillMetadata } from "./frontmatter";
+export type { Frontmatter, SkillMetadata } from "./frontmatter";
 
 /**
  * Renders a Markdown document to sanitized HTML.
@@ -36,6 +39,12 @@ export async function renderMarkdown(
   markdown: string,
   ctx: SpaceContext,
 ): Promise<RenderResult> {
+  // Frontmatter is metadata about the document, not part of it. Stripping it
+  // here rather than in a remark plugin keeps it out of every downstream
+  // transformer's way, and means an unparseable block still does not render as
+  // a stray table of text at the top of the page.
+  const { body } = parseFrontmatter(markdown);
+
   const file = await unified()
     .use(remarkParse)
     .use(remarkGfm)
@@ -55,10 +64,10 @@ export async function renderMarkdown(
     .use(rehypeMermaid)
     .use(rehypeShiki, { theme: "github-light" })
     .use(rehypeStringify)
-    .process(markdown);
+    .process(body);
 
   return {
     html: String(file),
-    linkTargets: extractWikilinkTargets(markdown),
+    linkTargets: extractWikilinkTargets(body),
   };
 }

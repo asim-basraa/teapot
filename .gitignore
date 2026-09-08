@@ -7,3 +7,6 @@ build/
 next-env.d.ts
 *.tsbuildinfo
 .DS_Store
+/playwright-report/
+/test-results/
+/supabase/.temp/

@@ -72,12 +72,54 @@ export async function createSpace(
     name: name,
     slug: INDEX_PATH,
     path: INDEX_PATH,
-    content: `# ${name}\n\nThis space is empty. Start writing.\n`,
+    content: welcomeDocument(name),
   });
 
   if (nodeError) return { error: nodeError.message };
 
   return { slug: space.slug };
+}
+
+/**
+ * The document a new space starts with.
+ *
+ * It doubles as a demonstration of the supported syntax, so the first page
+ * anyone sees exercises callouts, code highlighting and LaTeX rather than
+ * being an empty stub.
+ */
+function welcomeDocument(name: string): string {
+  return `# ${name}
+
+This space is yours. Everything below is ordinary Markdown, rendered on the
+server each time someone reads it.
+
+> [!tip] Sharing
+> Nothing here is public until you say so. Files and folders can be shared
+> with a person, with a team, or with everyone.
+
+## Writing
+
+Link to other pages with double brackets, like [[another-page]]. A link to
+something you cannot read looks exactly like a link to something that does not
+exist, which is deliberate.
+
+You can ==highlight== text, write inline code like \`npm run dev\`, and include
+fenced blocks:
+
+\`\`\`ts
+export function greet(name: string): string {
+  return \`Hello, \${name}\`;
+}
+\`\`\`
+
+Mathematics renders too, inline as $e^{i\\pi} + 1 = 0$ and as a block:
+
+$$
+\\int_0^1 x^2 \\, dx = \\frac{1}{3}
+$$
+
+Replace all of this with something of your own.
+`;
 }
 
 export async function getSpaceBySlug(slug: string): Promise<Space | null> {

@@ -1,0 +1,62 @@
+# Local Supabase stack, used by the E2E suite in CI.
+#
+# This container has no Docker daemon, so the stack cannot run here; it runs on
+# GitHub Actions runners, which do. Everything is throwaway per run, so the
+# ports and secrets below are fixed rather than generated.
+
+project_id = "teapot"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+# Matches the hosted projects, so migrations cannot pass locally and fail there.
+major_version = 17
+
+[db.pooler]
+enabled = false
+
+[studio]
+enabled = false
+
+[realtime]
+enabled = false
+
+[storage]
+enabled = true
+
+# Mailpit captures outbound mail so the confirmation flow can be tested end to
+# end rather than stubbed.
+[inbucket]
+enabled = true
+port = 54324
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/**"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+enable_signup = true
+enable_anonymous_sign_ins = false
+
+[auth.email]
+enable_signup = true
+# The whole point of the flow under test: an account is unusable until the
+# emailed link is followed.
+enable_confirmations = true
+double_confirm_changes = true
+secure_password_change = false
+max_frequency = "1s"
+
+# The domain gate. Without this the E2E suite would happily accept a gmail
+# address and the rejection test would fail for the right reason.
+[auth.hook.before_user_created]
+enabled = true
+uri = "pg-functions://postgres/public/hook_restrict_signup_by_email_domain"

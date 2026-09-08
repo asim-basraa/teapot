@@ -12,6 +12,19 @@ import { NextResponse, type NextRequest } from "next/server";
  * `can_read` is per-node.
  */
 export async function middleware(request: NextRequest) {
+  const { pathname, searchParams } = request.nextUrl;
+
+  // Supabase falls back to the project's Site URL when the requested redirect
+  // is not on its allow list, which drops an auth code on the landing page
+  // where nothing handles it. Forward it to the route that does, so a
+  // misconfigured redirect list degrades to a working login rather than a
+  // dead end.
+  if (pathname === "/" && searchParams.has("code")) {
+    const target = request.nextUrl.clone();
+    target.pathname = "/auth/confirm";
+    return NextResponse.redirect(target);
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

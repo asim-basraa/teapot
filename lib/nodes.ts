@@ -166,6 +166,25 @@ async function callMoveNode(
   return { ok: true, node: data };
 }
 
+/**
+ * What the current viewer may do with a node.
+ *
+ * Asks the predicates rather than inferring from ownership, so a grantee with
+ * editor sees the edit affordance and an admin sees sharing. These answers are
+ * presentation only: the database refuses the write regardless of what the UI
+ * chooses to show.
+ */
+export async function nodeCapabilities(
+  nodeId: string,
+): Promise<{ canEdit: boolean; canAdmin: boolean }> {
+  const supabase = await createClient();
+  const [edit, admin] = await Promise.all([
+    supabase.rpc("can_edit", { p_node_id: nodeId }),
+    supabase.rpc("can_admin", { p_node_id: nodeId }),
+  ]);
+  return { canEdit: edit.data === true, canAdmin: admin.data === true };
+}
+
 export type SaveResult =
   | { ok: true; node: Node }
   | { ok: false; error: string; status: number; currentContent?: string };

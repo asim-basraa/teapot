@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { renderMarkdown } from "@teapot/renderer";
-import { createClient } from "@/lib/supabase/server";
+import { nodeCapabilities } from "@/lib/nodes";
+import { Share } from "../Share";
 import {
   getSpaceBySlug,
   getNodeByPath,
@@ -37,22 +38,36 @@ export default async function NodePage({
   const node = await getNodeByPath(space.id, nodePath);
   if (!node) notFound();
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  // Owner-only until Slice 4 introduces grants. The editor being hidden is
-  // presentation; the database refuses the write either way.
-  const canEdit = !!user && space.owner_id === user.id;
+  // Asked of the predicates, not inferred from ownership, so a grantee with
+  // editor or admin gets the matching affordances. Presentation only: the
+  // database refuses the write regardless of what is rendered.
+  const { canEdit, canAdmin } = await nodeCapabilities(node.id);
   const viewHref = `/s/${space.slug}/${node.path}`;
+
+  const actions =
+    canEdit || canAdmin ? (
+      <div className="page-actions">
+        {canAdmin ? <Share nodeId={node.id} nodeName={node.name} /> : null}
+        {canEdit ? (
+          <Link
+            className="btn btn-secondary btn-small"
+            href={`${viewHref}?edit=1`}
+          >
+            Edit
+          </Link>
+        ) : null}
+      </div>
+    ) : null;
 
   if (node.kind === "folder") {
     return (
-      <article className="prose">
-        <h1>{node.name}</h1>
-        <p className="empty">This folder has no page of its own.</p>
-      </article>
+      <>
+        {actions}
+        <article className="prose">
+          <h1>{node.name}</h1>
+          <p className="empty">This folder has no page of its own.</p>
+        </article>
+      </>
     );
   }
 
@@ -73,13 +88,7 @@ export default async function NodePage({
 
   return (
     <>
-      {canEdit ? (
-        <div className="page-actions">
-          <Link className="btn btn-secondary btn-small" href={`${viewHref}?edit=1`}>
-            Edit
-          </Link>
-        </div>
-      ) : null}
+      {actions}
 
       <article
         className="prose"

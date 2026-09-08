@@ -102,8 +102,15 @@ test.describe("Slice 2: file tree and node CRUD", () => {
   });
 
   test("renaming a folder moves its descendants and breaks the old URL", async () => {
-    answer("Active Projects");
-    await page.getByRole("button", { name: "Rename Projects" }).click();
+    const response = await actAndAwait(
+      "Rename Projects",
+      "PATCH",
+      "Active Projects",
+    );
+    expect(
+      response.status(),
+      await response.text().catch(() => ""),
+    ).toBe(200);
 
     // The child's href must follow the parent's new path, which only holds if
     // the rename rewrote descendant paths rather than just the folder's own.

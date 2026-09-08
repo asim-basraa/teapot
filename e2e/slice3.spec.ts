@@ -75,7 +75,9 @@ test.describe("Slice 3: editing with optimistic locking", () => {
     await page.getByRole("button", { name: "Save" }).click();
 
     // The conflict is surfaced rather than silently resolved.
-    await expect(page.getByRole("alert")).toContainText(/someone else saved/i);
+    await expect(
+      page.locator(".editor").getByRole("alert"),
+    ).toContainText(/someone else saved/i);
 
     // The author's text is still in the box, unmodified.
     await expect(page.getByRole("textbox")).toHaveValue(mine);

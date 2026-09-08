@@ -119,37 +119,50 @@ export async function renameNode(
   const trimmed = name.trim();
   if (!trimmed) return { ok: false, error: "A name is required.", status: 400 };
 
-  const supabase = await createClient();
   // move_node rewrites descendant paths too; a plain update would rename the
   // folder and strand its children at the old prefix.
-  const { data, error } = await supabase
-    .rpc("move_node", {
-      p_node_id: nodeId,
-      p_new_name: trimmed,
-      p_reparent: false,
-    })
-    .select(SELECT)
-    .single();
-
-  if (error) return translate(error);
-  return { ok: true, node: data };
+  return callMoveNode({
+    p_node_id: nodeId,
+    p_new_name: trimmed,
+    p_reparent: false,
+  });
 }
 
 export async function moveNode(
   nodeId: string,
   newParentId: string | null,
 ): Promise<NodeResult> {
+  return callMoveNode({
+    p_node_id: nodeId,
+    p_new_parent_id: newParentId,
+    p_reparent: true,
+  });
+}
+
+/**
+ * Runs move_node and reads the result back.
+ *
+ * The row is fetched separately rather than projected off the RPC. move_node
+ * returns a single composite, and how PostgREST shapes that (object versus
+ * single-element array) is an implementation detail we would otherwise be
+ * depending on. A plain select by id is unambiguous, and matches how
+ * createNode reads back its insert.
+ */
+async function callMoveNode(
+  args: Record<string, unknown>,
+): Promise<NodeResult> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .rpc("move_node", {
-      p_node_id: nodeId,
-      p_new_parent_id: newParentId,
-      p_reparent: true,
-    })
+
+  const { error } = await supabase.rpc("move_node", args);
+  if (error) return translate(error);
+
+  const { data, error: readError } = await supabase
+    .from("nodes")
     .select(SELECT)
+    .eq("id", args.p_node_id as string)
     .single();
 
-  if (error) return translate(error);
+  if (readError) return translate(readError);
   return { ok: true, node: data };
 }
 

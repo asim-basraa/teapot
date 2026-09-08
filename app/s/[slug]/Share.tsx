@@ -24,6 +24,10 @@ export function Share({
   const [teamId, setTeamId] = useState("");
   const [role, setRole] = useState<GrantRole>("viewer");
   const [busy, setBusy] = useState(false);
+  // What the toggle shows while the write is in flight. A checkbox that does
+  // not move when you click it reads as broken, and Playwright agrees: it
+  // reports the click as having had no effect.
+  const [pendingPublic, setPendingPublic] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,6 +63,7 @@ export function Share({
   function show() {
     setOpen(true);
     setGrants(null);
+    setPendingPublic(null);
     void load();
     void loadTeams();
   }
@@ -91,6 +96,7 @@ export function Share({
 
   async function publish(next: boolean) {
     setBusy(true);
+    setPendingPublic(next);
     setError(null);
 
     const res = await fetch(`/api/v1/nodes/${nodeId}/public`, {
@@ -103,11 +109,15 @@ export function Share({
     setBusy(false);
 
     if (!res.ok) {
+      // Snap back to what the server actually says rather than leaving the
+      // toggle asserting something that did not happen.
+      setPendingPublic(null);
       setError(body.error ?? `Could not change that (${res.status})`);
       return;
     }
 
     setGrants(body.grants ?? []);
+    setPendingPublic(null);
   }
 
   async function revoke(grantId: string) {
@@ -129,7 +139,7 @@ export function Share({
   const publicGrants = (grants ?? []).filter(
     (g) => g.grantee_type === "public",
   );
-  const published = publicGrants.some((g) => !g.inherited);
+  const published = pendingPublic ?? publicGrants.some((g) => !g.inherited);
   const inheritedPublic = publicGrants.find((g) => g.inherited) ?? null;
 
   return (

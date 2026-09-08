@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { renderMarkdown } from "@teapot/renderer";
 import { nodeCapabilities } from "@/lib/nodes";
+import { listBacklinks } from "@/lib/links";
 import { Share } from "../Share";
 import {
   getSpaceBySlug,
@@ -87,6 +88,7 @@ export default async function NodePage({
 
   const ctx = await buildSpaceContext(space.id, space.slug);
   const { html } = await renderMarkdown(node.content ?? "", ctx);
+  const backlinks = await listBacklinks(space.slug, node.id);
 
   return (
     <>
@@ -98,6 +100,24 @@ export default async function NodePage({
         // add their own trusted markup. See packages/renderer/src/sanitize.ts.
         dangerouslySetInnerHTML={{ __html: html }}
       />
+
+      {backlinks.length > 0 ? (
+        // Only what this viewer can read reaches here: the policy on `links`
+        // requires both ends to be readable, so the panel cannot become the
+        // place that admits a restricted page exists. It is therefore absent
+        // rather than empty when nothing readable links here, which is the
+        // same thing a page with no backlinks at all shows.
+        <nav className="backlinks" aria-label="Pages that link here">
+          <h2>Linked from</h2>
+          <ul>
+            {backlinks.map((link) => (
+              <li key={link.id}>
+                <Link href={link.href}>{link.name}</Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ) : null}
     </>
   );
 }

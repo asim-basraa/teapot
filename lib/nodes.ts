@@ -1,5 +1,6 @@
+import { extractWikilinkTargets } from "@teapot/renderer";
 import { createClient } from "@/lib/supabase/server";
-import type { Node } from "@/lib/spaces";
+import { resolveLinkTargets, type Node } from "@/lib/spaces";
 
 export type TreeNode = Node & { children: TreeNode[] };
 
@@ -220,7 +221,10 @@ export async function saveNodeContent(
     .maybeSingle();
 
   if (error) return translate(error);
-  if (data) return { ok: true, node: data };
+  if (data) {
+    await refreshLinks(data);
+    return { ok: true, node: data };
+  }
 
   const { data: current } = await supabase
     .from("nodes")
@@ -241,6 +245,28 @@ export async function saveNodeContent(
     // discarding one of them.
     currentContent: current.content ?? "",
   };
+}
+
+/**
+ * Rewrites a page's outgoing links after a save.
+ *
+ * Done here rather than in a database trigger because resolving `[[Roadmap]]`
+ * to a node is the renderer's rule, not the schema's, and there is one copy of
+ * it. A trigger would need a second.
+ *
+ * Failure is swallowed on purpose. Backlinks are navigation metadata: losing
+ * them until the next save is a small thing, and refusing somebody's writing
+ * because an index could not be updated is not.
+ */
+async function refreshLinks(node: Node): Promise<void> {
+  const targets = extractWikilinkTargets(node.content ?? "");
+  const ids = await resolveLinkTargets(node.space_id, targets);
+
+  const supabase = await createClient();
+  await supabase.rpc("set_node_links", {
+    p_source_node_id: node.id,
+    p_target_ids: ids,
+  });
 }
 
 export async function deleteNode(

@@ -572,3 +572,17 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 
 .share-public-toggle input { width: 1rem; height: 1rem; cursor: pointer; }
 .share-public .hint { font-size: 0.78rem; color: var(--muted); margin: 0.4rem 0 0; }
+
+/* Backlinks */
+.backlinks {
+  margin-top: 3rem; padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.backlinks h2 {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--muted); margin: 0 0 0.6rem;
+}
+
+.backlinks ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.backlinks a { font-size: 0.9rem; }

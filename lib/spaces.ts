@@ -167,26 +167,68 @@ export async function buildSpaceContext(
   spaceId: string,
   spaceSlug: string,
 ): Promise<SpaceContext> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("nodes")
-    .select("name, slug, path")
-    .eq("space_id", spaceId);
-
-  const index = new Map<string, string>();
-  for (const node of data ?? []) {
-    const href = `/s/${spaceSlug}/${node.path}`;
-    // Targets may be written as a full path or as a bare name, both
-    // case-insensitively, matching Obsidian's resolution.
-    index.set(node.path.toLowerCase(), href);
-    index.set(node.name.toLowerCase(), href);
-    index.set(node.slug.toLowerCase(), href);
-  }
+  const index = await buildLinkIndex(spaceId);
 
   return {
     resolveLink(target: string) {
-      const href = index.get(target.toLowerCase());
-      return href ? { href } : null;
+      const hit = index.get(target.toLowerCase());
+      return hit ? { href: `/s/${spaceSlug}/${hit.path}` } : null;
     },
   };
+}
+
+/**
+ * Resolves wikilink targets to node ids, for backlink maintenance.
+ *
+ * Shares buildLinkIndex with the renderer's resolver on purpose. Two
+ * resolution rules, one deciding what a link points at and another deciding
+ * what gets recorded, would drift, and the drift would be silent: pages would
+ * render a working link that no backlink panel ever mentioned.
+ *
+ * Unresolvable targets are dropped rather than reported. A target the caller
+ * cannot read is one of them, which is what stops the links table being used
+ * to assert that a restricted page exists.
+ */
+export async function resolveLinkTargets(
+  spaceId: string,
+  targets: string[],
+): Promise<string[]> {
+  if (targets.length === 0) return [];
+  const index = await buildLinkIndex(spaceId);
+
+  const ids = new Set<string>();
+  for (const target of targets) {
+    const hit = index.get(target.trim().toLowerCase());
+    if (hit) ids.add(hit.id);
+  }
+  return [...ids];
+}
+
+type IndexEntry = { id: string; path: string };
+
+/**
+ * Every way a node in this space can be named, lowercased.
+ *
+ * Built through RLS, so nodes the caller cannot read are simply absent, and a
+ * link to one resolves to null exactly as a link to a nonexistent page does.
+ */
+async function buildLinkIndex(
+  spaceId: string,
+): Promise<Map<string, IndexEntry>> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("nodes")
+    .select("id, name, slug, path")
+    .eq("space_id", spaceId);
+
+  const index = new Map<string, IndexEntry>();
+  for (const node of data ?? []) {
+    const entry: IndexEntry = { id: node.id, path: node.path };
+    // Targets may be written as a full path or as a bare name, both
+    // case-insensitively, matching Obsidian's resolution.
+    index.set(node.path.toLowerCase(), entry);
+    index.set(node.name.toLowerCase(), entry);
+    index.set(node.slug.toLowerCase(), entry);
+  }
+  return index;
 }

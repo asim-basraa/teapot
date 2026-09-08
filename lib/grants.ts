@@ -106,3 +106,27 @@ export async function revokeGrant(grantId: string): Promise<GrantResult> {
   }
   return { ok: true };
 }
+
+/**
+ * Publishes or unpublishes a node.
+ *
+ * Through set_public rather than a client-side upsert: uniqueness for public
+ * grants is a partial index, which PostgREST cannot name in an ON CONFLICT
+ * clause. The function makes the same admin check RLS would, and a trigger
+ * refuses any public grant stronger than viewer, on every write path.
+ *
+ * Publishing a folder publishes what is under it, because that is what
+ * inheritance already means. There is no second rule here to drift from it.
+ */
+export async function setPublic(
+  nodeId: string,
+  isPublic: boolean,
+): Promise<GrantResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_public", {
+    p_node_id: nodeId,
+    p_public: isPublic,
+  });
+  if (error) return { ok: false, error: "Not found.", status: 404 };
+  return { ok: true };
+}

@@ -89,6 +89,27 @@ export function Share({
     setGrants(body.grants ?? []);
   }
 
+  async function publish(next: boolean) {
+    setBusy(true);
+    setError(null);
+
+    const res = await fetch(`/api/v1/nodes/${nodeId}/public`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ public: next }),
+    });
+
+    const body = await res.json().catch(() => ({}));
+    setBusy(false);
+
+    if (!res.ok) {
+      setError(body.error ?? `Could not change that (${res.status})`);
+      return;
+    }
+
+    setGrants(body.grants ?? []);
+  }
+
   async function revoke(grantId: string) {
     setBusy(true);
     setError(null);
@@ -100,6 +121,16 @@ export function Share({
     }
     void load();
   }
+
+  // Derived from the grants already loaded rather than asked for separately.
+  // The distinction matters: a page under a published folder is readable by
+  // anyone, but the grant to remove is the folder's, not the page's, so the
+  // toggle has to show the state it can actually change.
+  const publicGrants = (grants ?? []).filter(
+    (g) => g.grantee_type === "public",
+  );
+  const published = publicGrants.some((g) => !g.inherited);
+  const inheritedPublic = publicGrants.find((g) => g.inherited) ?? null;
 
   return (
     <>
@@ -191,6 +222,33 @@ export function Share({
             {busy ? "Sharing…" : "Share"}
           </button>
         </form>
+
+        <h3>On the web</h3>
+
+        <div className="share-public">
+          <label className="share-public-toggle">
+            <input
+              type="checkbox"
+              checked={published}
+              disabled={busy || grants === null || inheritedPublic !== null}
+              onChange={(e) => void publish(e.target.checked)}
+            />
+            <span>Anyone with the link can read this</span>
+          </label>
+
+          {inheritedPublic ? (
+            // The toggle would appear to do nothing here: the grant lives on an
+            // ancestor, and this node is public because of it.
+            <p className="hint">
+              Already public through {inheritedPublic.origin_path}. Turn it off
+              there.
+            </p>
+          ) : published ? (
+            <p className="hint">
+              No sign-in needed. Everything inside this item is public too.
+            </p>
+          ) : null}
+        </div>
 
         <h3>Who has access</h3>
 

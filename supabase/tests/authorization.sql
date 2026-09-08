@@ -406,4 +406,123 @@ select pg_temp.check('deleting the team removes the grant it carried',
 select pg_temp.check('and the grant row is gone, not orphaned',
   (select count(*)::text from public.grants where grantee_type = 'team'), '0');
 
+-- Publishing -----------------------------------------------------------------
+--
+-- A public grant is the one grant with no grantee to revoke, so what it can
+-- say matters more than usual: viewer, never anything stronger, on any path
+-- that writes the row.
+
+insert into public.nodes (id, space_id, parent_id, kind, name, content) values
+  ('b0000000-0000-0000-0000-000000000005','a0000000-0000-0000-0000-000000000001','b0000000-0000-0000-0000-000000000001','file','Published','# published');
+
+set local role authenticated;
+
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+do $$
+begin
+  begin
+    perform public.set_public('b0000000-0000-0000-0000-000000000001', true);
+    raise exception 'FAIL: a stranger published somebody else''s node';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.set_public('b0000000-0000-0000-0000-000000000001', true);
+-- Idempotent: publishing an already-published node is not an error and does
+-- not accumulate grants.
+select public.set_public('b0000000-0000-0000-0000-000000000001', true);
+
+reset role;
+
+select pg_temp.check('publishing twice leaves one grant',
+  (select count(*)::text from public.grants
+   where grantee_type = 'public'
+     and node_id = 'b0000000-0000-0000-0000-000000000001'), '1');
+select pg_temp.check('an anonymous visitor can read a published folder',
+  public.can_read(null,'b0000000-0000-0000-0000-000000000001')::text, 'true');
+select pg_temp.check('publishing a folder publishes what is under it',
+  public.can_read(null,'b0000000-0000-0000-0000-000000000005')::text, 'true');
+select pg_temp.check('a node outside the published subtree stays hidden',
+  public.can_read(null,'b0000000-0000-0000-0000-000000000004')::text, 'false');
+select pg_temp.check('publishing confers no write access',
+  public.can_edit(null,'b0000000-0000-0000-0000-000000000005')::text, 'false');
+
+-- A public grant stronger than viewer would mean anyone on the internet can
+-- change or reshare the page. Refused at the table, not merely in the helper.
+do $$
+begin
+  begin
+    insert into public.grants (node_id, grantee_type, grantee_id, role)
+    values ('b0000000-0000-0000-0000-000000000004','public',null,'editor');
+    raise exception 'FAIL: a public grant conferred editor';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+set local role anon;
+select set_config('request.jwt.claims','', true);
+-- Projects, Deep, Note and Published: the whole subtree under the published
+-- folder. Private, which sits outside it, is not among them.
+select pg_temp.check('RLS hands an anonymous visitor the published subtree and nothing else',
+  (select count(*)::text from public.nodes), '4');
+select pg_temp.check('and the space that contains it, so the page can render',
+  (select count(*)::text from public.spaces), '1');
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.set_public('b0000000-0000-0000-0000-000000000001', false);
+reset role;
+
+select pg_temp.check('unpublishing hides it again',
+  public.can_read(null,'b0000000-0000-0000-0000-000000000005')::text, 'false');
+
+-- Policy recursion -----------------------------------------------------------
+--
+-- Regression tests for a real outage. The policy on `teams` asked whether you
+-- were a member, which read `team_members`, whose policy asked which space the
+-- team belonged to, which read `teams` again. Postgres refuses a query with a
+-- policy cycle outright (42P17), so team management failed completely the
+-- moment anything selected the table as an ordinary user.
+--
+-- It hid for as long as it did because `teams` was only ever read from inside
+-- effective_role, which is SECURITY DEFINER and applies no policies at all.
+--
+-- These assertions do not check a value so much as that the queries run: any
+-- of them raising is the cycle back.
+
+insert into public.teams (id, space_id, name) values
+  ('c0000000-0000-0000-0000-00000000000a','a0000000-0000-0000-0000-000000000001','Recursion Check');
+
+set local role authenticated;
+
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select pg_temp.check('the owner reads back a team without recursing',
+  (select name from public.teams where id = 'c0000000-0000-0000-0000-00000000000a'),
+  'Recursion Check');
+select pg_temp.check('the owner adds a member',
+  (public.add_team_member('c0000000-0000-0000-0000-00000000000a','bob@test.local','member')).role::text,
+  'member');
+
+select set_config('request.jwt.claims','{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}', true);
+select pg_temp.check('a member can see the team they are on',
+  (select count(*)::text from public.teams
+   where id = 'c0000000-0000-0000-0000-00000000000a'), '1');
+select pg_temp.check('a member sees only their own membership row',
+  (select count(*)::text from public.team_members), '1');
+select pg_temp.check('a member cannot read the roster',
+  (select count(*)::text from public.team_roster('c0000000-0000-0000-0000-00000000000a')), '0');
+
+-- Alice owns nothing and is on nothing, so she is the honest stranger here.
+select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+select pg_temp.check('a stranger sees no teams',
+  (select count(*)::text from public.teams), '0');
+select pg_temp.check('a stranger sees no memberships',
+  (select count(*)::text from public.team_members), '0');
+
+reset role;
+
 rollback;

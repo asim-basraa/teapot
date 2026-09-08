@@ -144,11 +144,14 @@ test.describe("Content types: article and skill", () => {
   test("an author can reclassify a page in the editor", async () => {
     await page.goto(`/s/${SPACE}/meeting-note?edit=1`);
 
+    // By role, not by label: the tree's "Rename <space>" and "Delete <space>"
+    // buttons carry the space name, and getByLabel matches on a substring.
+
     const [response] = await Promise.all([
       page.waitForResponse(
         (r) => r.url().includes("/api/v1/nodes/") && r.request().method() === "PATCH",
       ),
-      page.getByLabel("Type").selectOption("skill"),
+      page.getByRole("combobox", { name: "Type" }).selectOption("skill"),
     ]);
     expect(response.status(), await response.text()).toBe(200);
 

@@ -66,13 +66,14 @@ jobs:
             echo "MAILPIT_URL=http://127.0.0.1:54324"
           } >> "$GITHUB_ENV"
 
-      - name: Verify the signup gate is wired
+      # The security tests of the product. Every access decision is made by
+      # effective_role and its wrappers, so this suite is what holds that
+      # decision to account. It runs before the browser tests because a
+      # failure here invalidates everything above it.
+      - name: Authorization suite
         run: |
-          # Cheap guard: if the hook is missing the suite would still pass its
-          # happy path while silently accepting any address.
-          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -tAc \
-            "select public.hook_restrict_signup_by_email_domain('{\"user\":{\"email\":\"x@gmail.com\"}}'::jsonb) ->> 'error' is not null" \
-            | grep -qx t
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            -v ON_ERROR_STOP=1 -f supabase/tests/authorization.sql
 
       # The browser download dominates this job's runtime, so it is cached
       # against the Playwright version rather than the lockfile: the browsers

@@ -1,0 +1,302 @@
+-- Authorization test suite.
+--
+-- These are the security tests of the product. Every access decision in Teapot
+-- is made by effective_role and its can_read / can_edit / can_admin wrappers,
+-- so this file is where that decision is held to account.
+--
+-- Run with:
+--   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/authorization.sql
+--
+-- Everything happens inside a transaction that is rolled back, so the suite
+-- leaves no trace and can be run against any environment safely.
+
+begin;
+
+-- Assertion helper. Raises on the first mismatch, naming the case, so a
+-- failure in CI points straight at the rule that broke.
+create function pg_temp.check(
+  p_case text,
+  p_actual text,
+  p_expected text
+) returns void language plpgsql as $$
+begin
+  if p_actual is distinct from p_expected then
+    raise exception 'FAIL: % (expected %, got %)',
+      p_case, p_expected, coalesce(p_actual, 'null');
+  end if;
+  raise notice 'pass: %', p_case;
+end;
+$$;
+
+-- Fixtures -------------------------------------------------------------------
+--
+--   owner   owns the space
+--   alice   granted directly on one deep file
+--   bob     member of the engineers team
+--   carol   no relationship to anything
+--
+--   projects/                 (folder)
+--     deep/                   (folder)
+--       note                  (file)
+--   private                   (file, nothing granted on it)
+
+insert into auth.users (id, instance_id, aud, role, email) values
+  ('11111111-1111-1111-1111-111111111111','00000000-0000-0000-0000-000000000000','authenticated','authenticated','owner@test.local'),
+  ('22222222-2222-2222-2222-222222222222','00000000-0000-0000-0000-000000000000','authenticated','authenticated','alice@test.local'),
+  ('33333333-3333-3333-3333-333333333333','00000000-0000-0000-0000-000000000000','authenticated','authenticated','bob@test.local'),
+  ('44444444-4444-4444-4444-444444444444','00000000-0000-0000-0000-000000000000','authenticated','authenticated','carol@test.local');
+
+insert into public.profiles (id, email) values
+  ('11111111-1111-1111-1111-111111111111','owner@test.local'),
+  ('22222222-2222-2222-2222-222222222222','alice@test.local'),
+  ('33333333-3333-3333-3333-333333333333','bob@test.local'),
+  ('44444444-4444-4444-4444-444444444444','carol@test.local');
+
+insert into public.spaces (id, slug, name, owner_id) values
+  ('a0000000-0000-0000-0000-000000000001','authz-test','Authz Test',
+   '11111111-1111-1111-1111-111111111111');
+
+insert into public.nodes (id, space_id, parent_id, kind, name) values
+  ('b0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000001', null, 'folder','Projects'),
+  ('b0000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000001','b0000000-0000-0000-0000-000000000001','folder','Deep');
+insert into public.nodes (id, space_id, parent_id, kind, name, content) values
+  ('b0000000-0000-0000-0000-000000000003','a0000000-0000-0000-0000-000000000001','b0000000-0000-0000-0000-000000000002','file','Note','# note'),
+  ('b0000000-0000-0000-0000-000000000004','a0000000-0000-0000-0000-000000000001', null, 'file','Private','# private');
+
+insert into public.teams (id, space_id, name) values
+  ('c0000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000001','Engineers');
+insert into public.team_members (team_id, user_id) values
+  ('c0000000-0000-0000-0000-000000000001','33333333-3333-3333-3333-333333333333');
+
+-- Alice: viewer on the deep file only.
+insert into public.grants (node_id, grantee_type, grantee_id, role) values
+  ('b0000000-0000-0000-0000-000000000003','user','22222222-2222-2222-2222-222222222222','viewer');
+-- Engineers: editor on the top folder, so bob inherits through two levels.
+insert into public.grants (node_id, grantee_type, grantee_id, role) values
+  ('b0000000-0000-0000-0000-000000000001','team','c0000000-0000-0000-0000-000000000001','editor');
+
+-- Owner bypass ---------------------------------------------------------------
+
+select pg_temp.check('owner reads a deep file',
+  public.can_read('11111111-1111-1111-1111-111111111111','b0000000-0000-0000-0000-000000000003')::text, 'true');
+select pg_temp.check('owner holds admin without any grant',
+  public.effective_role('11111111-1111-1111-1111-111111111111','b0000000-0000-0000-0000-000000000003')::text, 'admin');
+select pg_temp.check('owner reads a node nobody was granted',
+  public.can_read('11111111-1111-1111-1111-111111111111','b0000000-0000-0000-0000-000000000004')::text, 'true');
+
+-- Direct grants --------------------------------------------------------------
+
+select pg_temp.check('direct grant on a file grants read',
+  public.can_read('22222222-2222-2222-2222-222222222222','b0000000-0000-0000-0000-000000000003')::text, 'true');
+select pg_temp.check('direct grant resolves to its own role',
+  public.effective_role('22222222-2222-2222-2222-222222222222','b0000000-0000-0000-0000-000000000003')::text, 'viewer');
+select pg_temp.check('viewer cannot edit',
+  public.can_edit('22222222-2222-2222-2222-222222222222','b0000000-0000-0000-0000-000000000003')::text, 'false');
+select pg_temp.check('viewer cannot admin',
+  public.can_admin('22222222-2222-2222-2222-222222222222','b0000000-0000-0000-0000-000000000003')::text, 'false');
+
+-- A grant reaches down, never up. This is the rule that stops a single shared
+-- file from exposing the folder it happens to live in.
+select pg_temp.check('grant on a file does not expose its parent',
+  public.can_read('22222222-2222-2222-2222-222222222222','b0000000-0000-0000-0000-000000000002')::text, 'false');
+select pg_temp.check('grant on a file does not expose its grandparent',
+  public.can_read('22222222-2222-2222-2222-222222222222','b0000000-0000-0000-0000-000000000001')::text, 'false');
+select pg_temp.check('grant on a file does not expose a sibling branch',
+  public.can_read('22222222-2222-2222-2222-222222222222','b0000000-0000-0000-0000-000000000004')::text, 'false');
+
+-- Inheritance through teams --------------------------------------------------
+
+select pg_temp.check('team grant inherits two levels down',
+  public.can_read('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-000000000003')::text, 'true');
+select pg_temp.check('inherited role carries its strength',
+  public.effective_role('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-000000000003')::text, 'editor');
+select pg_temp.check('team editor can edit a descendant',
+  public.can_edit('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-000000000003')::text, 'true');
+select pg_temp.check('editor is still not an admin',
+  public.can_admin('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-000000000003')::text, 'false');
+select pg_temp.check('team grant does not reach outside its subtree',
+  public.can_read('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-000000000004')::text, 'false');
+
+-- Strangers and anonymous ----------------------------------------------------
+
+select pg_temp.check('a stranger reads nothing',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000003')::text, 'false');
+select pg_temp.check('a stranger has no role at all',
+  coalesce(public.effective_role('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000003')::text,'null'), 'null');
+select pg_temp.check('anonymous reads nothing without a public grant',
+  public.can_read(null,'b0000000-0000-0000-0000-000000000003')::text, 'false');
+select pg_temp.check('a nonexistent node is denied, not errored',
+  public.can_read('11111111-1111-1111-1111-111111111111','99999999-9999-9999-9999-999999999999')::text, 'false');
+
+-- Max wins across overlapping grants ----------------------------------------
+
+-- Alice joins the team, so she now holds viewer directly and editor through
+-- the team. The stronger role must win, not the more specific one.
+insert into public.team_members (team_id, user_id) values
+  ('c0000000-0000-0000-0000-000000000001','22222222-2222-2222-2222-222222222222');
+
+select pg_temp.check('union of user and team grants takes the maximum',
+  public.effective_role('22222222-2222-2222-2222-222222222222','b0000000-0000-0000-0000-000000000003')::text, 'editor');
+select pg_temp.check('the stronger role brings its capability',
+  public.can_edit('22222222-2222-2222-2222-222222222222','b0000000-0000-0000-0000-000000000003')::text, 'true');
+
+-- Public grants --------------------------------------------------------------
+
+insert into public.grants (node_id, grantee_type, grantee_id, role) values
+  ('b0000000-0000-0000-0000-000000000004','public',null,'viewer');
+
+select pg_temp.check('a public grant admits anonymous readers',
+  public.can_read(null,'b0000000-0000-0000-0000-000000000004')::text, 'true');
+select pg_temp.check('a public grant admits signed-in strangers',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000004')::text, 'true');
+select pg_temp.check('a public grant confers no write access',
+  public.can_edit(null,'b0000000-0000-0000-0000-000000000004')::text, 'false');
+select pg_temp.check('a public grant on one file does not leak others',
+  public.can_read(null,'b0000000-0000-0000-0000-000000000003')::text, 'false');
+
+-- Revocation -----------------------------------------------------------------
+
+delete from public.team_members
+ where team_id = 'c0000000-0000-0000-0000-000000000001'
+   and user_id = '22222222-2222-2222-2222-222222222222';
+delete from public.grants
+ where node_id = 'b0000000-0000-0000-0000-000000000003'
+   and grantee_type = 'user';
+
+select pg_temp.check('revoking every route removes access',
+  public.can_read('22222222-2222-2222-2222-222222222222','b0000000-0000-0000-0000-000000000003')::text, 'false');
+select pg_temp.check('revoking one user leaves others untouched',
+  public.can_read('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-000000000003')::text, 'true');
+
+delete from public.grants
+ where node_id = 'b0000000-0000-0000-0000-000000000004' and grantee_type = 'public';
+
+select pg_temp.check('revoking a public grant re-hides the node',
+  public.can_read(null,'b0000000-0000-0000-0000-000000000004')::text, 'false');
+
+-- Sign-up gating -------------------------------------------------------------
+
+insert into public.invitations (email, expires_at) values
+  ('guest@outside.test', now() + interval '7 days'),
+  ('stale@outside.test', now() - interval '1 day');
+
+select pg_temp.check('an allowed domain may sign up',
+  public.hook_restrict_signup_by_email_domain('{"user":{"email":"someone@maqsoodlabs.com"}}'::jsonb)::text, '{}');
+select pg_temp.check('domain matching ignores case',
+  public.hook_restrict_signup_by_email_domain('{"user":{"email":"Someone@MaqsoodLabs.com"}}'::jsonb)::text, '{}');
+select pg_temp.check('an outside domain is refused',
+  (public.hook_restrict_signup_by_email_domain('{"user":{"email":"someone@gmail.com"}}'::jsonb) -> 'error' ->> 'http_code'), '403');
+select pg_temp.check('a live invitation overrides the domain rule',
+  public.hook_restrict_signup_by_email_domain('{"user":{"email":"guest@outside.test"}}'::jsonb)::text, '{}');
+select pg_temp.check('an expired invitation does not',
+  (public.hook_restrict_signup_by_email_domain('{"user":{"email":"stale@outside.test"}}'::jsonb) -> 'error' ->> 'http_code'), '403');
+select pg_temp.check('a missing address is refused',
+  (public.hook_restrict_signup_by_email_domain('{"user":{}}'::jsonb) -> 'error' ->> 'http_code'), '400');
+
+-- Three-valued logic ---------------------------------------------------------
+--
+-- Regression tests for a real vulnerability. effective_role returns NULL for a
+-- user with no role, and `NULL = 'admin'` is NULL, not false. can_admin
+-- therefore answered NULL, and a guard written `if not can_admin(...) then
+-- raise` never fired, because `not NULL` is NULL and IF only branches on true.
+-- grant_to_email fell straight through its own authorization check.
+--
+-- RLS hid this completely: a policy expression that is not true denies the
+-- row, so NULL and false are indistinguishable there. These assertions check
+-- the exact value, not merely its truthiness, because that difference is the
+-- whole bug.
+
+select pg_temp.check('can_read answers false, never null, for a stranger',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000003')::text, 'false');
+select pg_temp.check('can_edit answers false, never null, for a stranger',
+  public.can_edit('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000003')::text, 'false');
+select pg_temp.check('can_admin answers false, never null, for a stranger',
+  public.can_admin('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000003')::text, 'false');
+select pg_temp.check('negation of a stranger check is usable in a guard',
+  (not public.can_admin('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000003'))::text, 'true');
+select pg_temp.check('can_admin answers false for a viewer, never null',
+  public.can_admin('22222222-2222-2222-2222-222222222222','b0000000-0000-0000-0000-000000000003')::text, 'false');
+select pg_temp.check('predicates answer false for a node that does not exist',
+  public.can_admin('11111111-1111-1111-1111-111111111111','99999999-9999-9999-9999-999999999999')::text, 'false');
+
+-- Sharing --------------------------------------------------------------------
+
+set local role authenticated;
+
+-- A stranger must not be able to share, and must not learn anything about
+-- which addresses have accounts by trying.
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+do $$
+begin
+  begin
+    perform public.grant_to_email(
+      'b0000000-0000-0000-0000-000000000001','alice@test.local','admin');
+    raise exception 'FAIL: a stranger was allowed to share a node';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+-- The owner can share, and re-sharing changes the role rather than failing.
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select pg_temp.check('owner shares by email',
+  (public.grant_to_email('b0000000-0000-0000-0000-000000000004','carol@test.local','viewer')).role::text,
+  'viewer');
+select pg_temp.check('sharing again changes the role',
+  (public.grant_to_email('b0000000-0000-0000-0000-000000000004','carol@test.local','editor')).role::text,
+  'editor');
+
+reset role;
+
+select pg_temp.check('the shared node is now readable by its grantee',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000004')::text, 'true');
+select pg_temp.check('sharing one node does not expose the rest',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000003')::text, 'false');
+
+-- Hand the fixture back as the next section expects to find it: carol is a
+-- stranger again, which is what the RLS checks below assert against.
+delete from public.grants
+ where node_id = 'b0000000-0000-0000-0000-000000000004'
+   and grantee_id = '44444444-4444-4444-4444-444444444444';
+
+select pg_temp.check('revoking a shared grant removes access again',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000004')::text, 'false');
+
+-- RLS enforcement ------------------------------------------------------------
+--
+-- The predicates being correct is necessary but not sufficient: the policies
+-- have to actually use them. These check the database refuses to hand over
+-- rows even when the application asks for everything.
+
+insert into public.grants (node_id, grantee_type, grantee_id, role) values
+  ('b0000000-0000-0000-0000-000000000003','user','22222222-2222-2222-2222-222222222222','viewer');
+
+set local role authenticated;
+
+select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+select pg_temp.check('RLS shows a grantee only what they were granted',
+  (select count(*)::text from public.nodes), '1');
+select pg_temp.check('RLS hides grant rows from a non-admin',
+  (select count(*)::text from public.grants), '0');
+
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+select pg_temp.check('RLS shows a stranger nothing',
+  (select count(*)::text from public.nodes), '0');
+select pg_temp.check('RLS hides the space itself from a stranger',
+  (select count(*)::text from public.spaces), '0');
+
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select pg_temp.check('RLS shows the owner everything in their space',
+  (select count(*)::text from public.nodes), '4');
+
+reset role;
+
+set local role anon;
+select set_config('request.jwt.claims','', true);
+select pg_temp.check('RLS shows an anonymous visitor no nodes',
+  (select count(*)::text from public.nodes), '0');
+select pg_temp.check('RLS shows an anonymous visitor no profiles',
+  (select count(*)::text from public.profiles), '0');
+reset role;
+
+rollback;

@@ -162,6 +162,16 @@ test.describe("Comments", () => {
     await expect(guest.getByText("Something regrettable.")).toBeVisible();
 
     await owner.goto(PAGE);
+
+    // Three things have to be true before the moderator can act, and this test
+    // is worth nothing unless it says which one failed: the panel is rendered
+    // for them at all, they can see what the other person wrote, and they hold
+    // admin on the page.
+    const panel = owner.getByRole("region", { name: "Comments" });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByText("Something regrettable.")).toBeVisible();
+    await expect(owner.getByRole("button", { name: "Share" })).toBeVisible();
+
     await owner
       .getByRole("button", { name: `Delete the comment by ${GUEST}` })
       .click();

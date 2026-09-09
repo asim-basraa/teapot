@@ -43,6 +43,8 @@ export default function ComingSoon() {
       <p className="tagline">A knowledge garden with real access control.</p>
       <p className="soon-note">Coming soon.</p>
       <p className="soon-signin">
+        <Link href="/docs">Read the documentation</Link>
+        <span aria-hidden="true">·</span>
         <Link href="/login">Sign in</Link>
       </p>
     </main>

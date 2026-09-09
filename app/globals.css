@@ -746,3 +746,51 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .comment-form { margin-top: 0.85rem; }
 .comment-input { resize: vertical; font: inherit; line-height: 1.5; }
 .comment-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem; }
+
+/* Documentation */
+.docs { max-width: 46rem; }
+.docs .prose h2 { margin-top: 2.75rem; }
+.docs .prose h3 { margin-top: 1.75rem; }
+.docs .lede { font-size: 1.02rem; }
+
+.copyable {
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--panel); margin: 0.9rem 0 1.4rem;
+  overflow: hidden;
+}
+
+.copyable-bar {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.45rem 0.6rem 0.45rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.copyable-label {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.copyable-toggle {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font-size: 0.74rem; color: var(--muted); text-decoration: underline;
+}
+
+.copyable-toggle:hover { color: var(--text); }
+
+.copyable pre {
+  margin: 0; padding: 0.85rem 1rem; overflow-x: auto;
+  font-size: 0.8rem; line-height: 1.5; background: var(--bg);
+}
+
+.copyable pre[hidden] { display: none; }
+
+.skill-card {
+  border-top: 1px solid var(--border);
+  padding-top: 0.25rem; margin-top: 1.75rem;
+}
+
+.skill-card h3 { margin-top: 0.75rem; }
+
+.soon-signin { display: flex; gap: 0.6rem; justify-content: center; align-items: baseline; }
+.soon-signin span { color: var(--muted); }

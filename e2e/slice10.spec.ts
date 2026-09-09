@@ -142,11 +142,19 @@ test.describe("Content types: article and skill", () => {
   });
 
   test("an author can reclassify a page in the editor", async () => {
-    await page.goto(`/s/${SPACE}/meeting-note?edit=1`);
+    const landed = await page.goto(`/s/${SPACE}/meeting-note?edit=1`);
+    expect(landed?.status()).toBe(200);
+
+    // The editor renders only for somebody the page says may edit, so its
+    // absence and a failure to change the type look identical from the outside.
+    // Asserting it first means a failure says which of the two happened.
+    await expect(
+      page.getByRole("textbox", { name: /Markdown source/ }),
+      "the editor must render before anything on it can be used",
+    ).toBeVisible();
 
     // By role, not by label: the tree's "Rename <space>" and "Delete <space>"
     // buttons carry the space name, and getByLabel matches on a substring.
-
     const [response] = await Promise.all([
       page.waitForResponse(
         (r) => r.url().includes("/api/v1/nodes/") && r.request().method() === "PATCH",

@@ -262,11 +262,25 @@ export async function nodeCapabilities(
   nodeId: string,
 ): Promise<{ canEdit: boolean; canAdmin: boolean }> {
   const supabase = await createClient();
-  const [edit, admin] = await Promise.all([
-    supabase.rpc("can_edit", { p_node_id: nodeId }),
-    supabase.rpc("can_admin", { p_node_id: nodeId }),
-  ]);
-  return { canEdit: edit.data === true, canAdmin: admin.data === true };
+
+  // One call, deliberately. These used to go out together through
+  // Promise.all, which was the only concurrency in a page render: two requests
+  // on one client, each able to decide the session needed refreshing, and
+  // refresh tokens rotate. Whichever lost that race went out unauthenticated
+  // and came back "false" — a permission check failing silently closed, which
+  // looks exactly like the rule working. See the migration for the whole story.
+  const { data, error } = await supabase
+    .rpc("node_capabilities", { p_node_id: nodeId })
+    .maybeSingle<{ can_edit: boolean; can_admin: boolean }>();
+
+  if (error) {
+    console.error("node_capabilities failed for %s: %s", nodeId, error.message);
+  }
+
+  return {
+    canEdit: data?.can_edit === true,
+    canAdmin: data?.can_admin === true,
+  };
 }
 
 export type SaveResult =

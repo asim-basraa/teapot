@@ -57,7 +57,11 @@ test.describe("Slice 2: file tree and node CRUD", () => {
         r.url().includes("/api/v1/nodes") && r.request().method() === method,
     );
     answer(promptValue);
-    await page.getByRole("button", { name: buttonName }).click();
+    // Exact, because the tree header offers "New page at the top level" and a
+    // folder's own page offers "New page", and the two mean different places.
+    await page
+      .getByRole("button", { name: buttonName, exact: true })
+      .click();
     return waitForApi;
   }
 

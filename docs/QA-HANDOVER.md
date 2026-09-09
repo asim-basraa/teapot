@@ -28,13 +28,21 @@ bug and it is the most valuable bug you can file.
 is, how to connect it to Claude, and what a connected Claude can and cannot
 reach. It is also a thing to test in its own right.
 
+**Then read the Teapot space**, at `/s/teapot`, once you are signed in. It is
+the same material as living content: what Teapot is, connecting Claude, how
+sharing works, and six starter skills you can copy into your own space. It is
+shared with everyone who has an account and with nobody who does not, so it
+doubles as a check on that: open `/s/teapot` in a private window and it must
+404.
+
 **Signing up.** Registration is open to anyone with a `@maqsoodlabs.com`
 address. Everyone else is refused unless they have been invited.
 
-> **Known gap.** There is no invitation screen yet. If you are testing from an
-> address outside `maqsoodlabs.com`, you cannot register on your own and
-> somebody has to add an invitation for you directly in the database. Flag this
-> at the start of your round rather than at the end of it.
+**Being invited.** Somebody sharing a page or folder with an address that has
+no account now invites it. The invitation email arrives from Teapot; following
+the link asks you to set a password and then puts you straight on the thing you
+were shared. That is the route in for a tester whose address is not on
+`maqsoodlabs.com`: ask somebody to share something with you.
 
 **Confirming your email.** You get a real confirmation email; the link signs you
 in and lands you on your spaces. If it does not arrive, check spam before
@@ -177,8 +185,12 @@ Anonymous visitors searching a space get exactly its published pages.
 
 ### Comments
 
-At the bottom of every page. Reading a page is enough to comment on it; you do
-not need edit rights.
+At the bottom of every page, below the article and below the backlinks — never
+attached to a paragraph. Reading a page is enough to comment on it; you do not
+need edit rights.
+
+- Post from one browser, reload in another: the second must see it. The panel
+  re-reads on arrival, so a stale page should not be possible.
 
 - One level of replies. You cannot reply to a reply.
 - You can delete your own; an administrator of the page can delete anybody's.
@@ -195,7 +207,8 @@ not need edit rights.
 Every page is an **article** or a **skill**. Skills are Markdown files written
 to Claude's conventions, so Teapot can double as a skills repository.
 
-- The **+ Skill** button creates one with its frontmatter already filled in.
+- **+ Skill** in the tree header, and **New skill** on a folder's page, create
+  one with its frontmatter already filled in.
 - The Type dropdown in the editor reclassifies a page.
 - A skill with no `name` or `description` still saves, and shows a warning. It
   is never rejected: losing your writing over a formatting detail would be the
@@ -236,6 +249,27 @@ rather than merely wrong.
 
 ---
 
+## Fixed since the last round
+
+Worth a second look, because these are where the bugs were.
+
+- **Renaming.** A page's title is now its name. Renaming shows through
+  immediately on the page, not only in the sidebar.
+- **Renaming a space.** There is a real one now, next to the space's name in
+  the header. It changes the name in the header, on the front page and in the
+  list of spaces, and leaves the address alone. The space's front page is no
+  longer a file in the tree, and the database refuses to move or delete it —
+  renaming it was what 404ed whole spaces.
+- **Sharing a folder.** Folders are links now; click one to see what is inside.
+  Share is offered beside every item in the sidebar as well as at the top of
+  whatever you are reading.
+- **Sharing with an address that has no account.** It invites them instead of
+  refusing.
+- **Who can see this.** The two separate controls, "everyone here" and "on the
+  web", are one setting with four values, and choosing one withdraws the others.
+
+---
+
 ## Known gaps, so you do not spend time on them
 
 These are known and either scheduled or deliberate. Report them only if the
@@ -243,7 +277,7 @@ behaviour differs from what is written here.
 
 | Gap | Status |
 | --- | --- |
-| No invitation screen; outside addresses cannot self-register | Not built |
+| No standalone invite screen; you are invited by being shared something | Deliberate for now. Sharing with an unknown address invites it |
 | Google Drive image links do not render | #10, not built |
 | No platform administrator view across spaces | #15, not built |
 | Landing page at `/` is still a placeholder | Deliberate for now |
@@ -256,13 +290,15 @@ behaviour differs from what is written here.
 
 So you know where the thin ice is, and where it is not.
 
-- **114 database-level assertions** covering every access rule: inheritance,
-  teams, publishing, revocation, search filtering, comment visibility, and the
-  specific three-valued-logic trap that once let any signed-in user grant
-  themselves administrator on any page.
-- **84 browser tests** across twelve suites, driving real sign-ups with real
-  confirmation emails, and using two or three separate browsers wherever the
-  question is what a *different* person can see.
+- **160-odd database-level assertions** covering every access rule:
+  inheritance, teams, publishing, sharing with everyone, the exclusivity of the
+  visibility setting, invitations and what accepting one delivers, revocation,
+  search filtering, comment visibility, the protection on a space's front page,
+  and the specific three-valued-logic trap that once let any signed-in user
+  grant themselves administrator on any page.
+- **125-odd browser tests** across fourteen suites, driving real sign-ups with
+  real confirmation emails and real invitation emails, and using two or three
+  separate browsers wherever the question is what a *different* person can see.
 - **57 unit tests** on the renderer and the pure logic.
 
 All of it runs on every push and must be green before anything merges.

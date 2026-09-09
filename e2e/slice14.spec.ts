@@ -74,7 +74,7 @@ test.describe("Sharing with everyone who has an account", () => {
 
   test("the owner shares a folder with everyone here", async () => {
     await owner.goto(FOLDER);
-    await owner.getByRole("button", { name: "Share" }).click();
+    await owner.getByRole("button", { name: "Share", exact: true }).click();
 
     const control = owner.getByLabel("Everyone with a Teapot account");
     await expect(control).toHaveValue("");
@@ -121,7 +121,7 @@ test.describe("Sharing with everyone who has an account", () => {
 
   test("raising it to editor lets everyone write", async () => {
     await owner.goto(FOLDER);
-    await owner.getByRole("button", { name: "Share" }).click();
+    await owner.getByRole("button", { name: "Share", exact: true }).click();
 
     const control = owner.getByLabel("Everyone with a Teapot account");
     await Promise.all([
@@ -140,7 +140,7 @@ test.describe("Sharing with everyone who has an account", () => {
     // Editing is not administering. Nobody hands the power to reshare to
     // everyone on purpose, so it is not offered.
     await expect(
-      colleague.getByRole("button", { name: "Share" }),
+      colleague.getByRole("button", { name: "Share", exact: true }),
     ).toHaveCount(0);
   });
 
@@ -156,7 +156,7 @@ test.describe("Sharing with everyone who has an account", () => {
 
   test("a page inside says where its access comes from", async () => {
     await owner.goto(INSIDE);
-    await owner.getByRole("button", { name: "Share" }).click();
+    await owner.getByRole("button", { name: "Share", exact: true }).click();
 
     // The grant lives on the folder, so changing it here would do nothing.
     const control = owner.getByLabel("Everyone with a Teapot account");
@@ -168,7 +168,7 @@ test.describe("Sharing with everyone who has an account", () => {
 
   test("withdrawing it takes the access with it", async () => {
     await owner.goto(FOLDER);
-    await owner.getByRole("button", { name: "Share" }).click();
+    await owner.getByRole("button", { name: "Share", exact: true }).click();
 
     const control = owner.getByLabel("Everyone with a Teapot account");
     await Promise.all([

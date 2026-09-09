@@ -104,7 +104,7 @@ test.describe("Slice 4: sharing a node with another person", () => {
     await expect(
       guest.getByRole("link", { name: "Edit", exact: true }),
     ).toHaveCount(0);
-    await expect(guest.getByRole("button", { name: "Share" })).toHaveCount(0);
+    await expect(guest.getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
   });
 
   test("the grantee's sidebar shows only what they can read", async () => {

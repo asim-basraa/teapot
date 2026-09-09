@@ -110,6 +110,19 @@ test.describe("Comments", () => {
     // to have survived the reload, and it carries what the guest wrote.
     const panel = owner.getByRole("region", { name: "Comments" });
     await expect(panel, "the owner must be signed in to see comments").toBeVisible();
+
+    // Asked of the API as well as of the page, because the two failures look
+    // identical and have nothing in common: if this passes and the page below
+    // does not, the data reached the request and something between the request
+    // and the markup lost it.
+    const listed = await owner.request.get(`/api/v1/nodes/${nodeId}/comments`);
+    const bodies = ((await listed.json()).comments as { body: string }[]).map(
+      (c) => c.body,
+    );
+    expect(bodies, "the API must show the owner what the guest wrote").toContain(
+      "The Q3 date looks wrong.",
+    );
+
     await expect(panel.getByText("The Q3 date looks wrong.")).toBeVisible();
     await expect(owner.getByText(GUEST)).toBeVisible();
 
@@ -176,7 +189,7 @@ test.describe("Comments", () => {
     const panel = owner.getByRole("region", { name: "Comments" });
     await expect(panel).toBeVisible();
     await expect(panel.getByText("Something regrettable.")).toBeVisible();
-    await expect(owner.getByRole("button", { name: "Share" })).toBeVisible();
+    await expect(owner.getByRole("button", { name: "Share", exact: true })).toBeVisible();
 
     await owner
       .getByRole("button", { name: `Delete the comment by ${GUEST}` })

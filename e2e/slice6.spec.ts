@@ -68,7 +68,7 @@ test.describe("Slice 6: public sharing", () => {
 
   test("the owner publishes a folder from the share dialog", async () => {
     await owner.goto(FOLDER);
-    await owner.getByRole("button", { name: "Share" }).click();
+    await owner.getByRole("button", { name: "Share", exact: true }).click();
 
     const toggle = owner.getByLabel("Anyone with the link can read this");
     await expect(toggle).not.toBeChecked();
@@ -110,7 +110,7 @@ test.describe("Slice 6: public sharing", () => {
     await expect(
       visitor.getByRole("link", { name: "Edit", exact: true }),
     ).toHaveCount(0);
-    await expect(visitor.getByRole("button", { name: "Share" })).toHaveCount(0);
+    await expect(visitor.getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
 
     // Not merely hidden: the endpoint refuses too.
     const res = await visitor.request.put(`/api/v1/nodes/${folderId}/public`, {
@@ -126,7 +126,7 @@ test.describe("Slice 6: public sharing", () => {
 
   test("a descendant says where its publicness comes from", async () => {
     await owner.goto(OPEN);
-    await owner.getByRole("button", { name: "Share" }).click();
+    await owner.getByRole("button", { name: "Share", exact: true }).click();
 
     // The grant lives on the folder, so the toggle here would appear to do
     // nothing. It says so instead of lying.
@@ -137,7 +137,7 @@ test.describe("Slice 6: public sharing", () => {
 
   test("unpublishing hides it again", async () => {
     await owner.goto(FOLDER);
-    await owner.getByRole("button", { name: "Share" }).click();
+    await owner.getByRole("button", { name: "Share", exact: true }).click();
 
     const toggle = owner.getByLabel("Anyone with the link can read this");
     await expect(toggle).toBeChecked();

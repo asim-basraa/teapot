@@ -36,6 +36,13 @@ address. Everyone else is refused unless they have been invited.
 in and lands you on your spaces. If it does not arrive, check spam before
 reporting it, then report it.
 
+**Registering an address that already has an account sends nothing.** The form
+still says a link is on its way, because Supabase deliberately refuses to
+confirm or deny whether an address is registered: doing so would turn the
+signup form into a way of discovering who has an account. So if you are waiting
+on an email that never comes, try signing in before reporting it. This is not a
+bug, and it is the single most common way to lose ten minutes here.
+
 **Forgot your password** works from the sign-in page and sends a real email too.
 
 ---

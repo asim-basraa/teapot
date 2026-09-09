@@ -44,8 +44,14 @@ export async function signUp(
     return { error: error.message };
   }
 
+  // Deliberately conditional. Supabase answers a signup for an address that
+  // already has a confirmed account with success and sends nothing, so that the
+  // form cannot be used to discover who has an account. Promising an email
+  // outright therefore leaves anybody who forgot they had registered waiting
+  // for something that is never coming. This says what is actually true in both
+  // cases without giving away which one they are in.
   return {
-    notice: `Check ${email} for a confirmation link. You will not be able to sign in until you have followed it.`,
+    notice: `If ${email} is new to Teapot, a confirmation link is on its way, and you will not be able to sign in until you have followed it. If you already have an account, sign in below instead.`,
   };
 }
 

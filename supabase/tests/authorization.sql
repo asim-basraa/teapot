@@ -800,4 +800,89 @@ select pg_temp.check('and sees none of its comments',
   (select count(*)::text from public.comments), '0');
 reset role;
 
+-- Sharing with everyone ------------------------------------------------------
+--
+-- The middle of the range: everyone who has an account, which is not the same
+-- as the open internet. Its absence is what pushes people towards publishing
+-- when all they meant was "the whole company".
+
+insert into public.nodes (id, space_id, parent_id, kind, name) values
+  ('b0000000-0000-0000-0000-00000000000c','a0000000-0000-0000-0000-000000000001', null, 'folder','Handbook');
+insert into public.nodes (id, space_id, parent_id, kind, name, content) values
+  ('b0000000-0000-0000-0000-00000000000d','a0000000-0000-0000-0000-000000000001','b0000000-0000-0000-0000-00000000000c','file','Leave','# leave');
+
+select pg_temp.check('a stranger starts with no access to it',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-00000000000d')::text, 'false');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.set_shared_with_everyone('b0000000-0000-0000-0000-00000000000c','viewer');
+reset role;
+
+select pg_temp.check('everyone with an account can read it',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-00000000000c')::text, 'true');
+select pg_temp.check('and everything beneath it',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-00000000000d')::text, 'true');
+
+-- The distinction the whole feature exists for.
+select pg_temp.check('an anonymous visitor still sees nothing',
+  public.can_read(null,'b0000000-0000-0000-0000-00000000000c')::text, 'false');
+
+select pg_temp.check('reading is not writing',
+  public.can_edit('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-00000000000d')::text, 'false');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.set_shared_with_everyone('b0000000-0000-0000-0000-00000000000c','editor');
+reset role;
+
+select pg_temp.check('raising it to editor lets everyone write',
+  public.can_edit('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-00000000000d')::text, 'true');
+select pg_temp.check('and never administer',
+  public.can_admin('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-00000000000d')::text, 'false');
+
+-- Admin for everyone is the power to change who else can see a thing, which is
+-- not a decision anybody makes on purpose. Refused at the table.
+do $$
+begin
+  begin
+    insert into public.grants (node_id, grantee_type, grantee_id, role)
+    values ('b0000000-0000-0000-0000-000000000004','authenticated',null,'admin');
+    raise exception 'FAIL: a grant to everyone conferred admin';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+do $$
+begin
+  begin
+    insert into public.grants (node_id, grantee_type, grantee_id, role)
+    values ('b0000000-0000-0000-0000-000000000004','authenticated',
+            '44444444-4444-4444-4444-444444444444','viewer');
+    raise exception 'FAIL: a grant to everyone named a grantee';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+do $$
+begin
+  begin
+    perform public.set_shared_with_everyone('b0000000-0000-0000-0000-000000000004','viewer');
+    raise exception 'FAIL: a stranger shared somebody else''s node with everyone';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.set_shared_with_everyone('b0000000-0000-0000-0000-00000000000c', null);
+reset role;
+
+select pg_temp.check('withdrawing it takes the access with it',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-00000000000d')::text, 'false');
+
 rollback;

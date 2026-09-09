@@ -28,6 +28,9 @@ export function Share({
   // not move when you click it reads as broken, and Playwright agrees: it
   // reports the click as having had no effect.
   const [pendingPublic, setPendingPublic] = useState<boolean | null>(null);
+  const [pendingEveryone, setPendingEveryone] = useState<
+    GrantRole | "" | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -64,6 +67,7 @@ export function Share({
     setOpen(true);
     setGrants(null);
     setPendingPublic(null);
+    setPendingEveryone(null);
     void load();
     void loadTeams();
   }
@@ -120,6 +124,32 @@ export function Share({
     setPendingPublic(null);
   }
 
+  // The parameter is deliberately not called `role`: there is already a `role`
+  // in scope for the person-or-team form, and the two mean different things.
+  async function shareWithEveryone(next: GrantRole | "") {
+    setBusy(true);
+    setPendingEveryone(next);
+    setError(null);
+
+    const res = await fetch(`/api/v1/nodes/${nodeId}/everyone`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role: next === "" ? null : next }),
+    });
+
+    const body = await res.json().catch(() => ({}));
+    setBusy(false);
+
+    if (!res.ok) {
+      setPendingEveryone(null);
+      setError(body.error ?? `Could not change that (${res.status})`);
+      return;
+    }
+
+    setGrants(body.grants ?? []);
+    setPendingEveryone(null);
+  }
+
   async function revoke(grantId: string) {
     setBusy(true);
     setError(null);
@@ -141,6 +171,13 @@ export function Share({
   );
   const published = pendingPublic ?? publicGrants.some((g) => !g.inherited);
   const inheritedPublic = publicGrants.find((g) => g.inherited) ?? null;
+
+  const everyoneGrants = (grants ?? []).filter(
+    (g) => g.grantee_type === "authenticated",
+  );
+  const everyoneHere = everyoneGrants.find((g) => !g.inherited) ?? null;
+  const inheritedEveryone = everyoneGrants.find((g) => g.inherited) ?? null;
+  const everyoneRole = pendingEveryone ?? (everyoneHere?.role ?? "");
 
   return (
     <>
@@ -233,6 +270,40 @@ export function Share({
           </button>
         </form>
 
+        <h3>Everyone here</h3>
+
+        <div className="share-everyone">
+          <label className="field">
+            <span className="field-label">
+              Everyone with a Teapot account
+            </span>
+            <select
+              className="input"
+              value={everyoneRole}
+              disabled={busy || grants === null || inheritedEveryone !== null}
+              onChange={(e) =>
+                void shareWithEveryone(e.target.value as GrantRole | "")
+              }
+            >
+              <option value="">No access</option>
+              <option value="viewer">Can read</option>
+              <option value="editor">Can edit</option>
+            </select>
+          </label>
+
+          {inheritedEveryone ? (
+            <p className="hint">
+              Already shared with everyone through{" "}
+              {inheritedEveryone.origin_path}. Change it there.
+            </p>
+          ) : (
+            <p className="hint">
+              Everyone signed in to Teapot, and nobody else. This is not the
+              same as putting it on the web, below.
+            </p>
+          )}
+        </div>
+
         <h3>On the web</h3>
 
         <div className="share-public">
@@ -306,6 +377,9 @@ export function Share({
  */
 function describe(grant: EffectiveGrant): string {
   if (grant.grantee_type === "public") return "Anyone with the link";
+  if (grant.grantee_type === "authenticated") {
+    return "Everyone with a Teapot account";
+  }
   if (grant.grantee_type === "team") {
     return `${grant.grantee_name ?? "A team"} (team)`;
   }

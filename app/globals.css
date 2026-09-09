@@ -794,3 +794,8 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 
 .soon-signin { display: flex; gap: 0.6rem; justify-content: center; align-items: baseline; }
 .soon-signin span { color: var(--muted); }
+
+/* Sharing with everyone */
+.share-everyone { margin: 0.25rem 0 0.5rem; }
+.share-everyone .field { max-width: 20rem; }
+.share-everyone .hint { font-size: 0.78rem; color: var(--muted); margin: 0.4rem 0 0; }

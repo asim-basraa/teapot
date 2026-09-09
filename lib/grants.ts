@@ -7,7 +7,7 @@ export type EffectiveGrant = {
   origin_node_id: string;
   origin_path: string;
   inherited: boolean;
-  grantee_type: "user" | "team" | "public";
+  grantee_type: "user" | "team" | "public" | "authenticated";
   grantee_id: string | null;
   grantee_email: string | null;
   grantee_name: string | null;
@@ -105,6 +105,38 @@ export async function revokeGrant(grantId: string): Promise<GrantResult> {
     return { ok: false, error: "Not found.", status: 404 };
   }
   return { ok: true };
+}
+
+/**
+ * Shares a node with everyone who has an account, or stops doing so.
+ *
+ * A third thing, distinct from both a named grantee and publishing. Passing
+ * null withdraws it. The database refuses admin here: viewer and editor are
+ * both things somebody might want for a whole organisation, but the power to
+ * change who else can see a thing is not something anyone hands to "everyone"
+ * on purpose.
+ */
+export async function setSharedWithEveryone(
+  nodeId: string,
+  role: GrantRole | null,
+): Promise<GrantResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_shared_with_everyone", {
+    p_node_id: nodeId,
+    p_role: role,
+  });
+
+  if (!error) return { ok: true };
+
+  if (/cannot confer admin/i.test(error.message)) {
+    return {
+      ok: false,
+      error: "Everyone cannot be given admin.",
+      status: 400,
+    };
+  }
+
+  return { ok: false, error: "Not found.", status: 404 };
 }
 
 /**

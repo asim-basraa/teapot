@@ -24,6 +24,10 @@ bug and it is the most valuable bug you can file.
 
 **Staging:** https://web-staging-347f.up.railway.app
 
+**Read `/docs` first.** It is public, needs no account, and explains what Teapot
+is, how to connect it to Claude, and what a connected Claude can and cannot
+reach. It is also a thing to test in its own right.
+
 **Signing up.** Registration is open to anyone with a `@maqsoodlabs.com`
 address. Everyone else is refused unless they have been invited.
 
@@ -108,6 +112,21 @@ people by email, share a folder with the team.
 - Removing somebody from a team removes their access immediately.
 - Deleting a team removes every grant made to it.
 - A member of a team cannot manage that team. Only the space owner can.
+
+### Sharing with everyone
+
+In the Share dialog, above the publish toggle: **Everyone with a Teapot
+account**, set to no access, read, or edit.
+
+This is the middle of the range and the distinction matters more than anything
+else on this screen. "Everyone here" means every person who can sign in.
+"Publishing", below it, means the open internet with no account at all. Share a
+folder with everyone, then open it in a private window: it must still 404.
+
+- Everyone can never be given admin. The power to change who else can see
+  something is not handed to a whole organisation.
+- A page inside a folder shared this way says so, and its own control is
+  disabled, because changing it there would do nothing.
 
 ### Publishing
 
@@ -199,7 +218,6 @@ behaviour differs from what is written here.
 | Gap | Status |
 | --- | --- |
 | No invitation screen; outside addresses cannot self-register | Not built |
-| No documentation page explaining MCP or skills | Next up (#14) |
 | Google Drive image links do not render | #10, not built |
 | No platform administrator view across spaces | #15, not built |
 | Landing page at `/` is still a placeholder | Deliberate for now |

@@ -954,4 +954,80 @@ select pg_temp.check('deleting a space takes its home page with it',
   (select count(*)::text from public.nodes
     where id = 'b0000000-0000-0000-0000-0000000000f9'), '0');
 
+-- Inviting somebody who has no account --------------------------------------
+--
+-- Sign-up is invitation-only, so refusing to share with an unknown address was
+-- a dead end with no door: the person could not sign up, and nothing let
+-- anyone invite them. What the database has to guarantee is that an invitation
+-- is an administrator's decision, and that accepting one delivers the access
+-- it promised rather than an empty list of spaces.
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+
+do $$
+begin
+  begin
+    perform public.invite_to_node('b0000000-0000-0000-0000-000000000004',
+      'nobody@example.com', 'viewer');
+    raise exception 'FAIL: a stranger invited somebody to a node they cannot administer';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.invite_to_node('b0000000-0000-0000-0000-000000000001',
+  'Newcomer@Example.com', 'editor');
+reset role;
+
+select pg_temp.check('the invitation is recorded against the node, folded to lower case',
+  (select lower(email) || ' -> ' || role::text
+     from public.invitations
+    where node_id = 'b0000000-0000-0000-0000-000000000001'),
+  'newcomer@example.com -> editor');
+
+-- Re-inviting refreshes rather than duplicating: the second invitation is the
+-- one that counts, and the pending index would refuse a second row anyway.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.invite_to_node('b0000000-0000-0000-0000-000000000001',
+  'newcomer@example.com', 'viewer');
+reset role;
+
+select pg_temp.check('re-inviting refreshes the one invitation',
+  (select count(*)::text || ' at ' || max(role::text)
+     from public.invitations
+    where node_id = 'b0000000-0000-0000-0000-000000000001'),
+  '1 at viewer');
+
+-- The same address invited to a second node. The old index was unique on the
+-- address alone, which made this impossible for no good reason.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.invite_to_node('b0000000-0000-0000-0000-000000000004',
+  'newcomer@example.com', 'viewer');
+reset role;
+
+select pg_temp.check('one person can be invited to two things at once',
+  (select count(*)::text from public.invitations
+    where lower(email) = 'newcomer@example.com' and accepted_at is null), '2');
+
+-- Accepting is the account coming into being, so this creates one and lets
+-- the trigger do what it does. That is what makes the assertions below worth
+-- anything: nothing here reaches into the invitations table on its own behalf.
+insert into auth.users (id, instance_id, aud, role, email) values
+  ('55555555-5555-5555-5555-555555555555','00000000-0000-0000-0000-000000000000',
+   'authenticated','authenticated','newcomer@example.com');
+
+select pg_temp.check('accepting delivers the access the invitation promised',
+  public.can_read('55555555-5555-5555-5555-555555555555','b0000000-0000-0000-0000-000000000003')::text,
+  'true');
+select pg_temp.check('at the role it named',
+  public.can_edit('55555555-5555-5555-5555-555555555555','b0000000-0000-0000-0000-000000000003')::text,
+  'false');
+select pg_temp.check('and an invitation is single use',
+  (select count(*)::text from public.invitations
+    where lower(email) = 'newcomer@example.com' and accepted_at is null), '0');
+
 rollback;

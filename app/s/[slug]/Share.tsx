@@ -74,6 +74,7 @@ export function ShareDialog({
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Mounted means open: the caller decides whether the dialog exists, which
   // keeps the loading below tied to being shown rather than to a second flag.
@@ -119,6 +120,7 @@ export function ShareDialog({
     event.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
 
     const payload =
       grantee === "team" ? { team_id: teamId, role } : { email, role };
@@ -135,6 +137,15 @@ export function ShareDialog({
     if (!res.ok) {
       setError(body.error ?? `Could not share (${res.status})`);
       return;
+    }
+
+    // They had no account, so one was created and an invitation emailed. Worth
+    // saying: they appear on the list below but cannot read anything until
+    // they accept, and somebody who does not know that will wonder why.
+    if (body.invited) {
+      setNotice(
+        `${email} has no Teapot account yet. An invitation is on its way, and they will have access as soon as they accept it.`,
+      );
     }
 
     if (grantee === "person") setEmail("");
@@ -243,6 +254,12 @@ export function ShareDialog({
       {error ? (
         <p className="msg msg-error" role="alert">
           {error}
+        </p>
+      ) : null}
+
+      {notice ? (
+        <p className="msg msg-notice" role="status">
+          {notice}
         </p>
       ) : null}
 

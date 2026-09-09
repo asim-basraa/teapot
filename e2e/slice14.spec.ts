@@ -76,16 +76,16 @@ test.describe("Sharing with everyone who has an account", () => {
     await owner.goto(FOLDER);
     await owner.getByRole("button", { name: "Share", exact: true }).click();
 
-    const control = owner.getByLabel("Everyone with a Teapot account");
-    await expect(control).toHaveValue("");
+    const reach = owner.getByRole("combobox", { name: "Visibility" });
+    await expect(reach).toHaveValue("private");
 
     const [response] = await Promise.all([
       owner.waitForResponse(
         (r) =>
-          r.url().includes(`/api/v1/nodes/${folderId}/everyone`) &&
+          r.url().includes(`/api/v1/nodes/${folderId}/visibility`) &&
           r.request().method() === "PUT",
       ),
-      control.selectOption("viewer"),
+      reach.selectOption("everyone:viewer"),
     ]);
     expect(response.status(), await response.text()).toBe(200);
   });
@@ -123,14 +123,14 @@ test.describe("Sharing with everyone who has an account", () => {
     await owner.goto(FOLDER);
     await owner.getByRole("button", { name: "Share", exact: true }).click();
 
-    const control = owner.getByLabel("Everyone with a Teapot account");
+    const reach = owner.getByRole("combobox", { name: "Visibility" });
     await Promise.all([
       owner.waitForResponse(
         (r) =>
-          r.url().includes(`/api/v1/nodes/${folderId}/everyone`) &&
+          r.url().includes(`/api/v1/nodes/${folderId}/visibility`) &&
           r.request().method() === "PUT",
       ),
-      control.selectOption("editor"),
+      reach.selectOption("everyone:editor"),
     ]);
 
     await colleague.goto(INSIDE);
@@ -158,26 +158,82 @@ test.describe("Sharing with everyone who has an account", () => {
     await owner.goto(INSIDE);
     await owner.getByRole("button", { name: "Share", exact: true }).click();
 
-    // The grant lives on the folder, so changing it here would do nothing.
-    const control = owner.getByLabel("Everyone with a Teapot account");
-    await expect(control).toBeDisabled();
+    // The grant lives on the folder, so this page's own setting is not the
+    // whole truth about who can read it, and it says so.
     await expect(
-      owner.getByText("Already shared with everyone through"),
+      owner.getByRole("combobox", { name: "Visibility" }),
+    ).toHaveValue("private");
+    await expect(
+      owner.getByText(
+        "readable by everyone signed in to Teapot, so this is too",
+      ),
     ).toBeVisible();
+  });
+
+  test("choosing one answer withdraws the other", async () => {
+    // The reason the two controls became one. They could both be set, so a
+    // node could be published *and* shared with everyone, where the second
+    // says nothing the first does not, and "who can see this" had to be
+    // assembled by the reader from two places that could disagree.
+    await owner.goto(FOLDER);
+    await owner.getByRole("button", { name: "Share", exact: true }).click();
+
+    const reach = owner.getByRole("combobox", { name: "Visibility" });
+    await Promise.all([
+      owner.waitForResponse(
+        (r) =>
+          r.url().includes(`/api/v1/nodes/${folderId}/visibility`) &&
+          r.request().method() === "PUT",
+      ),
+      reach.selectOption("public"),
+    ]);
+
+    const listed = await owner.request.get(
+      `/api/v1/nodes/${folderId}/grants`,
+    );
+    const { grants } = await listed.json();
+    const kinds = grants.map((g: { grantee_type: string }) => g.grantee_type);
+    expect(kinds, "publishing withdraws the grant to everyone").not.toContain(
+      "authenticated",
+    );
+    expect(kinds).toContain("public");
+
+    // And it means what it says: no account at all.
+    expect((await visitor.goto(INSIDE))?.status()).toBe(200);
+
+    // Back the other way, which must withdraw the public grant.
+    await owner.goto(FOLDER);
+    await owner.getByRole("button", { name: "Share", exact: true }).click();
+    await Promise.all([
+      owner.waitForResponse(
+        (r) =>
+          r.url().includes(`/api/v1/nodes/${folderId}/visibility`) &&
+          r.request().method() === "PUT",
+      ),
+      owner
+        .getByRole("combobox", { name: "Visibility" })
+        .selectOption("everyone:editor"),
+    ]);
+
+    expect(
+      (await visitor.goto(INSIDE))?.status(),
+      "everyone here is not the internet",
+    ).toBe(404);
+    expect((await colleague.goto(INSIDE))?.status()).toBe(200);
   });
 
   test("withdrawing it takes the access with it", async () => {
     await owner.goto(FOLDER);
     await owner.getByRole("button", { name: "Share", exact: true }).click();
 
-    const control = owner.getByLabel("Everyone with a Teapot account");
+    const reach = owner.getByRole("combobox", { name: "Visibility" });
     await Promise.all([
       owner.waitForResponse(
         (r) =>
-          r.url().includes(`/api/v1/nodes/${folderId}/everyone`) &&
+          r.url().includes(`/api/v1/nodes/${folderId}/visibility`) &&
           r.request().method() === "PUT",
       ),
-      control.selectOption(""),
+      reach.selectOption("private"),
     ]);
 
     expect((await colleague.goto(INSIDE))?.status()).toBe(404);

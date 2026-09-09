@@ -73,27 +73,34 @@ test.describe("Slice 2: file tree and node CRUD", () => {
     await expect(page.locator(".tree-folder-name")).toContainText("Projects");
   });
 
-  test("creates a page inside that folder", async () => {
-    const response = await actAndAwait(
-      "New page in Projects",
-      "POST",
-      "Road Map",
-    );
+  test("creates a page inside that folder, from the folder", async () => {
+    // Not from the sidebar row. Creating things inside a folder lives on the
+    // folder's own page, where there is room for it and where you can see
+    // what is already there.
+    await page.getByRole("link", { name: "Projects" }).click();
+    await expect(page).toHaveURL(`/s/${SPACE_SLUG}/projects`);
+
+    const response = await actAndAwait("New page", "POST", "Road Map");
     expect(
       response.status(),
       await response.text().catch(() => ""),
     ).toBe(201);
 
-    const link = page.getByRole("link", { name: "Road Map" });
+    const link = page.locator(".tree").getByRole("link", { name: "Road Map" });
     await expect(link).toBeVisible();
     await expect(link).toHaveAttribute(
       "href",
       `/s/${SPACE_SLUG}/projects/road-map`,
     );
+
+    // And it is listed where it was made.
+    await expect(
+      page.locator(".folder-contents").getByRole("link", { name: "Road Map" }),
+    ).toBeVisible();
   });
 
   test("navigates to the page through the sidebar", async () => {
-    await page.getByRole("link", { name: "Road Map" }).click();
+    await page.locator(".tree").getByRole("link", { name: "Road Map" }).click();
 
     await expect(page).toHaveURL(`/s/${SPACE_SLUG}/projects/road-map`);
     await expect(

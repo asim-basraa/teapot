@@ -8,6 +8,7 @@ import { currentUser } from "@/lib/supabase/server";
 import { Share } from "../Share";
 import { Mermaid } from "../Mermaid";
 import { Comments } from "../Comments";
+import { NewChild } from "../NewChild";
 import {
   getSpaceBySlug,
   getNodeByPath,
@@ -77,6 +78,9 @@ export default async function NodePage({
         {actions}
         <article className="prose">
           <h1>{node.name}</h1>
+
+          {canEdit ? <NewChild spaceId={space.id} parentId={node.id} /> : null}
+
           {children.length === 0 ? (
             <p className="empty">This folder is empty.</p>
           ) : (

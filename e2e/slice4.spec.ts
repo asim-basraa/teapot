@@ -68,14 +68,17 @@ test.describe("Slice 4: sharing a node with another person", () => {
     expect(response?.status()).toBe(404);
   });
 
-  test("sharing with an address that has no account says so", async () => {
+  test("sharing with an address that has no account invites it", async () => {
+    // It used to refuse. Sign-up here is invitation-only, so refusing left the
+    // sharer holding an address that could never become an account. See
+    // e2e/invitations.spec.ts for the journey the other end takes.
     const res = await owner.request.post(
       `/api/v1/nodes/${sharedNodeId}/grants`,
       { data: { email: `nobody-${RUN}@maqsoodlabs.com`, role: "viewer" } },
     );
 
-    expect(res.status()).toBe(404);
-    expect(await res.text()).toMatch(/no teapot account/i);
+    expect(res.status(), await res.text()).toBe(201);
+    expect((await res.json()).invited).toBe(true);
   });
 
   test("the owner shares one page as viewer", async () => {

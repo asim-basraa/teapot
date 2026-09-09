@@ -1030,4 +1030,96 @@ select pg_temp.check('and an invitation is single use',
   (select count(*)::text from public.invitations
     where lower(email) = 'newcomer@example.com' and accepted_at is null), '0');
 
+-- Visibility as one decision ------------------------------------------------
+--
+-- Reach used to be set through two independent controls, so a node could be
+-- published *and* shared with everyone at once: a state nobody chooses, and
+-- one where "who can see this" has two answers that can disagree. One function
+-- now decides between the three, and choosing any one of them withdraws the
+-- others. That exclusivity is the whole guarantee, so it is what is asserted.
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.set_node_visibility('b0000000-0000-0000-0000-000000000002','everyone','editor');
+reset role;
+
+select pg_temp.check('everyone means everyone with an account',
+  public.can_edit('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000003')::text, 'true');
+select pg_temp.check('and never an anonymous visitor',
+  public.can_read(null,'b0000000-0000-0000-0000-000000000003')::text, 'false');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.set_node_visibility('b0000000-0000-0000-0000-000000000002','public');
+reset role;
+
+select pg_temp.check('publishing withdraws the grant to everyone',
+  (select count(*)::text from public.grants
+    where node_id = 'b0000000-0000-0000-0000-000000000002'
+      and grantee_type = 'authenticated'), '0');
+select pg_temp.check('and reaches the internet instead',
+  public.can_read(null,'b0000000-0000-0000-0000-000000000003')::text, 'true');
+select pg_temp.check('read only, whatever it replaced',
+  public.can_edit(null,'b0000000-0000-0000-0000-000000000003')::text, 'false');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.set_node_visibility('b0000000-0000-0000-0000-000000000002','everyone','viewer');
+reset role;
+
+select pg_temp.check('and back the other way withdraws the public grant',
+  (select count(*)::text from public.grants
+    where node_id = 'b0000000-0000-0000-0000-000000000002'
+      and grantee_type = 'public'), '0');
+select pg_temp.check('so an anonymous visitor loses it again',
+  public.can_read(null,'b0000000-0000-0000-0000-000000000003')::text, 'false');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.set_node_visibility('b0000000-0000-0000-0000-000000000002','private');
+reset role;
+
+select pg_temp.check('private leaves neither behind',
+  (select count(*)::text from public.grants
+    where node_id = 'b0000000-0000-0000-0000-000000000002'
+      and grantee_type in ('public','authenticated')), '0');
+
+-- Handing "everyone" the power to decide who else can see a thing is not a
+-- decision anybody makes on purpose, so it is not on offer.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+do $$
+begin
+  begin
+    perform public.set_node_visibility('b0000000-0000-0000-0000-000000000002','everyone','admin');
+    raise exception 'FAIL: everyone was given admin';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+do $$
+begin
+  begin
+    perform public.set_node_visibility('b0000000-0000-0000-0000-000000000002','somewhere-else');
+    raise exception 'FAIL: an unknown visibility was accepted';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+-- A stranger cannot set the reach of somebody else's node, and is told the
+-- same thing they would be told about a node that does not exist.
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+do $$
+begin
+  begin
+    perform public.set_node_visibility('b0000000-0000-0000-0000-000000000004','public');
+    raise exception 'FAIL: a stranger published somebody else''s node';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+reset role;
+
 rollback;

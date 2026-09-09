@@ -216,8 +216,8 @@ test.describe("Comments", () => {
 
   test("publishing the page does not publish the conversation", async () => {
     const published = await owner.request.put(
-      `/api/v1/nodes/${nodeId}/public`,
-      { data: { public: true } },
+      `/api/v1/nodes/${nodeId}/visibility`,
+      { data: { visibility: "public" } },
     );
     expect(published.status(), await published.text()).toBe(200);
 

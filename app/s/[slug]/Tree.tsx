@@ -185,7 +185,6 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
           canEdit={canEdit}
           canShare={canShare}
           depth={0}
-          onCreate={create}
           onRename={rename}
           onDelete={remove}
           onShare={setSharing}
@@ -213,7 +212,6 @@ function TreeLevel({
   canEdit,
   canShare,
   depth,
-  onCreate,
   onRename,
   onDelete,
   onShare,
@@ -224,7 +222,6 @@ function TreeLevel({
   canEdit: boolean;
   canShare: boolean;
   depth: number;
-  onCreate: (parentId: string | null, kind: "folder" | "file") => void;
   onRename: (node: TreeNode) => void;
   onDelete: (node: TreeNode) => void;
   onShare: (node: TreeNode) => void;
@@ -263,6 +260,11 @@ function TreeLevel({
                 ) : null}
               </Link>
 
+              {/* Three at most. Creating things inside a folder used to be
+                  here too, which put five buttons on a folder row and left
+                  the name — the only part anybody reads — with no room. It
+                  lives on the folder's own page now, which is somewhere you
+                  can stand and see what is already in it. */}
               {canShare || canEdit ? (
                 <span className="tree-actions">
                   {canShare ? (
@@ -273,24 +275,6 @@ function TreeLevel({
                     >
                       Share
                     </button>
-                  ) : null}
-                  {canEdit && node.kind === "folder" ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => onCreate(node.id, "folder")}
-                        aria-label={`New folder in ${node.name}`}
-                      >
-                        +F
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onCreate(node.id, "file")}
-                        aria-label={`New page in ${node.name}`}
-                      >
-                        +P
-                      </button>
-                    </>
                   ) : null}
                   {canEdit ? (
                     <>
@@ -322,7 +306,6 @@ function TreeLevel({
                 canEdit={canEdit}
                 canShare={canShare}
                 depth={depth + 1}
-                onCreate={onCreate}
                 onRename={onRename}
                 onDelete={onDelete}
                 onShare={onShare}

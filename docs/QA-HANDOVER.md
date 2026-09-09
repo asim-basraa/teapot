@@ -58,10 +58,22 @@ bug, and it is the single most common way to lose ten minutes here.
 Create a space, and it comes with a welcome page. Inside, build folders and
 pages, rename them, drag them about, delete them.
 
+The space's own front page is not one of the files: it has its own link above
+the tree, and it is renamed by renaming the space. Renaming the space changes
+its name in the header, on its front page, and in the list of spaces, and
+leaves the address alone.
+
+New pages and folders are made from the tree header for the top level, and from
+a folder's own page for anything inside it. Click a folder to open it.
+
 Things worth trying to break:
 
+- Rename a page, then open it. The heading at the top must be the new name.
+  A page is titled by its name, never by whatever the body says.
 - Rename a folder while you are reading a page inside it. You should be carried
   to the page's new address, not stranded on a dead URL.
+- Rename a space, then reload /spaces and the space itself. Both must say the
+  new name, and every link you had must still work.
 - Give two things in the same folder the same name. It should refuse, clearly.
 - Move a folder into itself. It should refuse.
 - Delete a folder with pages in it. The pages go too, which is intended.
@@ -93,6 +105,8 @@ forbidden link looks different in any way, that difference is a leak.
 
 Every page and folder has a Share dialog for whoever administers it.
 
+- Share is offered in two places for every page, folder and skill: beside it in
+  the sidebar, and at the top of whatever you are reading.
 - Share with a person by email, as viewer, editor or admin.
 - Share with a team, if the space has any.
 - Sharing a folder reaches everything inside it, at any depth.
@@ -113,32 +127,44 @@ people by email, share a folder with the team.
 - Deleting a team removes every grant made to it.
 - A member of a team cannot manage that team. Only the space owner can.
 
-### Sharing with everyone
+### Who can see this
 
-In the Share dialog, above the publish toggle: **Everyone with a Teapot
-account**, set to no access, read, or edit.
+One control at the top of the Share dialog, with four settings:
 
-This is the middle of the range and the distinction matters more than anything
-else on this screen. "Everyone here" means every person who can sign in.
-"Publishing", below it, means the open internet with no account at all. Share a
-folder with everyone, then open it in a private window: it must still 404.
+| Setting | Who that is |
+| --- | --- |
+| Private | Only the people and teams listed below, and the space's owner. |
+| Everyone signed in to Teapot can read | Every person who can sign in. |
+| Everyone signed in to Teapot can edit | The same people, with writing. |
+| Public | The open internet. No account at all. |
 
-- Everyone can never be given admin. The power to change who else can see
-  something is not handed to a whole organisation.
-- A page inside a folder shared this way says so, and its own control is
-  disabled, because changing it there would do nothing.
+The distinction between the middle two and the last matters more than anything
+else on this screen, and it is what the whole control exists to keep apart.
+Share a folder with everyone signed in, then open it in a private window: it
+must still 404.
 
-### Publishing
+- **They are exclusive.** Publish something that was shared with everyone, and
+  the grant to everyone is withdrawn; go back, and the public one is. Check the
+  "Who has access" list after each change: there should never be two answers.
+- Everyone can never be given admin, and the public can never be given editing.
+  Neither is a decision anybody makes on purpose.
+- A published folder publishes everything inside it. Open a published page in a
+  private window: it should render, with a Sign in link and no editing.
+- On a page that is public or shared *because a folder above it is*, the
+  control shows this page's own setting and a line underneath naming the folder
+  it comes from. Setting this page to Private there will not make it private —
+  the message says so rather than letting you believe otherwise.
 
-In the Share dialog, "Anyone with the link can read this".
+### Inviting somebody who has no account
 
-- A published folder publishes everything inside it.
-- Open a published page in a private window: it should render, with a Sign in
-  link and no editing.
-- Everything not published must still 404 for that private window.
-- On a page that is public *because a folder above it is*, the toggle is
-  disabled and says where the publicness comes from. Turning it off there would
-  do nothing, so it does not pretend otherwise.
+Share with an email address that has never signed up. Teapot invites it: the
+person appears in the list, and an invitation email goes out.
+
+- Follow the link in that email. It should land on a page asking for a
+  password, and after setting one you should be signed in and able to read the
+  thing you were shared — not an empty list of spaces.
+- Only an administrator of the item can invite. An editor sharing with a new
+  address gets a 404, the same answer as for an item that does not exist.
 
 ### Search
 

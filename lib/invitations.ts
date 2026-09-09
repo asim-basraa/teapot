@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient } from "@/lib/supabase/server";
 import type { GrantRole } from "@/lib/grants";
 
 export type InviteResult =
@@ -43,24 +43,28 @@ export async function inviteToNode(
     return { ok: false, error: "Not found.", status: 404 };
   }
 
-  const admin = createAdminClient();
-  if (!admin) {
+  let inviteError: { message: string } | null = null;
+  try {
+    const admin = createAdminClient();
+    ({ error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+      // Not /auth/confirm: the auth service verifies an invitation itself and
+      // hands the session back in the URL fragment, which the server never
+      // sees. /auth/accept is the browser-side landing that can read it.
+      // Setting a password is the first thing they need, so that is where it
+      // leads.
+      redirectTo: `${siteUrl()}/auth/accept?next=/reset-password`,
+    }));
+  } catch {
+    // No service-role key configured. The invitation row is written either
+    // way, so the address can still sign up; what is missing is the email
+    // telling them to.
     return {
       ok: false,
       error:
-        "Teapot cannot send invitations here. Ask an administrator to set SUPABASE_SERVICE_ROLE_KEY.",
+        "The invitation was recorded but no email could be sent. Ask an administrator to set SUPABASE_SERVICE_ROLE_KEY.",
       status: 500,
     };
   }
-
-  const { error: inviteError } = await admin.auth.admin.inviteUserByEmail(
-    email,
-    // Not /auth/confirm: the auth service verifies an invitation itself and
-    // hands the session back in the URL fragment, which the server never sees.
-    // /auth/accept is the browser-side landing that can read it. Setting a
-    // password is the first thing they need, so that is where it leads.
-    { redirectTo: `${siteUrl()}/auth/accept?next=/reset-password` },
-  );
 
   if (!inviteError) return { ok: true };
 

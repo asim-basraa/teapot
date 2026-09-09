@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import type { Visibility } from "@/lib/visibility";
 import { inviteToNode } from "@/lib/invitations";
 
 export type GrantRole = "viewer" | "editor" | "admin";
@@ -24,6 +25,15 @@ export const ROLES: GrantRole[] = ["viewer", "editor", "admin"];
 export function isRole(value: unknown): value is GrantRole {
   return typeof value === "string" && (ROLES as string[]).includes(value);
 }
+
+// Re-exported so callers that already have grants in hand do not need to know
+// that the pure half lives apart from the half that talks to the database.
+export type { Visibility };
+export {
+  isVisibility,
+  readVisibility,
+  readInheritedVisibility,
+} from "@/lib/visibility";
 
 /**
  * Every grant reaching a node, including inherited ones and where they came
@@ -124,57 +134,30 @@ export async function revokeGrant(grantId: string): Promise<GrantResult> {
 }
 
 /**
- * Shares a node with everyone who has an account, or stops doing so.
+ * Sets how far a node reaches, in one write.
  *
- * A third thing, distinct from both a named grantee and publishing. Passing
- * null withdraws it. The database refuses admin here: viewer and editor are
- * both things somebody might want for a whole organisation, but the power to
- * change who else can see a thing is not something anyone hands to "everyone"
- * on purpose.
+ * One call rather than two, because it is one decision. Setting it through
+ * separate publish and share-with-everyone writes leaves a window in which a
+ * node is both, and leaves the reader to assemble the answer to "who can see
+ * this" from two controls that can disagree.
  */
-export async function setSharedWithEveryone(
+export async function setVisibility(
   nodeId: string,
+  visibility: Visibility,
   role: GrantRole | null,
 ): Promise<GrantResult> {
   const supabase = await createClient();
-  const { error } = await supabase.rpc("set_shared_with_everyone", {
+  const { error } = await supabase.rpc("set_node_visibility", {
     p_node_id: nodeId,
-    p_role: role,
+    p_visibility: visibility,
+    p_role: visibility === "everyone" ? (role ?? "viewer") : null,
   });
 
   if (!error) return { ok: true };
 
   if (/cannot confer admin/i.test(error.message)) {
-    return {
-      ok: false,
-      error: "Everyone cannot be given admin.",
-      status: 400,
-    };
+    return { ok: false, error: "Everyone cannot be given admin.", status: 400 };
   }
 
   return { ok: false, error: "Not found.", status: 404 };
-}
-
-/**
- * Publishes or unpublishes a node.
- *
- * Through set_public rather than a client-side upsert: uniqueness for public
- * grants is a partial index, which PostgREST cannot name in an ON CONFLICT
- * clause. The function makes the same admin check RLS would, and a trigger
- * refuses any public grant stronger than viewer, on every write path.
- *
- * Publishing a folder publishes what is under it, because that is what
- * inheritance already means. There is no second rule here to drift from it.
- */
-export async function setPublic(
-  nodeId: string,
-  isPublic: boolean,
-): Promise<GrantResult> {
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("set_public", {
-    p_node_id: nodeId,
-    p_public: isPublic,
-  });
-  if (error) return { ok: false, error: "Not found.", status: 404 };
-  return { ok: true };
 }

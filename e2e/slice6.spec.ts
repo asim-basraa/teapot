@@ -70,24 +70,24 @@ test.describe("Slice 6: public sharing", () => {
     await owner.goto(FOLDER);
     await owner.getByRole("button", { name: "Share", exact: true }).click();
 
-    const toggle = owner.getByLabel("Anyone with the link can read this");
-    await expect(toggle).not.toBeChecked();
+    const reach = owner.getByRole("combobox", { name: "Visibility" });
+    await expect(reach).toHaveValue("private");
 
-    // Waiting on the response, not on the toggle. The toggle is optimistic, so
-    // it moves before the server has agreed, and asserting on it alone would
-    // let the next test race ahead of a write that has not landed.
+    // Waiting on the response, not on the control. The control is optimistic,
+    // so it moves before the server has agreed, and asserting on it alone
+    // would let the next test race ahead of a write that has not landed.
     const [response] = await Promise.all([
       owner.waitForResponse(
         (r) =>
-          r.url().includes(`/api/v1/nodes/${folderId}/public`) &&
+          r.url().includes(`/api/v1/nodes/${folderId}/visibility`) &&
           r.request().method() === "PUT",
       ),
-      toggle.check(),
+      reach.selectOption("public"),
     ]);
     expect(response.status(), await response.text()).toBe(200);
 
     await expect(
-      owner.getByText("No sign-in needed", { exact: false }),
+      owner.getByText("No sign-in, no account", { exact: false }),
     ).toBeVisible();
   });
 
@@ -113,9 +113,10 @@ test.describe("Slice 6: public sharing", () => {
     await expect(visitor.getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
 
     // Not merely hidden: the endpoint refuses too.
-    const res = await visitor.request.put(`/api/v1/nodes/${folderId}/public`, {
-      data: { public: false },
-    });
+    const res = await visitor.request.put(
+      `/api/v1/nodes/${folderId}/visibility`,
+      { data: { visibility: "private" } },
+    );
     expect(res.status()).toBe(404);
   });
 
@@ -128,31 +129,34 @@ test.describe("Slice 6: public sharing", () => {
     await owner.goto(OPEN);
     await owner.getByRole("button", { name: "Share", exact: true }).click();
 
-    // The grant lives on the folder, so the toggle here would appear to do
-    // nothing. It says so instead of lying.
-    const toggle = owner.getByLabel("Anyone with the link can read this");
-    await expect(toggle).toBeDisabled();
-    await expect(owner.getByText("Already public through")).toBeVisible();
+    // The grant lives on the folder, so this page's own setting is not the
+    // whole truth about who can read it. It says so instead of lying.
+    await expect(
+      owner.getByRole("combobox", { name: "Visibility" }),
+    ).toHaveValue("private");
+    await expect(
+      owner.getByText("readable by anyone with the link, so this is too"),
+    ).toBeVisible();
   });
 
   test("unpublishing hides it again", async () => {
     await owner.goto(FOLDER);
     await owner.getByRole("button", { name: "Share", exact: true }).click();
 
-    const toggle = owner.getByLabel("Anyone with the link can read this");
-    await expect(toggle).toBeChecked();
+    const reach = owner.getByRole("combobox", { name: "Visibility" });
+    await expect(reach).toHaveValue("public");
 
     const [response] = await Promise.all([
       owner.waitForResponse(
         (r) =>
-          r.url().includes(`/api/v1/nodes/${folderId}/public`) &&
+          r.url().includes(`/api/v1/nodes/${folderId}/visibility`) &&
           r.request().method() === "PUT",
       ),
-      toggle.uncheck(),
+      reach.selectOption("private"),
     ]);
     expect(response.status(), await response.text()).toBe(200);
 
-    await expect(toggle).not.toBeChecked();
+    await expect(reach).toHaveValue("private");
 
     expect((await visitor.goto(OPEN))?.status()).toBe(404);
     expect((await visitor.goto(FOLDER))?.status()).toBe(404);

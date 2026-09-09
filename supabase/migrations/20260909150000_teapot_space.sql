@@ -120,37 +120,44 @@ so they stay with a person.
 
   v_node := gen_random_uuid();
   insert into public.nodes (id, space_id, parent_id, kind, name, slug, content, content_type)
-  values (v_node, v_space, null, 'file', 'Sharing and access', 'sharing-and-access', 'Access is decided per node and inherited downwards. A grant on a
-folder reaches everything inside it, and the page tells you where a grant came
-from, so "why can they see this" always has an answer.
+  values (v_node, v_space, null, 'file', 'Sharing and access', 'sharing-and-access', 'Access is decided per item and inherited downwards. Set it on a
+folder and it reaches everything inside, and every page says where its access
+came from, so "why can they see this" always has an answer.
 
-## Four ways to share
+## Who can see this
 
-| Who | What it means |
+One setting on every page, folder and skill, with three answers:
+
+| | What it means |
 | --- | --- |
-| A person | One named address. |
-| A team | A roster you keep, inside one space. |
-| Everyone here | Everybody signed in to Teapot. No roster to maintain. |
-| On the web | Anybody with the link, signed in or not. |
+| **Private** | Only the people and teams you have shared it with. |
+| **Everyone signed in to Teapot** | Your whole organisation. Read, or read and write. |
+| **Public** | Anybody with the link. No account, no sign-in. |
 
-**Everyone here** and **on the web** are different answers, and confusing them is
-the mistake people make when only the second one is on offer. The first is your
-organisation. The second is the internet.
+They are exclusive: choosing one withdraws the others, so there is never a
+second answer quietly in force underneath the one you can see.
 
-## Three roles
+The distinction that matters is between the second and the third. Everybody at
+your organisation is not everybody on the internet, and when only the second is
+on offer people publish things they meant to circulate.
+
+## And then, individually
+
+Underneath, share with a named person or a team, at one of three roles:
 
 - **Viewer** reads.
 - **Editor** reads and writes.
 - **Admin** also decides who else can.
 
-A grant to everyone can be viewer or editor, never admin: handing the power to
-reshare to everybody is not a decision anybody makes on purpose.
+"Everyone signed in" can read or write, never administer: handing the power to
+reshare to everybody is not a decision anybody makes on purpose. Neither can
+the public — a published page is read-only to the world however it is set.
 
 ## Where the controls are
 
 **Share** sits next to every page, folder and skill in the sidebar, and at the
-top of whatever you are reading. Folders are the thing most worth sharing: one
-grant covers everything inside.
+top of whatever you are reading. Folders are the thing most worth setting: one
+decision covers everything inside.
 
 > [!note] Comments are not published
 > Publishing a page does not publish its conversation. Comments require an

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   buildThreads,
   type Comment,
@@ -33,6 +33,19 @@ export function Comments({
   const [replyBody, setReplyBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    const res = await fetch(`/api/v1/nodes/${nodeId}/comments`);
+    if (res.ok) setComments((await res.json()).comments ?? []);
+  }, [nodeId]);
+
+  // A conversation is the one thing on a page that is worth being current.
+  // The server renders what it saw when it built the page; this asks again on
+  // arrival, so somebody who opens a page a minute after it was rendered, or
+  // whose browser served them a copy of it, sees what was actually said.
+  useEffect(() => {
+    void reload();
+  }, [reload]);
 
   const threads = buildThreads(comments);
 
@@ -76,8 +89,7 @@ export function Comments({
       return;
     }
 
-    const listed = await fetch(`/api/v1/nodes/${nodeId}/comments`);
-    if (listed.ok) setComments((await listed.json()).comments ?? []);
+    await reload();
   }
 
   function mayRemove(comment: Comment) {

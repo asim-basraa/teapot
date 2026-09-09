@@ -405,12 +405,14 @@ footer {
 .tree-row {
   display: flex; align-items: center; gap: 0.4rem;
   padding: 0.2rem 0; min-height: 1.7rem;
-  /* Anchors the actions, which sit on top of the row rather than beside it. */
-  position: relative;
 }
 
 .tree-name {
-  flex: 1; min-width: 0; color: var(--text); text-decoration: none;
+  /* A floor, not zero. With the actions beside it the name is the flexible
+     part, and without a minimum a row with several buttons on it collapsed
+     the one thing anybody actually reads down to nothing. */
+  flex: 1 1 auto; min-width: 4.5rem;
+  color: var(--text); text-decoration: none;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
@@ -420,19 +422,7 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 
 .tree-actions { display: flex; gap: 0.25rem; opacity: 0; transition: opacity 0.12s; }
 
-/* Out of the flow, so a row with five buttons on it still shows its name. In
-   the flow they shared the row's width with the name, and a folder deep in a
-   narrow sidebar ended up with no room to render one at all. */
-.tree-row .tree-actions {
-  position: absolute; right: 0; top: 0; bottom: 0; align-items: center;
-  padding-left: 0.5rem; background: var(--bg);
-  /* While hidden they must not stand between the pointer and the name they
-     are lying on top of. */
-  pointer-events: none;
-}
-
-.tree-row:hover .tree-actions,
-.tree-actions:focus-within { pointer-events: auto; }
+.tree-row .tree-actions { flex: 0 0 auto; }
 
 .tree-row:hover .tree-actions,
 .tree-actions:focus-within,
@@ -600,15 +590,8 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .team-danger .hint { font-size: 0.78rem; color: var(--muted); }
 
 /* Publishing */
-.share-public { margin: 0.25rem 0 0.5rem; }
 
-.share-public-toggle {
-  display: flex; align-items: center; gap: 0.6rem;
-  font-size: 0.9rem; cursor: pointer;
-}
 
-.share-public-toggle input { width: 1rem; height: 1rem; cursor: pointer; }
-.share-public .hint { font-size: 0.78rem; color: var(--muted); margin: 0.4rem 0 0; }
 
 /* Backlinks */
 .backlinks {
@@ -833,9 +816,6 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .soon-signin span { color: var(--muted); }
 
 /* Sharing with everyone */
-.share-everyone { margin: 0.25rem 0 0.5rem; }
-.share-everyone .field { max-width: 20rem; }
-.share-everyone .hint { font-size: 0.78rem; color: var(--muted); margin: 0.4rem 0 0; }
 
 /* What a folder page lists. */
 .folder-contents { list-style: none; margin: 1rem 0 0; padding: 0; }
@@ -843,3 +823,14 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
   display: flex; align-items: center; gap: 0.5rem;
   padding: 0.35rem 0; border-bottom: 1px solid var(--border);
 }
+
+/* One question with three answers, rather than two controls that can disagree. */
+.share-reach { margin: 0.25rem 0 1.5rem; }
+.share-reach .field { max-width: 26rem; }
+.share-reach .hint {
+  font-size: 0.78rem; color: var(--muted); margin: 0.5rem 0 0;
+}
+.share-reach .msg { margin: 0.6rem 0 0; font-size: 0.8rem; }
+
+/* Making something inside a folder, from the folder. */
+.folder-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }

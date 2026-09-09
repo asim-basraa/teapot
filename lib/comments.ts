@@ -18,7 +18,18 @@ export type CommentResult =
  */
 export async function listComments(nodeId: string): Promise<Comment[]> {
   const supabase = await createClient();
-  const { data } = await supabase.rpc("node_comments", { p_node_id: nodeId });
+  const { data, error } = await supabase.rpc("node_comments", {
+    p_node_id: nodeId,
+  });
+
+  // A refused call and an empty conversation used to be the same answer here,
+  // which made a failure look exactly like a page nobody has commented on. It
+  // is still an empty list to the reader — there is nothing useful to say to
+  // them — but it no longer passes in silence.
+  if (error) {
+    console.error("node_comments failed for %s: %s", nodeId, error.message);
+  }
+
   return (data as Comment[] | null) ?? [];
 }
 

@@ -2,9 +2,42 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { EffectiveGrant, GrantRole } from "@/lib/grants";
+import {
+  readVisibility,
+  readInheritedVisibility,
+  type Visibility,
+} from "@/lib/visibility";
 import type { Team } from "@/lib/teams";
 
 type Grantee = "person" | "team";
+
+/** How far each answer reaches, so a wider one can be recognised as wider. */
+const RANK: Record<Visibility, number> = { private: 0, everyone: 1, public: 2 };
+
+const REACH_WORDS: Record<Visibility, string> = {
+  private: "private",
+  everyone: "readable by everyone signed in to Teapot",
+  public: "readable by anyone with the link",
+};
+
+/**
+ * What each answer means, spelled out under the control.
+ *
+ * The one that matters is the difference between the middle two and the last:
+ * everybody at your organisation is not everybody on the internet, and a
+ * control that blurs them is how things get published that were meant to be
+ * circulated.
+ */
+const DESCRIPTIONS: Record<string, string> = {
+  private:
+    "Nobody but the people and teams listed below, and the space's owner.",
+  "everyone:viewer":
+    "Everyone with a Teapot account can read it. Signed-out visitors get nothing.",
+  "everyone:editor":
+    "Everyone with a Teapot account can read and edit it. Signed-out visitors get nothing.",
+  public:
+    "On the web. No sign-in, no account, anybody with the address. Everything inside it is public too.",
+};
 
 /**
  * The Share button, and the dialog it opens.
@@ -66,13 +99,10 @@ export function ShareDialog({
   const [teamId, setTeamId] = useState("");
   const [role, setRole] = useState<GrantRole>("viewer");
   const [busy, setBusy] = useState(false);
-  // What the toggle shows while the write is in flight. A checkbox that does
-  // not move when you click it reads as broken, and Playwright agrees: it
-  // reports the click as having had no effect.
-  const [pendingPublic, setPendingPublic] = useState<boolean | null>(null);
-  const [pendingEveryone, setPendingEveryone] = useState<GrantRole | "" | null>(
-    null,
-  );
+  // What the control shows while the write is in flight. A control that does
+  // not move when you use it reads as broken, and Playwright agrees: it
+  // reports the interaction as having had no effect.
+  const [pendingReach, setPendingReach] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -85,8 +115,7 @@ export function ShareDialog({
 
   useEffect(() => {
     setGrants(null);
-    setPendingPublic(null);
-    setPendingEveryone(null);
+    setPendingReach(null);
     void load();
     void loadTeams();
     // Once, for the node this dialog is about.
@@ -152,56 +181,38 @@ export function ShareDialog({
     setGrants(body.grants ?? []);
   }
 
-  async function publish(next: boolean) {
+  /**
+   * One write for one decision.
+   *
+   * The value carries both halves because they are one answer: "everyone:editor"
+   * is a different answer to "who can see this" than "everyone:viewer", not a
+   * second setting stacked on top of it.
+   */
+  async function setReach(next: string) {
+    const [visibility, role] = next.split(":");
+
     setBusy(true);
-    setPendingPublic(next);
+    setPendingReach(next);
     setError(null);
 
-    const res = await fetch(`/api/v1/nodes/${nodeId}/public`, {
+    const res = await fetch(`/api/v1/nodes/${nodeId}/visibility`, {
       method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ public: next }),
+      body: JSON.stringify({ visibility, role: role ?? null }),
     });
 
     const body = await res.json().catch(() => ({}));
     setBusy(false);
+    setPendingReach(null);
 
     if (!res.ok) {
       // Snap back to what the server actually says rather than leaving the
-      // toggle asserting something that did not happen.
-      setPendingPublic(null);
+      // control asserting something that did not happen.
       setError(body.error ?? `Could not change that (${res.status})`);
       return;
     }
 
     setGrants(body.grants ?? []);
-    setPendingPublic(null);
-  }
-
-  // The parameter is deliberately not called `role`: there is already a `role`
-  // in scope for the person-or-team form, and the two mean different things.
-  async function shareWithEveryone(next: GrantRole | "") {
-    setBusy(true);
-    setPendingEveryone(next);
-    setError(null);
-
-    const res = await fetch(`/api/v1/nodes/${nodeId}/everyone`, {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ role: next === "" ? null : next }),
-    });
-
-    const body = await res.json().catch(() => ({}));
-    setBusy(false);
-
-    if (!res.ok) {
-      setPendingEveryone(null);
-      setError(body.error ?? `Could not change that (${res.status})`);
-      return;
-    }
-
-    setGrants(body.grants ?? []);
-    setPendingEveryone(null);
   }
 
   async function revoke(grantId: string) {
@@ -216,22 +227,24 @@ export function ShareDialog({
     void load();
   }
 
-  // Derived from the grants already loaded rather than asked for separately.
-  // The distinction matters: a page under a published folder is readable by
-  // anyone, but the grant to remove is the folder's, not the page's, so the
-  // toggle has to show the state it can actually change.
-  const publicGrants = (grants ?? []).filter(
-    (g) => g.grantee_type === "public",
-  );
-  const published = pendingPublic ?? publicGrants.some((g) => !g.inherited);
-  const inheritedPublic = publicGrants.find((g) => g.inherited) ?? null;
+  // Derived from the grants already loaded rather than asked for separately,
+  // and split in two on purpose. The control changes this node's own reach;
+  // what an ancestor confers cannot be changed from here, and a page inside a
+  // published folder is public whatever its own setting says. Showing them as
+  // one value would make the control lie about what it does.
+  const own = readVisibility(grants ?? []);
+  const inherited = readInheritedVisibility(grants ?? []);
 
-  const everyoneGrants = (grants ?? []).filter(
-    (g) => g.grantee_type === "authenticated",
-  );
-  const everyoneHere = everyoneGrants.find((g) => !g.inherited) ?? null;
-  const inheritedEveryone = everyoneGrants.find((g) => g.inherited) ?? null;
-  const everyoneRole = pendingEveryone ?? everyoneHere?.role ?? "";
+  const reach =
+    pendingReach ??
+    (own.visibility === "everyone"
+      ? `everyone:${own.role ?? "viewer"}`
+      : own.visibility);
+
+  // Wider than what this node sets for itself, so the setting below is not the
+  // whole truth about who can read this.
+  const overruled =
+    inherited !== null && RANK[inherited.visibility] > RANK[own.visibility];
 
   return (
     <dialog
@@ -262,6 +275,47 @@ export function ShareDialog({
           {notice}
         </p>
       ) : null}
+
+      <h3>Who can see this</h3>
+
+      <div className="share-reach">
+        <label className="field">
+          <span className="field-label">Visibility</span>
+          <select
+            className="input"
+            value={reach}
+            disabled={busy || grants === null}
+            onChange={(e) => void setReach(e.target.value)}
+          >
+            <option value="private">
+              Private &mdash; only people it is shared with
+            </option>
+            <option value="everyone:viewer">
+              Everyone signed in to Teapot can read
+            </option>
+            <option value="everyone:editor">
+              Everyone signed in to Teapot can edit
+            </option>
+            <option value="public">
+              Public &mdash; anyone with the link, no account needed
+            </option>
+          </select>
+        </label>
+
+        <p className="hint">{DESCRIPTIONS[reach] ?? DESCRIPTIONS.private}</p>
+
+        {inherited ? (
+          // Naming the origin is what makes this answerable rather than merely
+          // surprising: the folder it comes from is where to change it.
+          <p className={overruled ? "msg msg-error" : "hint"}>
+            {overruled
+              ? `This is inside ${inherited.originPath}, which is ${REACH_WORDS[inherited.visibility]}, so this is too. Change it there.`
+              : `Also ${REACH_WORDS[inherited.visibility]} through ${inherited.originPath}.`}
+          </p>
+        ) : null}
+      </div>
+
+      <h3>Share with somebody</h3>
 
       <form className="share-form" onSubmit={share}>
         {teams.length > 0 ? (
@@ -324,65 +378,6 @@ export function ShareDialog({
           {busy ? "Sharing…" : "Share"}
         </button>
       </form>
-
-      <h3>Everyone here</h3>
-
-      <div className="share-everyone">
-        <label className="field">
-          <span className="field-label">Everyone with a Teapot account</span>
-          <select
-            className="input"
-            value={everyoneRole}
-            disabled={busy || grants === null || inheritedEveryone !== null}
-            onChange={(e) =>
-              void shareWithEveryone(e.target.value as GrantRole | "")
-            }
-          >
-            <option value="">No access</option>
-            <option value="viewer">Can read</option>
-            <option value="editor">Can edit</option>
-          </select>
-        </label>
-
-        {inheritedEveryone ? (
-          <p className="hint">
-            Already shared with everyone through {inheritedEveryone.origin_path}
-            . Change it there.
-          </p>
-        ) : (
-          <p className="hint">
-            Everyone signed in to Teapot, and nobody else. This is not the same
-            as putting it on the web, below.
-          </p>
-        )}
-      </div>
-
-      <h3>On the web</h3>
-
-      <div className="share-public">
-        <label className="share-public-toggle">
-          <input
-            type="checkbox"
-            checked={published}
-            disabled={busy || grants === null || inheritedPublic !== null}
-            onChange={(e) => void publish(e.target.checked)}
-          />
-          <span>Anyone with the link can read this</span>
-        </label>
-
-        {inheritedPublic ? (
-          // The toggle would appear to do nothing here: the grant lives on an
-          // ancestor, and this node is public because of it.
-          <p className="hint">
-            Already public through {inheritedPublic.origin_path}. Turn it off
-            there.
-          </p>
-        ) : published ? (
-          <p className="hint">
-            No sign-in needed. Everything inside this item is public too.
-          </p>
-        ) : null}
-      </div>
 
       <h3>Who has access</h3>
 

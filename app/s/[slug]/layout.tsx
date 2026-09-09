@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/supabase/server";
 import { getSpaceBySlug } from "@/lib/spaces";
 import { listNodes, buildTree } from "@/lib/nodes";
 import { signOut } from "../../(auth)/actions";
@@ -24,10 +24,7 @@ export default async function SpaceLayout({
   // space that does not exist, which is the intent.
   if (!space) notFound();
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
 
   const nodes = await listNodes(space.id);
   const tree = buildTree(nodes);

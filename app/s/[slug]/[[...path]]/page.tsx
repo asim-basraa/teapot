@@ -4,7 +4,7 @@ import { renderMarkdown } from "@teapot/renderer";
 import { nodeCapabilities } from "@/lib/nodes";
 import { listBacklinks } from "@/lib/links";
 import { listComments } from "@/lib/comments";
-import { createClient } from "@/lib/supabase/server";
+import { currentUser } from "@/lib/supabase/server";
 import { Share } from "../Share";
 import { Mermaid } from "../Mermaid";
 import { Comments } from "../Comments";
@@ -97,10 +97,7 @@ export default async function NodePage({
 
   // Comments require an account, even on a published page. An anonymous
   // visitor gets the document and no conversation.
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await currentUser();
   const comments = user ? await listComments(node.id) : [];
 
   return (

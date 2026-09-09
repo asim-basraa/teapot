@@ -356,7 +356,27 @@ footer {
 .space-shell { max-width: 68rem; margin: 0 auto; padding: 2rem 1.5rem 6rem; }
 
 .space-header { display: flex; align-items: center; gap: 1rem; }
-.space-title { flex: 1; color: var(--muted); font-size: 0.9rem; }
+.space-title {
+  flex: 1; color: var(--muted); font-size: 0.9rem;
+  display: flex; align-items: center; gap: 0.5rem; min-width: 0;
+}
+
+.space-rename {
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--muted); font-size: 0.68rem; padding: 0.1rem 0.4rem;
+  cursor: pointer; opacity: 0; transition: opacity 0.12s;
+}
+.space-header:hover .space-rename,
+.space-rename:focus { opacity: 1; }
+.space-rename:hover { color: var(--text); border-color: var(--muted); }
+
+/* The space's own page, above the files rather than among them. */
+.space-home {
+  display: block; margin-bottom: 1.25rem; padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem; font-weight: 600; color: var(--text); text-decoration: none;
+}
+.space-home:hover { color: var(--accent); }
 
 .space-body { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 2.5rem; }
 
@@ -799,3 +819,10 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .share-everyone { margin: 0.25rem 0 0.5rem; }
 .share-everyone .field { max-width: 20rem; }
 .share-everyone .hint { font-size: 0.78rem; color: var(--muted); margin: 0.4rem 0 0; }
+
+/* What a folder page lists. */
+.folder-contents { list-style: none; margin: 1rem 0 0; padding: 0; }
+.folder-contents li {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.35rem 0; border-bottom: 1px solid var(--border);
+}

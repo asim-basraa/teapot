@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { renderMarkdown } from "@teapot/renderer";
-import { nodeCapabilities } from "@/lib/nodes";
+import { nodeCapabilities, listChildren } from "@/lib/nodes";
 import { listBacklinks } from "@/lib/links";
 import { listComments } from "@/lib/comments";
 import { currentUser } from "@/lib/supabase/server";
@@ -67,12 +67,34 @@ export default async function NodePage({
     ) : null;
 
   if (node.kind === "folder") {
+    // A folder is somewhere you can stand now that the tree links to one, so
+    // it shows what is in it. Only what this viewer can read reaches here: RLS
+    // removed the rest before we saw the list.
+    const children = await listChildren(node.id);
+
     return (
       <>
         {actions}
         <article className="prose">
           <h1>{node.name}</h1>
-          <p className="empty">This folder has no page of its own.</p>
+          {children.length === 0 ? (
+            <p className="empty">This folder is empty.</p>
+          ) : (
+            <ul className="folder-contents">
+              {children.map((child) => (
+                <li key={child.id}>
+                  <Link href={`/s/${space.slug}/${child.path}`}>
+                    {child.name}
+                  </Link>
+                  {child.kind === "folder" ? (
+                    <span className="tree-badge">folder</span>
+                  ) : child.content_type === "skill" ? (
+                    <span className="tree-badge">skill</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
         </article>
       </>
     );
@@ -108,7 +130,13 @@ export default async function NodePage({
         className="prose"
         // Safe: renderMarkdown sanitizes author HTML before KaTeX and Shiki
         // add their own trusted markup. See packages/renderer/src/sanitize.ts.
-        dangerouslySetInnerHTML={{ __html: html }}
+        // The title is prepended here rather than written into the document,
+        // so renaming a page renames what the page calls itself. It is escaped
+        // because a node name is not Markdown and has not been through the
+        // sanitizer.
+        dangerouslySetInnerHTML={{
+          __html: `<h1>${escapeHtml(node.name)}</h1>` + html,
+        }}
       />
 
       {/* Hydrates any ```mermaid blocks the document contains. Renders
@@ -143,4 +171,14 @@ export default async function NodePage({
       ) : null}
     </>
   );
+}
+
+/** A node name is plain text; this is what makes it safe to place in markup. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }

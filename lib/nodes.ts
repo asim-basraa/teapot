@@ -85,6 +85,24 @@ export function buildTree(nodes: Node[]): TreeNode[] {
 const SELECT =
   "id, space_id, parent_id, kind, name, slug, path, content, content_version, content_type";
 
+/**
+ * What is directly inside a folder, folders first then pages.
+ *
+ * RLS-filtered like everything else, so a child the viewer cannot read is
+ * simply absent and the folder looks exactly as it would if that child did
+ * not exist.
+ */
+export async function listChildren(parentId: string): Promise<Node[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("nodes")
+    .select(SELECT)
+    .eq("parent_id", parentId)
+    .order("kind", { ascending: true })
+    .order("name", { ascending: true });
+  return data ?? [];
+}
+
 export async function createNode(input: {
   spaceId: string;
   parentId: string | null;
@@ -136,13 +154,16 @@ export async function createNode(input: {
 /**
  * What a new document starts as.
  *
+ * No heading: the page's title is its name, rendered from the node, so writing
+ * one into the body would make a second copy that rename could not reach.
+ *
  * A skill starts with its frontmatter already in place, because the metadata is
  * the part authors forget and the part a client needs. Prefilling it is cheaper
  * than flagging its absence later.
  */
 function startingContent(name: string, contentType?: ContentType): string {
-  if (contentType !== "skill") return `# ${name}\n\n`;
-  return `---\nname: ${name}\ndescription: \n---\n\n# ${name}\n\n`;
+  if (contentType !== "skill") return "";
+  return `---\nname: ${name}\ndescription: \n---\n\n`;
 }
 
 export async function renameNode(
@@ -370,6 +391,13 @@ function translate(error: {
   }
   if (/not a folder/i.test(error.message)) {
     return { ok: false, error: "Only folders can contain items.", status: 400 };
+  }
+  if (/home page of a space/i.test(error.message)) {
+    return {
+      ok: false,
+      error: "The home page follows the space. Rename the space instead.",
+      status: 400,
+    };
   }
   return { ok: false, error: error.message, status: 400 };
 }

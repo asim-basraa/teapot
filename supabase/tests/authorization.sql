@@ -885,4 +885,73 @@ reset role;
 select pg_temp.check('withdrawing it takes the access with it',
   public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-00000000000d')::text, 'false');
 
+-- The space's home page ------------------------------------------------------
+--
+-- Every space has one node at the path `index`, and /s/<slug> is that node. It
+-- used to sit in the file tree like any other page, where renaming it
+-- rederived its slug and took the space's address with it: the space 404ed for
+-- everybody, its owner included, with no way back. The interface no longer
+-- offers the rename, but an address a rename can destroy is not an address, so
+-- the refusal lives here.
+
+insert into public.nodes (id, space_id, parent_id, kind, name, slug, content) values
+  ('b0000000-0000-0000-0000-0000000000f1','a0000000-0000-0000-0000-000000000001',
+   null,'file','Authz Test','index','Welcome.');
+
+select pg_temp.check('the home page is at the address the space resolves to',
+  (select path from public.nodes where id = 'b0000000-0000-0000-0000-0000000000f1'), 'index');
+
+do $$
+begin
+  begin
+    perform public.move_node(
+      p_node_id => 'b0000000-0000-0000-0000-0000000000f1',
+      p_new_name => 'Renamed',
+      p_reparent => false);
+    raise exception 'FAIL: the home page was renamed out from under its address';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+select pg_temp.check('so the space still resolves',
+  (select path from public.nodes where id = 'b0000000-0000-0000-0000-0000000000f1'), 'index');
+
+do $$
+begin
+  begin
+    delete from public.nodes where id = 'b0000000-0000-0000-0000-0000000000f1';
+    raise exception 'FAIL: the home page was deleted';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+select pg_temp.check('and is still there',
+  (select count(*)::text from public.nodes where id = 'b0000000-0000-0000-0000-0000000000f1'), '1');
+
+-- Renaming the space renames its front page, which is a name change and
+-- nothing else. That must still be allowed, or a space could never be renamed.
+update public.nodes set name = 'Renamed Space'
+ where id = 'b0000000-0000-0000-0000-0000000000f1';
+
+select pg_temp.check('renaming the space renames its front page',
+  (select name || ' at ' || path from public.nodes
+    where id = 'b0000000-0000-0000-0000-0000000000f1'),
+  'Renamed Space at index');
+
+-- Removing the space takes its home page with it: the guard is about losing
+-- the front page of a space that still exists, not about keeping orphans.
+insert into public.spaces (id, slug, name, owner_id) values
+  ('a0000000-0000-0000-0000-0000000000f9','doomed','Doomed',
+   '11111111-1111-1111-1111-111111111111');
+insert into public.nodes (id, space_id, parent_id, kind, name, slug, content) values
+  ('b0000000-0000-0000-0000-0000000000f9','a0000000-0000-0000-0000-0000000000f9',
+   null,'file','Doomed','index','Welcome.');
+delete from public.spaces where id = 'a0000000-0000-0000-0000-0000000000f9';
+
+select pg_temp.check('deleting a space takes its home page with it',
+  (select count(*)::text from public.nodes
+    where id = 'b0000000-0000-0000-0000-0000000000f9'), '0');
+
 rollback;

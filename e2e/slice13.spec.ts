@@ -26,7 +26,9 @@ test.describe("Documentation", () => {
     await expect(page.getByText("/api/mcp").first()).toBeVisible();
     await expect(page.getByText("claude mcp add")).toBeVisible();
     await expect(page.getByText("mcpServers")).toBeVisible();
-    await expect(page.getByText("mcp_servers")).toBeVisible();
+    // Named in prose and again inside the JSON block below it, so this asks
+    // for the first rather than for the only one.
+    await expect(page.getByText("mcp_servers").first()).toBeVisible();
   });
 
   test("it is honest about the token being shown once", async ({ page }) => {

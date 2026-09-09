@@ -6,6 +6,14 @@ import type { Team } from "@/lib/teams";
 
 type Grantee = "person" | "team";
 
+/**
+ * The Share button, and the dialog it opens.
+ *
+ * Two entry points because sharing is asked for in two places: on the page you
+ * are reading, and in the sidebar, where a folder is the thing most people
+ * want to share and is not somewhere you can stand. Both open the same dialog;
+ * ShareDialog is it, on its own, for callers that already have a button.
+ */
 export function Share({
   nodeId,
   nodeName,
@@ -15,8 +23,42 @@ export function Share({
   nodeName: string;
   spaceId: string;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        className="btn btn-secondary btn-small"
+        type="button"
+        onClick={() => setOpen(true)}
+      >
+        Share
+      </button>
+
+      {open ? (
+        <ShareDialog
+          nodeId={nodeId}
+          nodeName={nodeName}
+          spaceId={spaceId}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
+    </>
+  );
+}
+
+export function ShareDialog({
+  nodeId,
+  nodeName,
+  spaceId,
+  onClose,
+}: {
+  nodeId: string;
+  nodeName: string;
+  spaceId: string;
+  onClose: () => void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
   const [grants, setGrants] = useState<EffectiveGrant[] | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [grantee, setGrantee] = useState<Grantee>("person");
@@ -28,17 +70,27 @@ export function Share({
   // not move when you click it reads as broken, and Playwright agrees: it
   // reports the click as having had no effect.
   const [pendingPublic, setPendingPublic] = useState<boolean | null>(null);
-  const [pendingEveryone, setPendingEveryone] = useState<
-    GrantRole | "" | null
-  >(null);
+  const [pendingEveryone, setPendingEveryone] = useState<GrantRole | "" | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
 
+  // Mounted means open: the caller decides whether the dialog exists, which
+  // keeps the loading below tied to being shown rather than to a second flag.
   useEffect(() => {
     const el = dialog.current;
-    if (!el) return;
-    if (open && !el.open) el.showModal();
-    if (!open && el.open) el.close();
-  }, [open]);
+    if (el && !el.open) el.showModal();
+  }, []);
+
+  useEffect(() => {
+    setGrants(null);
+    setPendingPublic(null);
+    setPendingEveryone(null);
+    void load();
+    void loadTeams();
+    // Once, for the node this dialog is about.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeId]);
 
   async function load() {
     setError(null);
@@ -61,15 +113,6 @@ export function Share({
     const list: Team[] = body.teams ?? [];
     setTeams(list);
     if (list.length > 0) setTeamId((current) => current || list[0].id);
-  }
-
-  function show() {
-    setOpen(true);
-    setGrants(null);
-    setPendingPublic(null);
-    setPendingEveryone(null);
-    void load();
-    void loadTeams();
   }
 
   async function share(event: React.FormEvent) {
@@ -177,195 +220,187 @@ export function Share({
   );
   const everyoneHere = everyoneGrants.find((g) => !g.inherited) ?? null;
   const inheritedEveryone = everyoneGrants.find((g) => g.inherited) ?? null;
-  const everyoneRole = pendingEveryone ?? (everyoneHere?.role ?? "");
+  const everyoneRole = pendingEveryone ?? everyoneHere?.role ?? "";
 
   return (
-    <>
-      <button className="btn btn-secondary btn-small" type="button" onClick={show}>
-        Share
-      </button>
+    <dialog
+      ref={dialog}
+      className="share-dialog"
+      onClose={onClose}
+      aria-label={`Sharing for ${nodeName}`}
+    >
+      <div className="share-head">
+        <h2>Share &ldquo;{nodeName}&rdquo;</h2>
+        <button
+          className="btn btn-secondary btn-small"
+          type="button"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
 
-      <dialog
-        ref={dialog}
-        className="share-dialog"
-        onClose={() => setOpen(false)}
-        aria-label={`Sharing for ${nodeName}`}
-      >
-        <div className="share-head">
-          <h2>Share &ldquo;{nodeName}&rdquo;</h2>
-          <button
-            className="btn btn-secondary btn-small"
-            type="button"
-            onClick={() => setOpen(false)}
-          >
-            Close
-          </button>
-        </div>
+      {error ? (
+        <p className="msg msg-error" role="alert">
+          {error}
+        </p>
+      ) : null}
 
-        {error ? (
-          <p className="msg msg-error" role="alert">
-            {error}
-          </p>
+      <form className="share-form" onSubmit={share}>
+        {teams.length > 0 ? (
+          <label className="field share-with">
+            <span className="field-label">Share with</span>
+            <select
+              className="input"
+              value={grantee}
+              onChange={(e) => setGrantee(e.target.value as Grantee)}
+            >
+              <option value="person">A person</option>
+              <option value="team">A team</option>
+            </select>
+          </label>
         ) : null}
 
-        <form className="share-form" onSubmit={share}>
-          {teams.length > 0 ? (
-            <label className="field share-with">
-              <span className="field-label">Share with</span>
-              <select
-                className="input"
-                value={grantee}
-                onChange={(e) => setGrantee(e.target.value as Grantee)}
-              >
-                <option value="person">A person</option>
-                <option value="team">A team</option>
-              </select>
-            </label>
-          ) : null}
-
-          {grantee === "team" ? (
-            <label className="field">
-              <span className="field-label">Team</span>
-              <select
-                className="input"
-                value={teamId}
-                onChange={(e) => setTeamId(e.target.value)}
-              >
-                {teams.map((team) => (
-                  <option key={team.id} value={team.id}>
-                    {team.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <label className="field">
-              <span className="field-label">Email</span>
-              <input
-                className="input"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="colleague@maqsoodlabs.com"
-                required
-              />
-            </label>
-          )}
-
-          <label className="field share-role">
-            <span className="field-label">Role</span>
-            <select
-              className="input"
-              value={role}
-              onChange={(e) => setRole(e.target.value as GrantRole)}
-            >
-              <option value="viewer">Viewer</option>
-              <option value="editor">Editor</option>
-              <option value="admin">Admin</option>
-            </select>
-          </label>
-
-          <button className="btn" type="submit" disabled={busy}>
-            {busy ? "Sharing…" : "Share"}
-          </button>
-        </form>
-
-        <h3>Everyone here</h3>
-
-        <div className="share-everyone">
+        {grantee === "team" ? (
           <label className="field">
-            <span className="field-label">
-              Everyone with a Teapot account
-            </span>
+            <span className="field-label">Team</span>
             <select
               className="input"
-              value={everyoneRole}
-              disabled={busy || grants === null || inheritedEveryone !== null}
-              onChange={(e) =>
-                void shareWithEveryone(e.target.value as GrantRole | "")
-              }
+              value={teamId}
+              onChange={(e) => setTeamId(e.target.value)}
             >
-              <option value="">No access</option>
-              <option value="viewer">Can read</option>
-              <option value="editor">Can edit</option>
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
             </select>
           </label>
-
-          {inheritedEveryone ? (
-            <p className="hint">
-              Already shared with everyone through{" "}
-              {inheritedEveryone.origin_path}. Change it there.
-            </p>
-          ) : (
-            <p className="hint">
-              Everyone signed in to Teapot, and nobody else. This is not the
-              same as putting it on the web, below.
-            </p>
-          )}
-        </div>
-
-        <h3>On the web</h3>
-
-        <div className="share-public">
-          <label className="share-public-toggle">
-            <input
-              type="checkbox"
-              checked={published}
-              disabled={busy || grants === null || inheritedPublic !== null}
-              onChange={(e) => void publish(e.target.checked)}
-            />
-            <span>Anyone with the link can read this</span>
-          </label>
-
-          {inheritedPublic ? (
-            // The toggle would appear to do nothing here: the grant lives on an
-            // ancestor, and this node is public because of it.
-            <p className="hint">
-              Already public through {inheritedPublic.origin_path}. Turn it off
-              there.
-            </p>
-          ) : published ? (
-            <p className="hint">
-              No sign-in needed. Everything inside this item is public too.
-            </p>
-          ) : null}
-        </div>
-
-        <h3>Who has access</h3>
-
-        {grants === null ? (
-          <p className="tree-empty">Loading…</p>
-        ) : grants.length === 0 ? (
-          <p className="tree-empty">Nobody yet, besides the space owner.</p>
         ) : (
-          <ul className="share-list">
-            {grants.map((g) => (
-              <li key={g.grant_id}>
-                <span className="share-who">{describe(g)}</span>
-                <span className="share-role-label">{g.role}</span>
-                {g.inherited ? (
-                  // Naming the origin is what makes an audit possible: "why can
-                  // they see this" is answered by the folder it came from.
-                  <span className="share-origin">
-                    inherited from {g.origin_path}
-                  </span>
-                ) : (
-                  <button
-                    className="btn btn-secondary btn-small"
-                    type="button"
-                    onClick={() => revoke(g.grant_id)}
-                    disabled={busy}
-                    aria-label={`Revoke access for ${describe(g)}`}
-                  >
-                    Revoke
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
+          <label className="field">
+            <span className="field-label">Email</span>
+            <input
+              className="input"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="colleague@maqsoodlabs.com"
+              required
+            />
+          </label>
         )}
-      </dialog>
-    </>
+
+        <label className="field share-role">
+          <span className="field-label">Role</span>
+          <select
+            className="input"
+            value={role}
+            onChange={(e) => setRole(e.target.value as GrantRole)}
+          >
+            <option value="viewer">Viewer</option>
+            <option value="editor">Editor</option>
+            <option value="admin">Admin</option>
+          </select>
+        </label>
+
+        <button className="btn" type="submit" disabled={busy}>
+          {busy ? "Sharing…" : "Share"}
+        </button>
+      </form>
+
+      <h3>Everyone here</h3>
+
+      <div className="share-everyone">
+        <label className="field">
+          <span className="field-label">Everyone with a Teapot account</span>
+          <select
+            className="input"
+            value={everyoneRole}
+            disabled={busy || grants === null || inheritedEveryone !== null}
+            onChange={(e) =>
+              void shareWithEveryone(e.target.value as GrantRole | "")
+            }
+          >
+            <option value="">No access</option>
+            <option value="viewer">Can read</option>
+            <option value="editor">Can edit</option>
+          </select>
+        </label>
+
+        {inheritedEveryone ? (
+          <p className="hint">
+            Already shared with everyone through {inheritedEveryone.origin_path}
+            . Change it there.
+          </p>
+        ) : (
+          <p className="hint">
+            Everyone signed in to Teapot, and nobody else. This is not the same
+            as putting it on the web, below.
+          </p>
+        )}
+      </div>
+
+      <h3>On the web</h3>
+
+      <div className="share-public">
+        <label className="share-public-toggle">
+          <input
+            type="checkbox"
+            checked={published}
+            disabled={busy || grants === null || inheritedPublic !== null}
+            onChange={(e) => void publish(e.target.checked)}
+          />
+          <span>Anyone with the link can read this</span>
+        </label>
+
+        {inheritedPublic ? (
+          // The toggle would appear to do nothing here: the grant lives on an
+          // ancestor, and this node is public because of it.
+          <p className="hint">
+            Already public through {inheritedPublic.origin_path}. Turn it off
+            there.
+          </p>
+        ) : published ? (
+          <p className="hint">
+            No sign-in needed. Everything inside this item is public too.
+          </p>
+        ) : null}
+      </div>
+
+      <h3>Who has access</h3>
+
+      {grants === null ? (
+        <p className="tree-empty">Loading…</p>
+      ) : grants.length === 0 ? (
+        <p className="tree-empty">Nobody yet, besides the space owner.</p>
+      ) : (
+        <ul className="share-list">
+          {grants.map((g) => (
+            <li key={g.grant_id}>
+              <span className="share-who">{describe(g)}</span>
+              <span className="share-role-label">{g.role}</span>
+              {g.inherited ? (
+                // Naming the origin is what makes an audit possible: "why can
+                // they see this" is answered by the folder it came from.
+                <span className="share-origin">
+                  inherited from {g.origin_path}
+                </span>
+              ) : (
+                <button
+                  className="btn btn-secondary btn-small"
+                  type="button"
+                  onClick={() => revoke(g.grant_id)}
+                  disabled={busy}
+                  aria-label={`Revoke access for ${describe(g)}`}
+                >
+                  Revoke
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </dialog>
   );
 }
 

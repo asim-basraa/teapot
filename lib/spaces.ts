@@ -74,7 +74,7 @@ export async function createSpace(
     name: name,
     slug: INDEX_PATH,
     path: INDEX_PATH,
-    content: welcomeDocument(name),
+    content: welcomeDocument(),
   });
 
   if (nodeError) return { error: nodeError.message };
@@ -87,12 +87,11 @@ export async function createSpace(
  *
  * It doubles as a demonstration of the supported syntax, so the first page
  * anyone sees exercises callouts, code highlighting and LaTeX rather than
- * being an empty stub.
+ * being an empty stub. It carries no title of its own: the page is titled by
+ * its name, which follows the space's.
  */
-function welcomeDocument(name: string): string {
-  return `# ${name}
-
-This space is yours. Everything below is ordinary Markdown, rendered on the
+function welcomeDocument(): string {
+  return `This space is yours. Everything below is ordinary Markdown, rendered on the
 server each time someone reads it.
 
 > [!tip] Sharing
@@ -122,6 +121,51 @@ $$
 
 Replace all of this with something of your own.
 `;
+}
+
+/**
+ * Renames a space, and its home page with it.
+ *
+ * The name only. The slug stays put because it is the address: changing it
+ * would break every link anyone has already shared, and a rename is not a
+ * request to move house.
+ *
+ * The home page's name follows because it is the space's own page, and a page
+ * is titled by its name. Left alone, the space would be called one thing in
+ * the list and another at the top of its front page. A plain update, so the
+ * node keeps its `index` slug and the space root still resolves; move_node
+ * would rederive the slug from the new name and 404 the space.
+ *
+ * Whether the caller may do this is RLS's decision, not ours: the update
+ * matches no row for anybody but the owner, which we report as not found.
+ */
+export async function renameSpace(
+  spaceId: string,
+  name: string,
+): Promise<{ error?: string }> {
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Give the space a name." };
+  if (trimmed.length > 200) return { error: "That name is too long." };
+
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("spaces")
+    .update({ name: trimmed })
+    .eq("id", spaceId)
+    .select("id")
+    .maybeSingle();
+
+  if (error) return { error: error.message };
+  if (!data) return { error: "Not found." };
+
+  await supabase
+    .from("nodes")
+    .update({ name: trimmed })
+    .eq("space_id", spaceId)
+    .eq("path", INDEX_PATH);
+
+  return {};
 }
 
 export async function getSpaceBySlug(slug: string): Promise<Space | null> {

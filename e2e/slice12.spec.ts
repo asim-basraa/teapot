@@ -104,7 +104,13 @@ test.describe("Comments", () => {
 
   test("the owner sees it and can reply", async () => {
     await owner.goto(PAGE);
-    await expect(owner.getByText("The Q3 date looks wrong.")).toBeVisible();
+
+    // Two things have to be true, and a bare assertion on the text cannot say
+    // which failed: the panel renders at all, which needs the owner's session
+    // to have survived the reload, and it carries what the guest wrote.
+    const panel = owner.getByRole("region", { name: "Comments" });
+    await expect(panel, "the owner must be signed in to see comments").toBeVisible();
+    await expect(panel.getByText("The Q3 date looks wrong.")).toBeVisible();
     await expect(owner.getByText(GUEST)).toBeVisible();
 
     await owner.getByRole("button", { name: `Reply to ${GUEST}` }).click();

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { readSkillMetadata } from "@teapot/renderer";
+import { readSkillMetadata } from "@postit/renderer";
 import type { ContentType } from "@/lib/nodes";
 
 type Props = {

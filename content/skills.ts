@@ -2,7 +2,7 @@
  * The starter skills.
  *
  * Held here as source rather than seeded only into the database, so that the
- * documentation page and the copy of them published in the Teapot space are the
+ * documentation page and the copy of them published in the Postit space are the
  * same text. A skill somebody copies out of the docs and a skill they open in a
  * space should never disagree.
  *
@@ -23,10 +23,10 @@ export type StarterSkill = {
 const chatContext: StarterSkill = {
   title: "Chat Context",
   summary:
-    "File what a conversation decided into Teapot, and pick it back up in a later session.",
+    "File what a conversation decided into Postit, and pick it back up in a later session.",
   body: `---
 name: Chat Context
-description: Record what a conversation established in Teapot, and retrieve it at the start of a later one
+description: Record what a conversation established in Postit, and retrieve it at the start of a later one
 ---
 
 # Chat Context
@@ -36,7 +36,7 @@ What people lose between conversations is rarely *what* was decided. It is
 
 ## At the start of a conversation
 
-Search Teapot for context before assuming there is none:
+Search Postit for context before assuming there is none:
 
 1. \`search\` the space for the project or topic by name.
 2. \`read_page\` anything that looks relevant.
@@ -95,13 +95,13 @@ const todoList: StarterSkill = {
     "Keep todos as a checklist in a page. Claude adds items, reads what is outstanding, and ticks things off.",
   body: `---
 name: Todo List
-description: Read and update the reader's todo list, kept as a Markdown checklist in Teapot
+description: Read and update the reader's todo list, kept as a Markdown checklist in Postit
 ---
 
 # Todo List
 
 Todos live in a normal page as GitHub-flavoured task lists. That format is the
-point: it renders as checkboxes in Teapot, stays readable as plain text
+point: it renders as checkboxes in Postit, stays readable as plain text
 anywhere else, and a person editing it by hand and Claude editing it through
 the API produce exactly the same thing.
 
@@ -344,7 +344,7 @@ const runbooks: StarterSkill = {
     "Operational procedures written once and followed consistently, read live rather than from a stale copy.",
   body: `---
 name: Runbooks
-description: Follow an operational procedure from Teapot, reading the current version rather than a remembered one
+description: Follow an operational procedure from Postit, reading the current version rather than a remembered one
 ---
 
 # Runbooks

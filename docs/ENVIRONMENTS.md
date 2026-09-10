@@ -10,6 +10,10 @@ nowhere to try anything first. This is the shape it should have had.
 | Staging | `staging` | `staging` | `teapot-staging` | https://web-staging-347f.up.railway.app |
 | Production | `main` | `production` | `teapot` | https://web-production-f323f.up.railway.app |
 
+The Supabase projects and the Railway project still carry the name the product
+shipped with. Renaming them changes addresses other systems already hold, so
+they are listed as they are rather than as they read.
+
 ## How work moves
 
 1. Develop on a branch. Merge it into `staging` when it is ready to be seen.

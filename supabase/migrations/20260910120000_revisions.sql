@@ -1,7 +1,7 @@
 -- What a page used to say.
 --
 -- Nothing here is borrowed from Quartz, which has no versioning: its only
--- version-adjacent feature reads a last-modified date out of git, and Teapot
+-- version-adjacent feature reads a last-modified date out of git, and Postit
 -- has no repository to read. Content lives in Postgres because access is
 -- decided per node, so history has to live there too.
 --

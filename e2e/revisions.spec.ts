@@ -5,7 +5,7 @@ import { registerAndConfirm, createSpace } from "./auth";
  * History, diffs and restore.
  *
  * Quartz has none of this to borrow: its only version-adjacent feature reads a
- * last-modified date out of git, and Teapot has no repository to read. So the
+ * last-modified date out of git, and Postit has no repository to read. So the
  * question these answer is whether a history built on the database keeps the
  * one property that matters here, which is that a revision is exactly as
  * reachable as the page it belongs to.
@@ -109,7 +109,12 @@ test.describe("Version history", () => {
 
     // And the lines that did not change are shown as unchanged rather than as
     // a wholesale rewrite.
-    await expect(dialog.locator(".diff-same")).toContainText("# Roadmap");
+    // The heading line specifically. Every line of the document is its own
+    // span, so asking the whole set to contain one line asks several elements
+    // the same question at once.
+    await expect(
+      dialog.locator(".diff-same").filter({ hasText: "# Roadmap" }),
+    ).toHaveCount(1);
   });
 
   test("restoring puts the old text back, and goes in forwards", async () => {

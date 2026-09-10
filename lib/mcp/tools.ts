@@ -1,4 +1,4 @@
-import { readSkillMetadata, parseFrontmatter } from "@teapot/renderer";
+import { readSkillMetadata, parseFrontmatter } from "@postit/renderer";
 import { startingContent, translate } from "@/lib/nodes";
 import type { McpSession } from "./session";
 

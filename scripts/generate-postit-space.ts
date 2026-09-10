@@ -2,9 +2,9 @@
 // --experimental-strip-types, which needs the .ts extension on the import that
 // the bundler resolution used by the app forbids.
 //
-// Regenerate the Teapot space migration:
-//   node --experimental-strip-types scripts/generate-teapot-space.ts \
-//     > supabase/migrations/20260909150000_teapot_space.sql
+// Regenerate the Postit space migration:
+//   node --experimental-strip-types scripts/generate-postit-space.ts \
+//     > supabase/migrations/20260909150000_postit_space.sql
 //
 // The skills come from content/skills.ts, so the copy in the space and the copy
 // on the documentation page are the same text and cannot drift apart.
@@ -13,7 +13,7 @@ import { STARTER_SKILLS } from "../content/skills.ts";
 
 const q = (s: string) => "'" + s.replace(/'/g, "''") + "'";
 
-const HOME = `Teapot is a knowledge garden with real access control. Ordinary
+const HOME = `Postit is a knowledge garden with real access control. Ordinary
 Markdown, rendered on the server, with permissions that are decided per page
 rather than per site.
 
@@ -45,19 +45,19 @@ A link to something you cannot read looks exactly like a link to something that
 does not exist. That is the same rule as above, applied to navigation.
 `;
 
-const CONNECT = `Teapot speaks MCP, so Claude can read and write the pages you
+const CONNECT = `Postit speaks MCP, so Claude can read and write the pages you
 can, and nothing else. It acts as you: the same 404s, the same grants.
 
 ## Get a token
 
-Go to **Connect Teapot to Claude** from your list of spaces. The token is shown
-once and never again — Teapot stores only a hash of it, so a leaked database
+Go to **Connect Postit to Claude** from your list of spaces. The token is shown
+once and never again — Postit stores only a hash of it, so a leaked database
 yields hashes the endpoint refuses. If you lose it, revoke it and make another.
 
 ## Claude Code
 
 \`\`\`
-claude mcp add --transport http teapot https://<your-teapot>/api/mcp \\
+claude mcp add --transport http postit https://<your-postit>/api/mcp \\
   --header "Authorization: Bearer <your-token>"
 \`\`\`
 
@@ -66,9 +66,9 @@ Or in \`.mcp.json\`, so the whole team gets it:
 \`\`\`json
 {
   "mcpServers": {
-    "teapot": {
+    "postit": {
       "type": "http",
-      "url": "https://<your-teapot>/api/mcp",
+      "url": "https://<your-postit>/api/mcp",
       "headers": { "Authorization": "Bearer <your-token>" }
     }
   }
@@ -78,7 +78,7 @@ Or in \`.mcp.json\`, so the whole team gets it:
 ## The desktop app
 
 Settings → Connectors → Add custom connector. The URL is
-\`https://<your-teapot>/api/mcp\`, and the token goes in an \`Authorization\`
+\`https://<your-postit>/api/mcp\`, and the token goes in an \`Authorization\`
 header as \`Bearer <your-token>\`.
 
 ## The API
@@ -107,7 +107,7 @@ One setting on every page, folder and skill, with three answers:
 | | What it means |
 | --- | --- |
 | **Private** | Only the people and teams you have shared it with. |
-| **Everyone signed in to Teapot** | Your whole organisation. Read, or read and write. |
+| **Everyone signed in to Postit** | Your whole organisation. Read, or read and write. |
 | **Public** | Anybody with the link. No account, no sign-in. |
 
 They are exclusive: choosing one withdraws the others, so there is never a
@@ -142,11 +142,15 @@ decision covers everything inside.
 `;
 
 const lines: string[] = [];
-lines.push(`-- The Teapot space: the product's own documentation, as content.
+lines.push(`-- The Postit space: the product's own documentation, as content.
 --
 -- Written as a data migration rather than seeded by hand so staging and
 -- production carry the same words, and so re-running it is a no-op. The skills
 -- are the same text the documentation page serves, from content/skills.ts.
+--
+-- This seeds a database that has never had the space. One that has it under
+-- the name the product shipped with is renamed instead, by the migration that
+-- follows this one.
 
 do $$
 declare
@@ -157,19 +161,19 @@ declare
 begin
   select id into v_owner from auth.users where email = 'asim@maqsoodlabs.com';
   if v_owner is null then
-    raise notice 'no owner for the Teapot space here; skipping';
+    raise notice 'no owner for the Postit space here; skipping';
     return;
   end if;
 
-  select id into v_space from public.spaces where slug = 'teapot';
+  select id into v_space from public.spaces where slug in ('postit', 'teapot');
   if v_space is not null then
-    raise notice 'the Teapot space already exists; skipping';
+    raise notice 'the Postit space already exists; skipping';
     return;
   end if;
 
   v_space := gen_random_uuid();
   insert into public.spaces (id, slug, name, owner_id)
-  values (v_space, 'teapot', 'Teapot', v_owner);
+  values (v_space, 'postit', 'Postit', v_owner);
 `);
 
 function page(name: string, slug: string, content: string, type: string | null) {
@@ -182,7 +186,7 @@ function page(name: string, slug: string, content: string, type: string | null) 
 `;
 }
 
-lines.push(page("Teapot", "index", HOME, null));
+lines.push(page("Postit", "index", HOME, null));
 lines.push(page("Connecting Claude", "connecting-claude", CONNECT, null));
 lines.push(page("Sharing and access", "sharing-and-access", SHARING, null));
 
@@ -202,7 +206,7 @@ for (const skill of STARTER_SKILLS) {
 }
 
 lines.push(`
-  raise notice 'Teapot space created';
+  raise notice 'Postit space created';
 end $$;
 `);
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Teapot",
+  title: "Postit",
   description: "A knowledge garden with real access control. Coming soon.",
 };
 
@@ -39,7 +39,7 @@ export default function ComingSoon() {
         </svg>
       </div>
 
-      <h1>Teapot</h1>
+      <h1>Postit</h1>
       <p className="tagline">A knowledge garden with real access control.</p>
       <p className="soon-note">Coming soon.</p>
       <p className="soon-signin">

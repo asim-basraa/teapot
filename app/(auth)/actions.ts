@@ -64,7 +64,7 @@ export async function signUp(
   // for something that is never coming. This says what is actually true in both
   // cases without giving away which one they are in.
   return {
-    notice: `If ${email} is new to Teapot, a confirmation link is on its way, and you will not be able to sign in until you have followed it. If you already have an account, sign in below instead.`,
+    notice: `If ${email} is new to Postit, a confirmation link is on its way, and you will not be able to sign in until you have followed it. If you already have an account, sign in below instead.`,
   };
 }
 
@@ -82,8 +82,18 @@ export async function signIn(
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    // Deliberately uniform: distinguishing "no such account" from "wrong
-    // password" tells an attacker which addresses are registered.
+    // A throttle is not a refusal, and saying "not valid" when the server is
+    // merely busy sends somebody off to reset a password that was never the
+    // problem. Nothing is given away by separating them: "too many" is true of
+    // an address whether or not it has an account.
+    if (error.status === 429) {
+      return {
+        error: "Too many attempts just now. Wait a minute and try again.",
+        values: { email },
+      };
+    }
+    // Deliberately uniform otherwise: distinguishing "no such account" from
+    // "wrong password" tells an attacker which addresses are registered.
     return { error: "Those credentials are not valid.", values: { email } };
   }
 

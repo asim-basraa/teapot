@@ -83,7 +83,7 @@ export function Tokens({
         <div className="token-issued">
           <h2>Your new token</h2>
           <p className="hint">
-            Copy it now. Teapot stores only a hash of it, so this is the one
+            Copy it now. Postit stores only a hash of it, so this is the one
             and only time it can be shown. If you lose it, revoke it and make
             another.
           </p>
@@ -93,12 +93,12 @@ export function Tokens({
           <h3>Set it up</h3>
           <p className="hint">
             Pick the one for the client you are using. Each already contains
-            this token and this Teapot&rsquo;s address.
+            this token and this Postit&rsquo;s address.
           </p>
 
           <Copyable
             label="Claude Code, command line"
-            text={`claude mcp add --transport http teapot ${endpoint} \\\n  --header "Authorization: Bearer ${issued}"`}
+            text={`claude mcp add --transport http postit ${endpoint} \\\n  --header "Authorization: Bearer ${issued}"`}
           />
 
           <Copyable
@@ -106,7 +106,7 @@ export function Tokens({
             text={JSON.stringify(
               {
                 mcpServers: {
-                  teapot: {
+                  postit: {
                     type: "http",
                     url: endpoint,
                     headers: { Authorization: `Bearer ${issued}` },
@@ -249,11 +249,11 @@ function apiExample(endpoint: string, token: string): string {
         {
           type: "url",
           url: endpoint,
-          name: "teapot",
+          name: "postit",
           authorization_token: token,
         },
       ],
-      tools: [{ type: "mcp_toolset", mcp_server_name: "teapot" }],
+      tools: [{ type: "mcp_toolset", mcp_server_name: "postit" }],
     },
     null,
     2,

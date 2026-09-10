@@ -1,6 +1,6 @@
 -- Authorization test suite.
 --
--- These are the security tests of the product. Every access decision in Teapot
+-- These are the security tests of the product. Every access decision in Postit
 -- is made by effective_role and its can_read / can_edit / can_admin wrappers,
 -- so this file is where that decision is held to account.
 --
@@ -643,34 +643,34 @@ select pg_temp.check('filtering by type finds documents, not folders',
 
 insert into public.mcp_tokens (id, user_id, name, token_hash) values
   ('d0000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','Owner laptop',
-   encode(extensions.digest('tea_owner_secret','sha256'),'hex')),
+   encode(extensions.digest('post_owner_secret','sha256'),'hex')),
   ('d0000000-0000-0000-0000-000000000002','22222222-2222-2222-2222-222222222222','Alice laptop',
-   encode(extensions.digest('tea_alice_secret','sha256'),'hex'));
+   encode(extensions.digest('post_alice_secret','sha256'),'hex'));
 
 select pg_temp.check('a live token resolves to its owner',
-  (select user_id::text from public.resolve_mcp_token('tea_owner_secret')),
+  (select user_id::text from public.resolve_mcp_token('post_owner_secret')),
   '11111111-1111-1111-1111-111111111111');
 select pg_temp.check('using a token records that it was used',
   (select (last_used_at is not null)::text from public.mcp_tokens
    where id = 'd0000000-0000-0000-0000-000000000001'), 'true');
 select pg_temp.check('an unknown token resolves to nothing',
-  (select count(*)::text from public.resolve_mcp_token('tea_not_a_token')), '0');
+  (select count(*)::text from public.resolve_mcp_token('post_not_a_token')), '0');
 
 -- The point of storing hashes. If presenting the stored hash worked, a leaked
 -- database would be enough to authenticate and the hashing would buy nothing.
 select pg_temp.check('presenting the stored hash is not enough',
   (select count(*)::text from public.resolve_mcp_token(
-     encode(extensions.digest('tea_owner_secret','sha256'),'hex'))), '0');
+     encode(extensions.digest('post_owner_secret','sha256'),'hex'))), '0');
 
 update public.mcp_tokens set revoked_at = now()
  where id = 'd0000000-0000-0000-0000-000000000001';
 select pg_temp.check('a revoked token stops working on the next request',
-  (select count(*)::text from public.resolve_mcp_token('tea_owner_secret')), '0');
+  (select count(*)::text from public.resolve_mcp_token('post_owner_secret')), '0');
 
 update public.mcp_tokens set revoked_at = null, expires_at = now() - interval '1 minute'
  where id = 'd0000000-0000-0000-0000-000000000001';
 select pg_temp.check('an expired token stops working too',
-  (select count(*)::text from public.resolve_mcp_token('tea_owner_secret')), '0');
+  (select count(*)::text from public.resolve_mcp_token('post_owner_secret')), '0');
 
 set local role authenticated;
 

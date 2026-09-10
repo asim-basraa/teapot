@@ -58,7 +58,7 @@ test.describe("Your account", () => {
   test("the settings are gathered there", async () => {
     await page.goto("/account");
 
-    await page.getByRole("link", { name: "Connect Teapot to Claude" }).click();
+    await page.getByRole("link", { name: "Connect Postit to Claude" }).click();
     await expect(page).toHaveURL(/\/settings\/mcp/);
 
     // And back, so it is a place rather than a one-way door.
@@ -85,7 +85,10 @@ test.describe("Your account", () => {
     await page.getByLabel("Email").fill(OWNER);
     await page.getByLabel("Password").fill(PASSWORD);
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page.getByRole("alert")).toBeVisible();
+    // The text, not merely that something went red: a throttled sign-in also
+    // shows an alert, and a test that cannot tell the two apart reports the
+    // wrong thing when the next line fails.
+    await expect(page.getByRole("alert")).toHaveText(/not valid/);
 
     // A refused sign-in keeps the address. Retyping it is the cost of a typo
     // in the other field, and nothing is given away by showing back what was

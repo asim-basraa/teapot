@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AuthForm } from "../AuthForm";
 import { signIn } from "../actions";
 
-export const metadata = { title: "Sign in to Teapot" };
+export const metadata = { title: "Sign in to Postit" };
 
 export default async function LoginPage({
   searchParams,

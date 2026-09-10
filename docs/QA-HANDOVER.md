@@ -1,11 +1,11 @@
-# Teapot: QA handover
+# Postit: QA handover
 
 Everything a tester needs to start, plus the things worth knowing before you
 file a bug. Written for the first QA round.
 
 ---
 
-## What Teapot is
+## What Postit is
 
 A knowledge garden where **who can see what is the product**, not a setting on
 the side of it. People write Markdown in spaces, organise it in folders, and
@@ -24,22 +24,22 @@ bug and it is the most valuable bug you can file.
 
 **Staging:** https://web-staging-347f.up.railway.app
 
-**Read `/docs` first.** It is public, needs no account, and explains what Teapot
+**Read `/docs` first.** It is public, needs no account, and explains what Postit
 is, how to connect it to Claude, and what a connected Claude can and cannot
 reach. It is also a thing to test in its own right.
 
-**Then read the Teapot space**, at `/s/teapot`, once you are signed in. It is
-the same material as living content: what Teapot is, connecting Claude, how
+**Then read the Postit space**, at `/s/postit`, once you are signed in. It is
+the same material as living content: what Postit is, connecting Claude, how
 sharing works, and six starter skills you can copy into your own space. It is
 shared with everyone who has an account and with nobody who does not, so it
-doubles as a check on that: open `/s/teapot` in a private window and it must
+doubles as a check on that: open `/s/postit` in a private window and it must
 404.
 
 **Signing up.** Registration is open to anyone with a `@maqsoodlabs.com`
 address. Everyone else is refused unless they have been invited.
 
 **Being invited.** Somebody sharing a page or folder with an address that has
-no account now invites it. The invitation email arrives from Teapot; following
+no account now invites it. The invitation email arrives from Postit; following
 the link asks you to set a password and then puts you straight on the thing you
 were shared. That is the route in for a tester whose address is not on
 `maqsoodlabs.com`: ask somebody to share something with you.
@@ -153,8 +153,8 @@ One control at the top of the Share dialog, with four settings:
 | Setting | Who that is |
 | --- | --- |
 | Private | Only the people and teams listed below, and the space's owner. |
-| Everyone signed in to Teapot can read | Every person who can sign in. |
-| Everyone signed in to Teapot can edit | The same people, with writing. |
+| Everyone signed in to Postit can read | Every person who can sign in. |
+| Everyone signed in to Postit can edit | The same people, with writing. |
 | Public | The open internet. No account at all. |
 
 The distinction between the middle two and the last matters more than anything
@@ -176,7 +176,7 @@ must still 404.
 
 ### Inviting somebody who has no account
 
-Share with an email address that has never signed up. Teapot invites it: the
+Share with an email address that has never signed up. Postit invites it: the
 person appears in the list, and an invitation email goes out.
 
 - Follow the link in that email. It should land on a page asking for a
@@ -238,7 +238,7 @@ need edit rights.
 ### Articles and skills
 
 Every page is an **article** or a **skill**. Skills are Markdown files written
-to Claude's conventions, so Teapot can double as a skills repository.
+to Claude's conventions, so Postit can double as a skills repository.
 
 - **+ Skill** in the tree header, and **New skill** on a folder's page, create
   one with its frontmatter already filled in.
@@ -251,7 +251,7 @@ to Claude's conventions, so Teapot can double as a skills repository.
 
 ### Connecting to Claude (MCP)
 
-**Your account → Connect Teapot to Claude**, or `/settings/mcp`.
+**Your account → Connect Postit to Claude**, or `/settings/mcp`.
 
 Create a token and name it. A token can reach everything you can read, or be
 pinned to a single space; pin it where you can, so a leak costs one space
@@ -260,7 +260,7 @@ rather than the account.
 The token is shown **once**, with the configuration for each client already
 built around it: the `claude mcp add` command line, an `.mcp.json` block, a
 connector URL, and a curl for the Anthropic API. Each carries this token and
-this Teapot's address, so connecting is copy and paste rather than transcribing
+this Postit's address, so connecting is copy and paste rather than transcribing
 a secret by hand. There is no way to see it again; if you lose it, revoke it
 and make another. Reload the page and the token must be gone while the entry
 in the list stays.
@@ -270,7 +270,7 @@ dialog has no field for a header, so the connector URL carries the token in the
 path. This is weaker than a header on purpose, and the page says so in red: a
 token in a URL is in every HTTP log that records the path, in whatever Claude
 stores for the connection, and anywhere the URL is pasted. It is a stopgap
-until Teapot speaks OAuth. Both routes reach the same endpoint and the same
+until Postit speaks OAuth. Both routes reach the same endpoint and the same
 content; if one works and the other does not, that is a bug.
 
 What a connected Claude can do: list spaces, walk a space's tree, search, read
@@ -336,7 +336,14 @@ Worth a second look, because these are where the bugs were.
   else. Claude can create folders and walk a space's tree, and is refused
   rather than obliged when it asks for a folder the wrong way.
 - **A refused sign-in keeps your address.** It used to empty both fields, so a
-  mistyped password cost two.
+  mistyped password cost two. A sign-in refused because you have tried too
+  often now says so, rather than telling you your password is wrong.
+- **The MCP endpoint stopped throttling clients that were doing nothing
+  wrong.** Its failure budget counted every request rather than every refusal,
+  so a Claude filing a folder of documents ran into a 429 after twenty calls.
+- **The product is Postit.** It shipped as Teapot; the name is the only thing
+  that changed. The documentation space is at `/s/postit`, and new tokens begin
+  `post_` rather than `tea_`. Tokens issued before the change still work.
 
 ---
 
@@ -373,7 +380,8 @@ So you know where the thin ice is, and where it is not.
 - **145-odd browser tests** across eighteen suites, driving real sign-ups with
   real confirmation emails and real invitation emails, and using two or three
   separate browsers wherever the question is what a *different* person can see.
-- **65 unit tests** on the renderer, the diff and the pure logic.
+- **69 unit tests** on the renderer, the diff, the MCP throttle and the pure
+  logic.
 
 All of it runs on every push and must be green before anything merges.
 

@@ -26,7 +26,7 @@ export function AppHeader({
   return (
     <header className={className ? `shell-header ${className}` : "shell-header"}>
       <Link href={email ? "/spaces" : "/"} className="shell-brand">
-        Teapot
+        Postit
       </Link>
 
       {children}

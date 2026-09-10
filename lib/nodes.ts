@@ -1,4 +1,4 @@
-import { extractWikilinkTargets } from "@teapot/renderer";
+import { extractWikilinkTargets } from "@postit/renderer";
 import { createClient } from "@/lib/supabase/server";
 import { resolveLinkTargets, type Node } from "@/lib/spaces";
 

@@ -24,7 +24,7 @@ export default async function Home() {
 
   return (
     <main>
-      <h1>Teapot</h1>
+      <h1>Postit</h1>
       <p className="lede">
         {allOk
           ? "Deployment tracer: every check below passed."

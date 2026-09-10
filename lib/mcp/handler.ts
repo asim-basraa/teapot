@@ -3,7 +3,8 @@ import { resolveSession } from "@/lib/mcp/session";
 import { TOOLS } from "@/lib/mcp/tools";
 import {
   allowToken,
-  allowFailure,
+  failuresSpent,
+  recordFailure,
   callerAddress,
 } from "@/lib/mcp/rate-limit";
 
@@ -45,16 +46,21 @@ export async function handleMcp(
   const address = callerAddress(request);
 
   if (!token) {
-    allowFailure(address);
+    recordFailure(address);
     return unauthorized();
   }
 
-  // Throttled before the token is looked at, so a flood of guesses cannot be
-  // turned into a flood of database round trips.
-  if (!allowFailure(address)) return tooMany();
+  // Asked before the token is looked at, so a flood of guesses cannot be
+  // turned into a flood of database round trips. It counts refusals only: a
+  // token that works is throttled by its own bucket below, which is generous
+  // because using a token is the point.
+  if (failuresSpent(address)) return tooMany();
 
   const session = await resolveSession(token);
-  if (!session) return unauthorized();
+  if (!session) {
+    recordFailure(address);
+    return unauthorized();
+  }
 
   if (!allowToken(session.tokenId)) return tooMany();
 
@@ -78,7 +84,7 @@ export async function handleMcp(
       return rpcResult(id, {
         protocolVersion: PROTOCOL_VERSION,
         capabilities: { tools: {} },
-        serverInfo: { name: "teapot", version: "1.0.0" },
+        serverInfo: { name: "postit", version: "1.0.0" },
       });
 
     case "ping":

@@ -4,7 +4,7 @@
 # GitHub Actions runners, which do. Everything is throwaway per run, so the
 # ports and secrets below are fixed rather than generated.
 
-project_id = "teapot"
+project_id = "postit"
 
 [api]
 enabled = true
@@ -54,6 +54,20 @@ enable_confirmations = true
 double_confirm_changes = true
 secure_password_change = false
 max_frequency = "1s"
+
+# GoTrue allows thirty sign-ins and sign-ups per five minutes per address by
+# default, which is the right answer on the internet and the wrong one here:
+# the whole suite is one address, and it registers and signs in dozens of
+# accounts inside those five minutes. Exhausting it refuses a correct password
+# with the same message a wrong one gets, so the failure lands on whichever
+# test happens to run late and reads like a broken sign-in.
+#
+# Raised for this throwaway stack only. The hosted projects keep their own
+# settings, where the default is what should be in force.
+[auth.rate_limit]
+sign_in_sign_ups = 1000
+token_refresh = 1000
+token_verifications = 1000
 
 # The domain gate. Without this the E2E suite would happily accept a gmail
 # address and the rejection test would fail for the right reason.

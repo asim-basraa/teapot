@@ -13,7 +13,7 @@ description: Read and update the reader's todos
 
 # Todo List
 
-Ask Teapot for open items, then mark them done.
+Ask Postit for open items, then mark them done.
 `;
 
 test.describe.configure({ mode: "serial" });
@@ -99,7 +99,7 @@ test.describe("Content types: article and skill", () => {
     await expect(
       article.getByRole("heading", { level: 1, name: "Todo List" }),
     ).toBeVisible();
-    await expect(article).toContainText("Ask Teapot for open items");
+    await expect(article).toContainText("Ask Postit for open items");
     // The metadata belongs to the document, not in it.
     await expect(article).not.toContainText("description:");
     await expect(article).not.toContainText("---");

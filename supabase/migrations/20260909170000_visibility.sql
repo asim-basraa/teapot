@@ -11,7 +11,7 @@
 -- The three answers are genuinely different and all three are kept:
 --
 --   private    only the people and teams it has been shared with
---   everyone   anybody signed in to Teapot, and nobody else
+--   everyone   anybody signed in to Postit, and nobody else
 --   public     anybody with the link, no account at all
 --
 -- `everyone` is not `public`, and the difference is the whole point of the

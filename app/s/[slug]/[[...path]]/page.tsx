@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { renderMarkdown } from "@teapot/renderer";
+import { renderMarkdown } from "@postit/renderer";
 import { nodeCapabilities, listChildren } from "@/lib/nodes";
 import { listBacklinks } from "@/lib/links";
 import { listComments } from "@/lib/comments";

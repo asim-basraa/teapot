@@ -113,10 +113,10 @@ test.describe("MCP server", () => {
     const value = owner.locator("#copyable-token");
     await expect(value).toBeVisible();
     token = ((await value.textContent()) ?? "").trim();
-    expect(token).toMatch(/^tea_/);
+    expect(token).toMatch(/^post_/);
 
     // Every client's configuration is shown alongside, with this token and
-    // this Teapot's address already in it, so connecting is copy and paste
+    // this Postit's address already in it, so connecting is copy and paste
     // rather than transcribing a secret by hand.
     for (const label of [
       "Claude Code, command line",
@@ -149,7 +149,7 @@ test.describe("MCP server", () => {
 
     // And it is the same credential, not a way around one: another account's
     // token reaches nothing here either.
-    const wrong = await api.post("/api/mcp/tea_not_a_real_token", {
+    const wrong = await api.post("/api/mcp/post_not_a_real_token", {
       data: { jsonrpc: "2.0", id: 1, method: "tools/list" },
     });
     expect(wrong.status()).toBe(401);
@@ -161,7 +161,7 @@ test.describe("MCP server", () => {
   });
 
   test("an unknown token is refused, and looks exactly like a revoked one", async () => {
-    const unknown = await rpc("tools/list", undefined, "tea_not_a_real_token");
+    const unknown = await rpc("tools/list", undefined, "post_not_a_real_token");
     expect(unknown.status).toBe(401);
     expect(unknown.body?.error?.message).toBe("Unauthorized");
   });
@@ -173,7 +173,7 @@ test.describe("MCP server", () => {
       clientInfo: { name: "playwright", version: "1.0.0" },
     });
     expect(init.status).toBe(200);
-    expect(init.body.result.serverInfo.name).toBe("teapot");
+    expect(init.body.result.serverInfo.name).toBe("postit");
 
     const listed = await rpc("tools/list", {});
     const names = listed.body.result.tools.map((t: { name: string }) => t.name);

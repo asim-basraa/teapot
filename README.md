@@ -1,4 +1,4 @@
-# Teapot
+# Postit
 
 A multi-tenant knowledge garden: the Quartz reading experience with real
 access control. See [issue #1](https://github.com/asim-basraa/teapot/issues/1)
@@ -26,6 +26,11 @@ npm run dev
 | CI | ephemeral | local Supabase in Docker |
 | staging | Railway `staging` | `teapot-staging` |
 | production | Railway `production` | `teapot` |
+
+The product is Postit. The GitHub repository, the Railway project and the
+Supabase projects still carry the name it shipped with, because renaming them
+changes addresses other people and other systems already hold. They are named
+here as they actually are rather than as they will be.
 
 `NEXT_PUBLIC_*` variables reach the browser. `SUPABASE_SERVICE_ROLE_KEY` is
 server-only and must never be given a `NEXT_PUBLIC_` prefix: it bypasses row

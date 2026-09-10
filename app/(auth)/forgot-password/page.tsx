@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AuthForm } from "../AuthForm";
 import { requestPasswordReset } from "../actions";
 
-export const metadata = { title: "Reset your Teapot password" };
+export const metadata = { title: "Reset your Postit password" };
 
 export default function ForgotPasswordPage() {
   return (

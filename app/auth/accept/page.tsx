@@ -17,7 +17,7 @@ export default function AcceptPage() {
     // The same frame as the sign-in pages, which this sits between.
     <main className="auth">
       <Link href="/" className="auth-brand">
-        Teapot
+        Postit
       </Link>
       <div className="auth-card">
         <h1>Accepting your invitation</h1>

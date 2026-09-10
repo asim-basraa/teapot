@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { SpaceContext } from "@teapot/renderer";
+import type { SpaceContext } from "@postit/renderer";
 
 export type Space = {
   id: string;

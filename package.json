@@ -1,5 +1,5 @@
 {
-  "name": "teapot",
+  "name": "postit",
   "version": "0.1.0",
   "private": true,
   "workspaces": [
@@ -16,7 +16,7 @@
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",
-    "@teapot/renderer": "*",
+    "@postit/renderer": "*",
     "mermaid": "^11.17.2",
     "next": "^15.5.0",
     "react": "^19.1.0",

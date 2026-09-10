@@ -4,27 +4,27 @@ import { STARTER_SKILLS } from "@/content/skills";
 import { Copyable } from "@/components/Copyable";
 
 export const metadata: Metadata = {
-  title: "Teapot documentation",
+  title: "Postit documentation",
   description:
-    "How to connect Teapot to Claude, and a handful of skills worth copying.",
+    "How to connect Postit to Claude, and a handful of skills worth copying.",
 };
 
 /**
  * The one documentation page.
  *
- * Public, and deliberately so: somebody deciding whether to connect Teapot to
+ * Public, and deliberately so: somebody deciding whether to connect Postit to
  * Claude needs to read what it will and will not reach before they have an
  * account. Requiring a login to read that would be asking for trust before
  * offering any.
  */
 export default function DocsPage() {
-  const mcpUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://your-teapot"}/api/mcp`;
+  const mcpUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://your-postit"}/api/mcp`;
 
   return (
     <main className="shell docs">
       <header className="shell-header">
         <Link href="/" className="shell-brand">
-          Teapot
+          Postit
         </Link>
         <Link href="/login" className="btn btn-secondary btn-small">
           Sign in
@@ -32,10 +32,10 @@ export default function DocsPage() {
       </header>
 
       <article className="prose">
-        <h1>Teapot</h1>
+        <h1>Postit</h1>
 
         <p className="lede">
-          Teapot is a place to write things down, where who can read what is the
+          Postit is a place to write things down, where who can read what is the
           product rather than a setting on the side of it. You write Markdown in
           spaces, organise it in folders, and share a page or a whole folder
           with a person, with a team, or with anyone at all. A page you have not
@@ -49,13 +49,13 @@ export default function DocsPage() {
           anywhere. That is what the rest of this page is about.
         </p>
 
-        <h2 id="connecting">Connecting Teapot to Claude</h2>
+        <h2 id="connecting">Connecting Postit to Claude</h2>
 
         <h3>1. Make a token</h3>
 
         <p>
           Sign in, then go to <strong>Your spaces</strong> and follow{" "}
-          <strong>Connect Teapot to Claude</strong>, or go straight to{" "}
+          <strong>Connect Postit to Claude</strong>, or go straight to{" "}
           <code>/settings/mcp</code>. Give the token a name you will recognise
           in six months, like the machine it is going on.
         </p>
@@ -86,7 +86,7 @@ export default function DocsPage() {
 
         <Copyable
           label="Claude Code, command line"
-          text={`claude mcp add --transport http teapot ${mcpUrl} \\\n  --header "Authorization: Bearer tea_your_token_here"`}
+          text={`claude mcp add --transport http postit ${mcpUrl} \\\n  --header "Authorization: Bearer post_your_token_here"`}
         />
 
         <Copyable
@@ -94,10 +94,10 @@ export default function DocsPage() {
           text={JSON.stringify(
             {
               mcpServers: {
-                teapot: {
+                postit: {
                   type: "http",
                   url: mcpUrl,
-                  headers: { Authorization: "Bearer tea_your_token_here" },
+                  headers: { Authorization: "Bearer post_your_token_here" },
                 },
               },
             },
@@ -150,11 +150,11 @@ export default function DocsPage() {
                   {
                     type: "url",
                     url: mcpUrl,
-                    name: "teapot",
-                    authorization_token: "tea_your_token_here",
+                    name: "postit",
+                    authorization_token: "post_your_token_here",
                   },
                 ],
-                tools: [{ type: "mcp_toolset", mcp_server_name: "teapot" }],
+                tools: [{ type: "mcp_toolset", mcp_server_name: "postit" }],
               },
               null,
               2,
@@ -215,11 +215,11 @@ export default function DocsPage() {
         <h2 id="skills">Articles and skills</h2>
 
         <p>
-          Every page in Teapot is an <strong>article</strong> or a{" "}
+          Every page in Postit is an <strong>article</strong> or a{" "}
           <strong>skill</strong>. An article is prose: notes, a decision, a
           write-up. A skill is a Markdown file written as instructions for
           Claude to follow, in the same shape Claude uses elsewhere, which means
-          Teapot doubles as a place to keep them.
+          Postit doubles as a place to keep them.
         </p>
 
         <p>The distinction earns its keep the moment you ask for your skills:</p>
@@ -260,7 +260,7 @@ export default function DocsPage() {
         </ul>
 
         <p>
-          Teapot will not stop you saving a skill with no description. It will
+          Postit will not stop you saving a skill with no description. It will
           say so and save it anyway: losing what you wrote over a formatting
           detail is a much worse outcome than an incomplete skill.
         </p>

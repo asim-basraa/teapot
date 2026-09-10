@@ -338,7 +338,9 @@ test.describe("MCP server", () => {
     await other.goto("/settings/mcp");
     await other.getByLabel("Name this token").fill("Theirs");
     await other.getByRole("button", { name: "Create token" }).click();
-    otherToken = ((await other.locator(".token-value").textContent()) ?? "").trim();
+    const theirs = other.locator("#copyable-token");
+    await expect(theirs).toBeVisible();
+    otherToken = ((await theirs.textContent()) ?? "").trim();
 
     // Their token sees none of the owner's spaces, and asking directly for a
     // page by id gets the same not-found a missing page would.

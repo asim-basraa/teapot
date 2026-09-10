@@ -87,6 +87,11 @@ test.describe("Your account", () => {
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.getByRole("alert")).toBeVisible();
 
+    // A refused sign-in keeps the address. Retyping it is the cost of a typo
+    // in the other field, and nothing is given away by showing back what was
+    // just typed in the clear.
+    await expect(page.getByLabel("Email")).toHaveValue(OWNER);
+
     await page.getByLabel("Password").fill(NEW_PASSWORD);
     await page.getByRole("button", { name: "Sign in" }).click();
     await page.waitForURL(/\/spaces/);

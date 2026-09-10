@@ -1129,7 +1129,8 @@ reset role;
 -- answer to "who can see this", and the second answer is the one that turns
 -- out to be wrong. Restoring is an edit and needs edit.
 
--- Two saves on the deep note, which alice can read and bob can edit.
+-- Two saves on the deep note, which alice can read and the space owner can
+-- edit.
 update public.nodes
    set content = '# note, second draft', content_version = content_version + 1
  where id = 'b0000000-0000-0000-0000-000000000003';
@@ -1186,8 +1187,12 @@ select pg_temp.check('and no revisions',
   (select count(*)::text from public.node_revisions
     where node_id = 'b0000000-0000-0000-0000-000000000003'), '0');
 
--- Bob is an editor through the Engineers team, so restoring is his to do.
-select set_config('request.jwt.claims','{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}', true);
+-- The space owner, who holds admin on everything in it and whose access no
+-- earlier section of this suite has taken away. Bob's editor grant came
+-- through the Engineers team, and the teams section above revokes it: a test
+-- that leans on state set up a thousand lines earlier is a test that fails for
+-- a reason having nothing to do with what it is checking.
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
 
 do $$
 declare v_id uuid;
@@ -1214,12 +1219,14 @@ select pg_temp.check('attributed to whoever restored it',
   (select author_id::text from public.node_revisions
     where node_id = 'b0000000-0000-0000-0000-000000000003'
     order by created_at desc limit 1),
-  '33333333-3333-3333-3333-333333333333');
+  '11111111-1111-1111-1111-111111111111');
 
 -- Nobody writes history by hand. The table has a select policy and no other,
 -- so an insert by a signed-in user is refused however plausible it looks.
+-- Asked of the space owner, who has every right this product grants. If even
+-- they cannot write history by hand, nobody can.
 set local role authenticated;
-select set_config('request.jwt.claims','{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}', true);
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
 do $$
 begin
   begin

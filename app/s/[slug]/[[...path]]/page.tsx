@@ -79,7 +79,13 @@ export default async function NodePage({
         <article className="prose">
           <h1>{node.name}</h1>
 
-          {canEdit ? <NewChild spaceId={space.id} parentId={node.id} /> : null}
+          {canEdit ? (
+            <NewChild
+              spaceId={space.id}
+              spaceSlug={space.slug}
+              parentId={node.id}
+            />
+          ) : null}
 
           {children.length === 0 ? (
             <p className="empty">This folder is empty.</p>

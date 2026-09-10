@@ -90,20 +90,23 @@ test.describe("Slice 2: file tree and node CRUD", () => {
       await response.text().catch(() => ""),
     ).toBe(201);
 
+    // Making a page takes you into it, rather than leaving you on the folder
+    // waiting for the sidebar to catch up.
+    await expect(page).toHaveURL(`/s/${SPACE_SLUG}/projects/road-map`);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Road Map" }),
+    ).toBeVisible();
+
     const link = page.locator(".tree").getByRole("link", { name: "Road Map" });
     await expect(link).toBeVisible();
     await expect(link).toHaveAttribute(
       "href",
       `/s/${SPACE_SLUG}/projects/road-map`,
     );
-
-    // And it is listed where it was made.
-    await expect(
-      page.locator(".folder-contents").getByRole("link", { name: "Road Map" }),
-    ).toBeVisible();
   });
 
   test("navigates to the page through the sidebar", async () => {
+    await page.goto(`/s/${SPACE_SLUG}/projects`);
     await page.locator(".tree").getByRole("link", { name: "Road Map" }).click();
 
     await expect(page).toHaveURL(`/s/${SPACE_SLUG}/projects/road-map`);

@@ -51,9 +51,15 @@ export function Editor({
       body: JSON.stringify({ content_type: next }),
     });
 
+    // Read it either way. The server says why it refused, which is worth
+    // showing instead of a guess, and a response body nobody reads is a stream
+    // nobody closes: it left the request hanging open, which is how this
+    // surfaced at all.
+    const body = await res.json().catch(() => ({}));
+
     if (!res.ok) {
       setContentType(previous);
-      setError("Could not change the type of this page.");
+      setError(body.error ?? "Could not change the type of this page.");
     }
   }
 

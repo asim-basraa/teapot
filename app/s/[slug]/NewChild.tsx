@@ -12,9 +12,11 @@ import { useRouter } from "next/navigation";
  */
 export function NewChild({
   spaceId,
+  spaceSlug,
   parentId,
 }: {
   spaceId: string;
+  spaceSlug: string;
   parentId: string;
 }) {
   const router = useRouter();
@@ -49,13 +51,20 @@ export function NewChild({
       }),
     });
 
+    const body = await res.json().catch(() => ({}));
+
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
       setError(body.error ?? `Could not create that (${res.status})`);
       return;
     }
 
-    startTransition(() => router.refresh());
+    // Go to the thing you just made. Staying put and hoping the sidebar
+    // catches up leaves you looking at a list that does not yet contain it,
+    // and there is nowhere else you would rather be than in the new page.
+    startTransition(() => {
+      router.push(`/s/${spaceSlug}/${body.node.path}`);
+      router.refresh();
+    });
   }
 
   return (

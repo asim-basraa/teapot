@@ -161,7 +161,7 @@ test.describe("Content types: article and skill", () => {
       ),
       page.getByRole("combobox", { name: "Type" }).selectOption("skill"),
     ]);
-    expect(response.status(), await response.text()).toBe(200);
+    expect(response.status()).toBe(200);
 
     // Saved but flagged: a skill with no metadata is still somebody's writing,
     // and refusing it would lose the work over a formatting detail.

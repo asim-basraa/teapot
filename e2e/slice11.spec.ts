@@ -247,6 +247,58 @@ test.describe("MCP server", () => {
     expect(refused.text).toContain("Only folders can contain items");
   });
 
+  test("and can see the structure it built, and find one made elsewhere", async () => {
+    // The gap that left somebody unable to find a folder created in the
+    // browser: search matches content, and a folder has none, so there was no
+    // way to enumerate a space at all.
+    const tree = await call("list_tree", { space_id: spaceId });
+    expect(tree.isError, tree.text).toBeFalsy();
+    expect(tree.text).toContain("handbook (folder");
+    expect(tree.text).toContain("handbook/leave (article");
+
+    const folders = await call("list_tree", {
+      space_id: spaceId,
+      kind: "folder",
+    });
+    expect(folders.text).toContain("handbook (folder");
+    expect(folders.text).not.toContain("handbook/leave");
+
+    // And reading a folder says what is in it, rather than "(no content)",
+    // which is true and useless.
+    const read = await call("read_page", {
+      space_id: spaceId,
+      path: "handbook",
+    });
+    expect(read.isError, read.text).toBeFalsy();
+    expect(read.text).toContain("type: folder");
+    expect(read.text).toContain("handbook/leave");
+  });
+
+  test("it is told when it is asking for a folder the wrong way", async () => {
+    // Both of these used to succeed quietly and produce something other than
+    // what was asked for, which is worse than a refusal.
+    const typed = await call("create_page", {
+      space_id: spaceId,
+      name: "Pretend Folder",
+      content_type: "folder",
+    });
+    expect(typed.isError).toBe(true);
+    expect(typed.text).toContain("create_folder");
+
+    const slashed = await call("create_page", {
+      space_id: spaceId,
+      name: "handbook/README",
+    });
+    expect(slashed.isError).toBe(true);
+    expect(slashed.text).toContain("cannot contain a slash");
+    expect(slashed.text).toContain("parent_id");
+
+    // Neither left anything behind.
+    const tree = await call("list_tree", { space_id: spaceId });
+    expect(tree.text).not.toContain("pretend-folder");
+    expect(tree.text).not.toContain("handbook-readme");
+  });
+
   test("it can write, and refuses to clobber a concurrent edit", async () => {
     const created = await call("create_page", {
       space_id: spaceId,

@@ -176,8 +176,9 @@ export default function DocsPage() {
 
         <ul>
           <li>
-            <code>list_spaces</code>, <code>search</code> within a space, and{" "}
-            <code>read_page</code> by path or id
+            <code>list_spaces</code>, <code>list_tree</code> to see what is in
+            one, <code>search</code> within it, and <code>read_page</code> by
+            path or id
           </li>
           <li>
             <code>list_skills</code> and <code>get_skill</code>, so it can find

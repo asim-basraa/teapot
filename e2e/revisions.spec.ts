@@ -127,11 +127,12 @@ test.describe("Version history", () => {
     await owner.goto(PAGE);
     await expect(owner.locator("article.prose")).toContainText("Ship in March");
 
-    // Four, not two: the restore is an edit like any other, so it is itself in
-    // the history and can itself be undone.
+    // The restore is an edit like any other, so it is itself in the history and
+    // can itself be undone. Three rather than four because only the last three
+    // versions are kept: the fourth pushed the page as created off the end.
     const res = await owner.request.get(`/api/v1/nodes/${nodeId}/revisions`);
     const { revisions } = await res.json();
-    expect(revisions).toHaveLength(4);
+    expect(revisions).toHaveLength(3);
   });
 
   test("a reader can see the history but not rewrite it", async () => {
@@ -140,12 +141,51 @@ test.describe("Version history", () => {
 
     const dialog = reader.getByRole("dialog", { name: "History of Roadmap" });
     await expect(dialog).toBeVisible();
-    await expect(dialog.locator(".history-entry")).toHaveCount(4);
+    await expect(dialog.locator(".history-entry")).toHaveCount(3);
 
     // Reading the past is a reader's right; changing it is not.
     await expect(
       dialog.getByRole("button", { name: "Restore this version" }),
     ).toHaveCount(0);
+  });
+
+  test("three deep, and the oldest falls off the end", async () => {
+    // A version is stored as the difference from the one after it, anchored at
+    // what the page says now. So this is the case worth proving: after enough
+    // saves to push the far end off, every version still left must rebuild
+    // exactly, which it can only do if dropping the oldest never broke the
+    // chain.
+    // The newest entry is the page as it stands, so its version number is the
+    // one a save has to present.
+    const before = await owner.request.get(`/api/v1/nodes/${nodeId}/revisions`);
+    let version = (await before.json()).revisions[0].content_version as number;
+
+    for (const month of ["June", "July", "August"]) {
+      const saved = await owner.request.patch(`/api/v1/nodes/${nodeId}`, {
+        data: { content: `# Roadmap\n\nShip in ${month}.\n`, content_version: version },
+      });
+      expect(saved.status(), await saved.text()).toBe(200);
+      version += 1;
+    }
+
+    const res = await owner.request.get(`/api/v1/nodes/${nodeId}/revisions`);
+    const { revisions } = await res.json();
+    expect(revisions, "never more than three").toHaveLength(3);
+
+    const bodies: string[] = [];
+    for (const revision of revisions) {
+      const one = await owner.request.get(`/api/v1/revisions/${revision.id}`);
+      expect(one.status(), await one.text()).toBe(200);
+      bodies.push((await one.json()).revision.content);
+    }
+
+    // Newest first: what it says now, then the two before it. The months
+    // before those are gone, which is what keeping three means.
+    expect(bodies).toEqual([
+      "# Roadmap\n\nShip in August.\n",
+      "# Roadmap\n\nShip in July.\n",
+      "# Roadmap\n\nShip in June.\n",
+    ]);
   });
 
   test("somebody who cannot read the page has no history to read", async () => {

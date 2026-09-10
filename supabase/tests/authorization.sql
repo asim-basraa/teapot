@@ -1211,9 +1211,23 @@ select pg_temp.check('restoring puts the old text back',
 -- Forward, never backward: the restore is itself an edit, so it takes a new
 -- version and appears in the history. A history you can rewind is a history
 -- somebody can quietly rewrite.
+--
+-- Three, not four: only the last three versions are kept, so the fourth save
+-- pushed the oldest off the end. The restore still read the text it was asked
+-- for before that happened, which is the ordering that matters.
 select pg_temp.check('and is recorded as a new revision rather than a rewind',
   (select count(*)::text from public.node_revisions
-    where node_id = 'b0000000-0000-0000-0000-000000000003'), '4');
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '3');
+
+-- The chain is reverse deltas anchored at what the page says now, so the head
+-- must reconstruct to exactly that. If it does not, every older version in the
+-- chain is wrong too and nothing else here would have noticed.
+select pg_temp.check('and the newest version is what the page now says',
+  (select t.content from public.node_revisions r
+     join lateral public.node_revision_text(r.id) t on true
+    where r.node_id = 'b0000000-0000-0000-0000-000000000003'
+    order by r.created_at desc, r.id desc limit 1),
+  '# note');
 
 select pg_temp.check('attributed to whoever restored it',
   (select author_id::text from public.node_revisions
@@ -1230,8 +1244,9 @@ select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-11111111
 do $$
 begin
   begin
-    insert into public.node_revisions (node_id, content_version, name, content)
-    values ('b0000000-0000-0000-0000-000000000003', 99, 'Note', 'invented');
+    insert into public.node_revisions
+      (node_id, content_version, name, prefix, suffix, middle, characters)
+    values ('b0000000-0000-0000-0000-000000000003', 99, 'Note', 0, 0, 'invented', 8);
     raise exception 'FAIL: a revision was written by hand';
   exception when sqlstate 'P0001' then raise;
        when others then null;  -- refused, as it must be
@@ -1251,7 +1266,7 @@ reset role;
 
 select pg_temp.check('so the history is still whole',
   (select count(*)::text from public.node_revisions
-    where node_id = 'b0000000-0000-0000-0000-000000000003'), '4');
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '3');
 
 -- Deleting the page takes its history with it. Keeping revisions of something
 -- nobody can reach would be a copy of the content outliving the access rules

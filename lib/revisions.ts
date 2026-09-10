@@ -40,27 +40,29 @@ export async function listRevisions(nodeId: string): Promise<Revision[]> {
 }
 
 /**
- * One revision's text.
+ * One revision's text, put back together.
  *
- * A plain select: the policy on node_revisions already requires can_read of
- * the page, so an unreadable revision is simply absent, which is the same
- * answer an unreadable page gives.
+ * A revision holds the difference from the version after it, not a copy of the
+ * page, so there is nothing to select: the text is rebuilt by starting at what
+ * the page says now and walking the chain down. Through a function because
+ * that walk has to happen where the rows are, and because the same can_read
+ * the table's policy applies gates it, so an unreadable revision is simply
+ * absent, which is the answer an unreadable page gives too.
  */
 export async function getRevision(id: string): Promise<RevisionBody | null> {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("node_revisions")
-    .select("id, content, name, content_type")
-    .eq("id", id)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("node_revision_text", {
+    p_revision_id: id,
+  });
 
-  if (!data) return null;
-  const row = data as {
-    id: string;
-    content: string | null;
-    name: string;
-    content_type: ContentType | null;
-  };
+  if (error) {
+    console.error("node_revision_text failed for %s: %s", id, error.message);
+    return null;
+  }
+
+  const rows = (data as RevisionBody[] | null) ?? [];
+  const row = rows[0];
+  if (!row) return null;
 
   return { ...row, content: row.content ?? "" };
 }

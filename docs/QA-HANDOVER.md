@@ -194,15 +194,23 @@ reader's question at least as often as a writer's.
 - Pick a version on the left and the diff on the right compares it with the
   page as it stands. Unchanged lines show as unchanged, so a small edit reads
   as a small edit rather than a wholesale rewrite.
+- **Only the last three versions are kept.** The newest entry is the page as it
+  stands, so you can go back two saves and no further. Save a page four times
+  and the first of those four is gone for good. That is deliberate, not a bug.
 - **Restore** puts the old text back by writing it forward as a new version, so
-  the restore is itself in the history and can itself be undone. Check the list
-  grows by one rather than losing the versions you restored past.
+  the restore is itself in the history and can itself be undone. It also
+  pushes the oldest entry off the end, so the list stays at three.
 - A viewer sees the history and gets no Restore button. Somebody who cannot
   read the page gets an empty history, which is what a page with no history and
   a page that does not exist both give.
 - Pages that existed before this shipped have one baseline revision each,
   attributed to nobody, because nobody wrote it: it is a record of where we
   came in.
+- A version is stored as the difference from the version after it, not as a
+  copy of the page, which is why three versions cost a fraction of what one
+  used to. Nothing about that should be visible: if a restored page comes back
+  even slightly wrong, that is the highest-priority bug on this page after a
+  permission leak.
 
 Renaming is recorded and shown, but restoring only puts back content and type.
 A name is part of the address, and moving a page is the tree's job.

@@ -5,9 +5,10 @@ import { useState } from "react";
 /**
  * A block of text with a button that copies it.
  *
- * The copy is the point of the docs page: a snippet somebody has to select by
- * hand is a snippet they get subtly wrong. Long ones start collapsed, so six
- * skill files do not bury the rest of the page.
+ * Copying is the point: a snippet somebody has to select by hand is a snippet
+ * they get subtly wrong, and one of these carries a token where a single
+ * missing character is an hour of confusion. Long ones start collapsed, so six
+ * skill files do not bury the rest of a page.
  */
 export function Copyable({
   label,

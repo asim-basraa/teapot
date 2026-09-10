@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { Copyable } from "@/components/Copyable";
 import type { McpToken } from "@/lib/mcp/tokens";
 
 type Space = { id: string; name: string };
@@ -74,18 +76,34 @@ export function Tokens({
       ) : null}
 
       {issued ? (
+        // Every client, with the real token already in it. The alternative is
+        // a page that shows one shape and leaves you to work out the other
+        // two, transcribing a secret by hand in the process, where one wrong
+        // character costs an hour and reads like a permissions problem.
         <div className="token-issued">
           <h2>Your new token</h2>
           <p className="hint">
-            Copy it now. It is stored only as a hash, so this is the one and
-            only time it can be shown. If you lose it, revoke it and make
+            Copy it now. Teapot stores only a hash of it, so this is the one
+            and only time it can be shown. If you lose it, revoke it and make
             another.
           </p>
-          <code className="token-value">{issued}</code>
 
-          <h3>Configuration</h3>
-          <pre className="token-config">
-            {JSON.stringify(
+          <Copyable label="Token" text={issued} />
+
+          <h3>Set it up</h3>
+          <p className="hint">
+            Pick the one for the client you are using. Each already contains
+            this token and this Teapot&rsquo;s address.
+          </p>
+
+          <Copyable
+            label="Claude Code, command line"
+            text={`claude mcp add --transport http teapot ${endpoint} \\\n  --header "Authorization: Bearer ${issued}"`}
+          />
+
+          <Copyable
+            label="Claude Code, .mcp.json"
+            text={JSON.stringify(
               {
                 mcpServers: {
                   teapot: {
@@ -98,7 +116,44 @@ export function Tokens({
               null,
               2,
             )}
-          </pre>
+          />
+
+          <p className="hint">
+            <strong>The desktop app:</strong> Settings, then Connectors, then
+            Add custom connector. The address is <code>{endpoint}</code>, and
+            the header is <code>Authorization</code> with the value{" "}
+            <code>Bearer</code> followed by the token above.
+          </p>
+
+          <Copyable
+            label="Anthropic API"
+            text={JSON.stringify(
+              {
+                model: "claude-opus-5",
+                max_tokens: 2048,
+                messages: [
+                  { role: "user", content: "What is on my todo list?" },
+                ],
+                mcp_servers: [
+                  {
+                    type: "url",
+                    url: endpoint,
+                    name: "teapot",
+                    authorization_token: issued,
+                  },
+                ],
+              },
+              null,
+              2,
+            )}
+            collapsed
+          />
+
+          <p className="hint">
+            <Link href="/docs#reach">
+              What a connected Claude can and cannot reach
+            </Link>
+          </p>
 
           <button
             className="btn btn-secondary btn-small"

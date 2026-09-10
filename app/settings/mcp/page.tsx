@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listSpaces } from "@/lib/spaces";
@@ -16,9 +17,24 @@ export default async function McpSettingsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [tokens, spaces] = await Promise.all([listTokens(), listSpaces()]);
+  // Sequential, not Promise.all. Two Supabase calls dispatched together on one
+  // request's client can each decide the session needs refreshing, and refresh
+  // tokens rotate: the loser goes out unauthenticated and comes back empty
+  // rather than failing. An empty list of tokens is not a visible error.
+  const tokens = await listTokens();
+  const spaces = await listSpaces();
 
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  // From the request rather than from configuration. The address in these
+  // snippets has to be the one you reached this page on: a misconfigured
+  // NEXT_PUBLIC_SITE_URL would otherwise hand somebody a config pointing at
+  // the wrong Teapot, which fails as an authentication error and reads like a
+  // bad token.
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("host");
+  const proto = requestHeaders.get("x-forwarded-proto") ?? "https";
+  const base = host
+    ? `${proto}://${host}`
+    : (process.env.NEXT_PUBLIC_SITE_URL ?? "");
 
   return (
     <main className="shell">

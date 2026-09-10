@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { STARTER_SKILLS } from "@/content/skills";
-import { Copyable } from "./Copyable";
+import { Copyable } from "@/components/Copyable";
 
 export const metadata: Metadata = {
   title: "Teapot documentation",

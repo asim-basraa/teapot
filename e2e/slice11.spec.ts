@@ -110,18 +110,29 @@ test.describe("MCP server", () => {
     await owner.getByLabel("Name this token").fill("Laptop");
     await owner.getByRole("button", { name: "Create token" }).click();
 
-    const value = owner.locator(".token-value");
+    const value = owner.locator("#copyable-token");
     await expect(value).toBeVisible();
     token = ((await value.textContent()) ?? "").trim();
     expect(token).toMatch(/^tea_/);
 
-    // The configuration is shown alongside, so connecting is copy and paste
-    // rather than a hunt through documentation.
-    await expect(owner.locator(".token-config")).toContainText("/api/mcp");
+    // Every client's configuration is shown alongside, with this token and
+    // this Teapot's address already in it, so connecting is copy and paste
+    // rather than transcribing a secret by hand.
+    for (const label of [
+      "Claude Code, command line",
+      "Claude Code, .mcp.json",
+      "Anthropic API",
+    ]) {
+      const block = owner.locator(".copyable").filter({ hasText: label });
+      await expect(block, `${label} should be offered`).toBeVisible();
+      const text = (await block.locator("pre").textContent()) ?? "";
+      expect(text, `${label} should carry the endpoint`).toContain("/api/mcp");
+      expect(text, `${label} should carry the token`).toContain(token);
+    }
 
     // Reloading must not show it again: only the hash was kept.
     await owner.reload();
-    await expect(owner.locator(".token-value")).toHaveCount(0);
+    await expect(owner.locator("#copyable-token")).toHaveCount(0);
     await expect(owner.getByText("Laptop")).toBeVisible();
   });
 

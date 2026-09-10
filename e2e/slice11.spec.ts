@@ -136,6 +136,25 @@ test.describe("MCP server", () => {
     await expect(owner.getByText("Laptop")).toBeVisible();
   });
 
+  test("the same endpoint answers with the token in the path", async () => {
+    // The Claude desktop and web apps add a connector from a URL and offer no
+    // field for a header, so the token has to travel in the path for them.
+    // Same endpoint, same answers, including the refusals.
+    const res = await api.post(`/api/mcp/${token}`, {
+      data: { jsonrpc: "2.0", id: 1, method: "tools/list" },
+    });
+    expect(res.status()).toBe(200);
+    const listed = await res.json();
+    expect(listed.result.tools.length).toBeGreaterThan(0);
+
+    // And it is the same credential, not a way around one: another account's
+    // token reaches nothing here either.
+    const wrong = await api.post("/api/mcp/tea_not_a_real_token", {
+      data: { jsonrpc: "2.0", id: 1, method: "tools/list" },
+    });
+    expect(wrong.status()).toBe(401);
+  });
+
   test("the endpoint refuses a request with no token", async () => {
     const { status } = await rpc("tools/list", undefined, null);
     expect(status).toBe(401);

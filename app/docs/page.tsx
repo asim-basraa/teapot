@@ -109,9 +109,18 @@ export default function DocsPage() {
         <p>
           <strong>The Claude apps</strong>, desktop and web. Settings, then
           Connectors, then Add custom connector. That dialog takes a URL and
-          nothing else: there is no field for a header, so a token that travels
-          in one cannot be given to it. Claude Code and the API can both send a
-          header, and are the two routes that work today.
+          nothing else, so for these the token goes in the URL itself:{" "}
+          <code>{mcpUrl}/your-token</code>, which the token screen gives you
+          ready to paste.
+        </p>
+
+        <p>
+          That form is deliberately the weaker one. A token in a URL is in every
+          HTTP log that records the path, in whatever the client stores for the
+          connection, and anywhere the URL is pasted; a token in a header is in
+          none of those. Use it only where a header is not on offer, and prefer
+          a token pinned to a single space so that a leak costs one space rather
+          than an account.
         </p>
 
         <p>

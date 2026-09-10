@@ -118,11 +118,22 @@ export function Tokens({
             )}
           />
 
+          <h3>The Claude apps, desktop and web</h3>
           <p className="hint">
-            <strong>The Claude apps</strong>, desktop and web, add a connector
-            from a single URL: Settings, then Connectors, then Add custom
-            connector. There is no field for a header there, so a token that
-            travels in one cannot be given to it. See below.
+            Settings, then Connectors, then Add custom connector, and give it
+            this URL. That dialog takes a URL and nothing else, so this is the
+            one form with the token in it.
+          </p>
+
+          <Copyable label="Connector URL" text={`${endpoint}/${issued}`} />
+
+          <p className="msg msg-error">
+            <strong>Weaker than the two above, on purpose.</strong> A token in a
+            URL is in every HTTP log that records the path, in whatever Claude
+            stores for the connection, and anywhere the URL is pasted. A token
+            in a header is in none of those. Use this only where a header is
+            not on offer, and prefer a token pinned to a single space so a leak
+            costs one space rather than your account.
           </p>
 
           {/* curl rather than a bare body, because the beta header is half of

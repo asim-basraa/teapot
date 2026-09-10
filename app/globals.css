@@ -857,3 +857,43 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .account-section .hint { font-size: 0.82rem; color: var(--muted); }
 .account-identity { font-size: 1.05rem; margin: 0 0 0.4rem; }
 .account-section .auth-form { max-width: 22rem; }
+
+/* History: the list picks the ends, the diff is the answer. */
+.history-dialog {
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--panel); color: var(--text);
+  padding: 1.25rem 1.4rem; width: min(56rem, 92vw); max-height: 88vh;
+  overflow: auto;
+}
+.history-dialog::backdrop { background: rgba(0, 0, 0, 0.35); }
+
+.history-body { display: grid; grid-template-columns: 17rem minmax(0, 1fr); gap: 1.25rem; }
+@media (max-width: 52rem) {
+  .history-body { grid-template-columns: minmax(0, 1fr); }
+}
+
+.history-list { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; }
+
+.history-entry {
+  display: flex; flex-direction: column; gap: 0.15rem; width: 100%;
+  text-align: left; background: none; border: 1px solid transparent;
+  border-radius: 8px; padding: 0.5rem 0.6rem; cursor: pointer; font: inherit;
+  color: var(--text);
+}
+.history-entry:hover { border-color: var(--border); }
+.history-entry-selected { border-color: var(--accent); background: var(--bg); }
+
+.history-when { font-size: 0.84rem; }
+.history-who { font-size: 0.78rem; color: var(--muted); }
+.history-meta { font-size: 0.72rem; color: var(--muted); }
+
+.history-diff .hint { font-size: 0.82rem; color: var(--muted); margin: 0 0 0.6rem; }
+
+.diff {
+  font-size: 0.78rem; line-height: 1.5; overflow-x: auto; margin: 0 0 1rem;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 0.7rem 0.8rem; max-height: 52vh;
+}
+.diff-added { display: block; background: rgba(47, 133, 90, 0.16); }
+.diff-removed { display: block; background: rgba(180, 60, 60, 0.16); }
+.diff-same { display: block; color: var(--muted); }

@@ -8,6 +8,7 @@ import { currentUser } from "@/lib/supabase/server";
 import { Share } from "../Share";
 import { Mermaid } from "../Mermaid";
 import { Comments } from "../Comments";
+import { History } from "../History";
 import { NewChild } from "../NewChild";
 import {
   getSpaceBySlug,
@@ -50,9 +51,20 @@ export default async function NodePage({
   const { canEdit, canAdmin } = await nodeCapabilities(node.id);
   const viewHref = `/s/${space.slug}/${node.path}`;
 
+  // History is offered to anyone who can read the page, not only to editors.
+  // "What did this say last week" is a reader's question at least as often as
+  // a writer's, and the revisions are already exactly as readable as the page.
   const actions =
-    canEdit || canAdmin ? (
+    node.kind === "file" || canEdit || canAdmin ? (
       <div className="page-actions">
+        {node.kind === "file" ? (
+          <History
+            nodeId={node.id}
+            nodeName={node.name}
+            canEdit={canEdit}
+            currentContent={node.content ?? ""}
+          />
+        ) : null}
         {canAdmin ? (
           <Share nodeId={node.id} nodeName={node.name} spaceId={space.id} />
         ) : null}

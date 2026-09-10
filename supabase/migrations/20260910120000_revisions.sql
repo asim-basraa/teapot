@@ -22,7 +22,11 @@ create table if not exists public.node_revisions (
   -- the page said, and losing it because somebody left would be worse than
   -- losing the attribution.
   author_id uuid references public.profiles (id) on delete set null,
-  created_at timestamptz not null default now()
+  -- clock_timestamp, not now(). now() is the transaction's start time, so two
+  -- revisions written in one transaction would share a timestamp and the
+  -- history would have no defined order at exactly the moment it matters: a
+  -- restore records a revision in the same transaction as the save it undoes.
+  created_at timestamptz not null default clock_timestamp()
 );
 
 create index if not exists node_revisions_node_idx
@@ -184,3 +188,15 @@ $$;
 revoke all on function public.node_history(uuid) from public;
 grant execute on function public.node_history(uuid)
   to anon, authenticated, service_role;
+
+-- A baseline for everything that already exists, so history starts today
+-- rather than starting whenever a page next happens to be edited. The author
+-- is null: nobody wrote this revision, it is a record of where we came in.
+insert into public.node_revisions
+  (node_id, content_version, name, content, content_type, author_id, created_at)
+select n.id, n.content_version, n.name, n.content, n.content_type, null, n.updated_at
+from public.nodes n
+where n.kind = 'file'
+  and not exists (
+    select 1 from public.node_revisions r where r.node_id = n.id
+  );

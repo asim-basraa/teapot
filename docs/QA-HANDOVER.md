@@ -185,6 +185,28 @@ person appears in the list, and an invitation email goes out.
 - Only an administrator of the item can invite. An editor sharing with a new
   address gets a 404, the same answer as for an item that does not exist.
 
+### History
+
+Every page has a **History** button next to Share. It is offered to anyone who
+can read the page, not only to editors: "what did this say last week" is a
+reader's question at least as often as a writer's.
+
+- Pick a version on the left and the diff on the right compares it with the
+  page as it stands. Unchanged lines show as unchanged, so a small edit reads
+  as a small edit rather than a wholesale rewrite.
+- **Restore** puts the old text back by writing it forward as a new version, so
+  the restore is itself in the history and can itself be undone. Check the list
+  grows by one rather than losing the versions you restored past.
+- A viewer sees the history and gets no Restore button. Somebody who cannot
+  read the page gets an empty history, which is what a page with no history and
+  a page that does not exist both give.
+- Pages that existed before this shipped have one baseline revision each,
+  attributed to nobody, because nobody wrote it: it is a record of where we
+  came in.
+
+Renaming is recorded and shown, but restoring only puts back content and type.
+A name is part of the address, and moving a page is the tree's job.
+
 ### Search
 
 The search box is in the sidebar. It searches the space you are in.

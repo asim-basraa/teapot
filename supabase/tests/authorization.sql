@@ -1122,4 +1122,137 @@ begin
 end $$;
 reset role;
 
+-- History -------------------------------------------------------------------
+--
+-- A page's revisions must be exactly as reachable as the page, through the
+-- same predicate. A history with its own visibility rule would be a second
+-- answer to "who can see this", and the second answer is the one that turns
+-- out to be wrong. Restoring is an edit and needs edit.
+
+-- Two saves on the deep note, which alice can read and bob can edit.
+update public.nodes
+   set content = '# note, second draft', content_version = content_version + 1
+ where id = 'b0000000-0000-0000-0000-000000000003';
+update public.nodes
+   set content = '# note, third draft', content_version = content_version + 1
+ where id = 'b0000000-0000-0000-0000-000000000003';
+
+select pg_temp.check('every save is recorded',
+  (select count(*)::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '3');
+
+-- A save that changes nothing is not a revision. Otherwise a history fills
+-- with entries that say nothing happened.
+update public.nodes
+   set updated_at = now()
+ where id = 'b0000000-0000-0000-0000-000000000003';
+
+select pg_temp.check('a write that changes nothing records nothing',
+  (select count(*)::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '3');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+
+select pg_temp.check('a reader of the page sees its history',
+  (select count(*)::text from public.node_history('b0000000-0000-0000-0000-000000000003')), '3');
+
+select pg_temp.check('and can read the revisions themselves',
+  (select count(*)::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '3');
+
+-- Alice holds viewer, so restoring is not hers to do.
+do $$
+declare v_id uuid;
+begin
+  select id into v_id from public.node_revisions
+   where node_id = 'b0000000-0000-0000-0000-000000000003'
+   order by created_at limit 1;
+  begin
+    perform public.restore_node_revision(v_id);
+    raise exception 'FAIL: a viewer restored a revision';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+-- Carol can read nothing here, so there is no history to see and no revision
+-- to name. Both answers are the same as for a page that does not exist.
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+
+select pg_temp.check('a stranger sees no history at all',
+  (select count(*)::text from public.node_history('b0000000-0000-0000-0000-000000000003')), '0');
+select pg_temp.check('and no revisions',
+  (select count(*)::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '0');
+
+-- Bob is an editor through the Engineers team, so restoring is his to do.
+select set_config('request.jwt.claims','{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}', true);
+
+do $$
+declare v_id uuid;
+begin
+  select id into v_id from public.node_revisions
+   where node_id = 'b0000000-0000-0000-0000-000000000003'
+   order by created_at limit 1;
+  perform public.restore_node_revision(v_id);
+end $$;
+reset role;
+
+select pg_temp.check('restoring puts the old text back',
+  (select content from public.nodes
+    where id = 'b0000000-0000-0000-0000-000000000003'), '# note');
+
+-- Forward, never backward: the restore is itself an edit, so it takes a new
+-- version and appears in the history. A history you can rewind is a history
+-- somebody can quietly rewrite.
+select pg_temp.check('and is recorded as a new revision rather than a rewind',
+  (select count(*)::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '4');
+
+select pg_temp.check('attributed to whoever restored it',
+  (select author_id::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'
+    order by created_at desc limit 1),
+  '33333333-3333-3333-3333-333333333333');
+
+-- Nobody writes history by hand. The table has a select policy and no other,
+-- so an insert by a signed-in user is refused however plausible it looks.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}', true);
+do $$
+begin
+  begin
+    insert into public.node_revisions (node_id, content_version, name, content)
+    values ('b0000000-0000-0000-0000-000000000003', 99, 'Note', 'invented');
+    raise exception 'FAIL: a revision was written by hand';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+
+  begin
+    delete from public.node_revisions
+     where node_id = 'b0000000-0000-0000-0000-000000000003';
+    if found then
+      raise exception 'FAIL: history was deleted';
+    end if;
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+reset role;
+
+select pg_temp.check('so the history is still whole',
+  (select count(*)::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '4');
+
+-- Deleting the page takes its history with it. Keeping revisions of something
+-- nobody can reach would be a copy of the content outliving the access rules
+-- that governed it.
+delete from public.nodes where id = 'b0000000-0000-0000-0000-000000000003';
+
+select pg_temp.check('deleting a page takes its history with it',
+  (select count(*)::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '0');
+
 rollback;

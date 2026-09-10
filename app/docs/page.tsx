@@ -107,36 +107,50 @@ export default function DocsPage() {
         />
 
         <p>
-          <strong>The Claude desktop app.</strong> Settings, then Connectors,
-          then Add custom connector, and give it the endpoint above. Where it
-          asks for a header, use <code>Authorization</code> with the value{" "}
-          <code>Bearer</code> followed by your token.
+          <strong>The Claude apps</strong>, desktop and web. Settings, then
+          Connectors, then Add custom connector. That dialog takes a URL and
+          nothing else: there is no field for a header, so a token that travels
+          in one cannot be given to it. Claude Code and the API can both send a
+          header, and are the two routes that work today.
         </p>
 
         <p>
-          <strong>The API.</strong> Pass the server in the <code>mcp_servers</code>{" "}
-          block of a Messages request.
+          <strong>The API.</strong> Three things are needed and it is easy to
+          give two: the beta header, the server in <code>mcp_servers</code>, and
+          a matching <code>mcp_toolset</code> entry in <code>tools</code>.
+          Leaving the toolset out does not quietly ignore the server, it makes
+          the request invalid.
         </p>
 
         <Copyable
           label="Anthropic API"
-          text={JSON.stringify(
-            {
-              model: "claude-opus-5",
-              max_tokens: 2048,
-              messages: [{ role: "user", content: "What is on my todo list?" }],
-              mcp_servers: [
-                {
-                  type: "url",
-                  url: mcpUrl,
-                  name: "teapot",
-                  authorization_token: "tea_your_token_here",
-                },
-              ],
-            },
-            null,
-            2,
-          )}
+          text={[
+            "curl https://api.anthropic.com/v1/messages \\",
+            '  -H "content-type: application/json" \\',
+            '  -H "x-api-key: $ANTHROPIC_API_KEY" \\',
+            '  -H "anthropic-version: 2023-06-01" \\',
+            '  -H "anthropic-beta: mcp-client-2025-11-20" \\',
+            `  -d '${JSON.stringify(
+              {
+                model: "claude-opus-5",
+                max_tokens: 2048,
+                messages: [
+                  { role: "user", content: "What is on my todo list?" },
+                ],
+                mcp_servers: [
+                  {
+                    type: "url",
+                    url: mcpUrl,
+                    name: "teapot",
+                    authorization_token: "tea_your_token_here",
+                  },
+                ],
+                tools: [{ type: "mcp_toolset", mcp_server_name: "teapot" }],
+              },
+              null,
+              2,
+            )}'`,
+          ].join("\n")}
         />
 
         <h2 id="reach">What a connected Claude can and cannot reach</h2>

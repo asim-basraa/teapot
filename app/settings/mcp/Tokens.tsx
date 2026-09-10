@@ -119,33 +119,20 @@ export function Tokens({
           />
 
           <p className="hint">
-            <strong>The desktop app:</strong> Settings, then Connectors, then
-            Add custom connector. The address is <code>{endpoint}</code>, and
-            the header is <code>Authorization</code> with the value{" "}
-            <code>Bearer</code> followed by the token above.
+            <strong>The Claude apps</strong>, desktop and web, add a connector
+            from a single URL: Settings, then Connectors, then Add custom
+            connector. There is no field for a header there, so a token that
+            travels in one cannot be given to it. See below.
           </p>
 
+          {/* curl rather than a bare body, because the beta header is half of
+              the requirement and a JSON block cannot show it. Without the
+              header, and without the matching mcp_toolset entry, the request
+              is rejected as a validation error rather than merely ignoring the
+              server. */}
           <Copyable
             label="Anthropic API"
-            text={JSON.stringify(
-              {
-                model: "claude-opus-5",
-                max_tokens: 2048,
-                messages: [
-                  { role: "user", content: "What is on my todo list?" },
-                ],
-                mcp_servers: [
-                  {
-                    type: "url",
-                    url: endpoint,
-                    name: "teapot",
-                    authorization_token: issued,
-                  },
-                ],
-              },
-              null,
-              2,
-            )}
+            text={apiExample(endpoint, issued)}
             collapsed
           />
 
@@ -230,4 +217,43 @@ export function Tokens({
       )}
     </section>
   );
+}
+
+/**
+ * A complete request, header included.
+ *
+ * The MCP connector needs three things that are easy to give two of: the beta
+ * header, the server in `mcp_servers`, and a matching `mcp_toolset` entry in
+ * `tools`. Leaving the toolset out is not a quiet no-op; the request is
+ * refused. So this is a whole command rather than a body somebody has to
+ * assemble a request around.
+ */
+function apiExample(endpoint: string, token: string): string {
+  const body = JSON.stringify(
+    {
+      model: "claude-opus-5",
+      max_tokens: 2048,
+      messages: [{ role: "user", content: "What is on my todo list?" }],
+      mcp_servers: [
+        {
+          type: "url",
+          url: endpoint,
+          name: "teapot",
+          authorization_token: token,
+        },
+      ],
+      tools: [{ type: "mcp_toolset", mcp_server_name: "teapot" }],
+    },
+    null,
+    2,
+  );
+
+  return [
+    "curl https://api.anthropic.com/v1/messages \\",
+    '  -H "content-type: application/json" \\',
+    '  -H "x-api-key: $ANTHROPIC_API_KEY" \\',
+    '  -H "anthropic-version: 2023-06-01" \\',
+    '  -H "anthropic-beta: mcp-client-2025-11-20" \\',
+    `  -d '${body}'`,
+  ].join("\n");
 }

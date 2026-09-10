@@ -65,7 +65,7 @@ export default async function AccountPage() {
       <section className="account-section">
         <h2>Claude</h2>
         <p>
-          <Link href="/settings/mcp">Connect Postit to Claude</Link>
+          <Link href="/settings/mcp">Connect Post-it to Claude</Link>
         </p>
         <p className="hint">
           {live.length === 0

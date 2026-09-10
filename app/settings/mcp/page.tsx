@@ -27,7 +27,7 @@ export default async function McpSettingsPage() {
   // From the request rather than from configuration. The address in these
   // snippets has to be the one you reached this page on: a misconfigured
   // NEXT_PUBLIC_SITE_URL would otherwise hand somebody a config pointing at
-  // the wrong Postit, which fails as an authentication error and reads like a
+  // the wrong Post-it, which fails as an authentication error and reads like a
   // bad token.
   const requestHeaders = await headers();
   const host = requestHeaders.get("host");
@@ -44,9 +44,9 @@ export default async function McpSettingsPage() {
         <Link href="/account">Your account</Link>
       </p>
 
-      <h1>Connect Postit to Claude</h1>
+      <h1>Connect Post-it to Claude</h1>
       <p className="lede">
-        A token lets Claude read and write your Postit through the MCP server.
+        A token lets Claude read and write your Post-it through the MCP server.
         It acts as you and can reach exactly what you can reach, never more.
       </p>
 

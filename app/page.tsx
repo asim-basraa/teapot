@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Mark } from "@/components/Mark";
 
 export const metadata: Metadata = {
-  title: "Postit",
+  title: "Post-it",
   description: "A knowledge garden with real access control. Coming soon.",
 };
 
@@ -14,7 +14,7 @@ export default function ComingSoon() {
         <Mark size={72} />
       </div>
 
-      <h1>Postit</h1>
+      <h1>Post-it</h1>
       <p className="tagline">A knowledge garden with real access control.</p>
       <p className="soon-note">Coming soon.</p>
       <p className="soon-signin">

@@ -7,7 +7,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
     <main className="auth">
       <Link href="/" className="auth-brand">
         <Mark size={24} />
-        Postit
+        Post-it
       </Link>
       <div className="auth-card">{children}</div>
     </main>

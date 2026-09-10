@@ -16,7 +16,7 @@ const RANK: Record<Visibility, number> = { private: 0, everyone: 1, public: 2 };
 
 const REACH_WORDS: Record<Visibility, string> = {
   private: "private",
-  everyone: "readable by everyone signed in to Postit",
+  everyone: "readable by everyone signed in to Post-it",
   public: "readable by anyone with the link",
 };
 
@@ -32,9 +32,9 @@ const DESCRIPTIONS: Record<string, string> = {
   private:
     "Nobody but the people and teams listed below, and the space's owner.",
   "everyone:viewer":
-    "Everyone with a Postit account can read it. Signed-out visitors get nothing.",
+    "Everyone with a Post-it account can read it. Signed-out visitors get nothing.",
   "everyone:editor":
-    "Everyone with a Postit account can read and edit it. Signed-out visitors get nothing.",
+    "Everyone with a Post-it account can read and edit it. Signed-out visitors get nothing.",
   public:
     "On the web. No sign-in, no account, anybody with the address. Everything inside it is public too.",
 };
@@ -173,7 +173,7 @@ export function ShareDialog({
     // they accept, and somebody who does not know that will wonder why.
     if (body.invited) {
       setNotice(
-        `${email} has no Postit account yet. An invitation is on its way, and they will have access as soon as they accept it.`,
+        `${email} has no Post-it account yet. An invitation is on its way, and they will have access as soon as they accept it.`,
       );
     }
 
@@ -291,10 +291,10 @@ export function ShareDialog({
               Private &mdash; only people it is shared with
             </option>
             <option value="everyone:viewer">
-              Everyone signed in to Postit can read
+              Everyone signed in to Post-it can read
             </option>
             <option value="everyone:editor">
-              Everyone signed in to Postit can edit
+              Everyone signed in to Post-it can edit
             </option>
             <option value="public">
               Public &mdash; anyone with the link, no account needed
@@ -425,7 +425,7 @@ export function ShareDialog({
 function describe(grant: EffectiveGrant): string {
   if (grant.grantee_type === "public") return "Anyone with the link";
   if (grant.grantee_type === "authenticated") {
-    return "Everyone with a Postit account";
+    return "Everyone with a Post-it account";
   }
   if (grant.grantee_type === "team") {
     return `${grant.grantee_name ?? "A team"} (team)`;

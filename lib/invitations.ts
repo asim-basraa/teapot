@@ -17,7 +17,7 @@ export type InviteResult =
  * because it is what authorises the address to exist at all — the
  * before-user-created hook reads it — and the account is created second,
  * through the auth service, so that the email is the one Supabase already
- * sends over the SMTP that is already configured. Postit sends no mail itself
+ * sends over the SMTP that is already configured. Post-it sends no mail itself
  * and holds no template.
  *
  * Whether the caller may do any of this is decided by invite_to_node, which

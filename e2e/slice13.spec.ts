@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
  * The documentation page.
  *
  * Reachable without an account on purpose: somebody deciding whether to connect
- * Postit to Claude needs to read what it will and will not reach before they
+ * Post-it to Claude needs to read what it will and will not reach before they
  * have one. So this whole suite runs in a context that never signs in.
  */
 test.describe("Documentation", () => {
@@ -13,7 +13,7 @@ test.describe("Documentation", () => {
     expect(response?.status()).toBe(200);
 
     await expect(
-      page.getByRole("heading", { level: 1, name: "Postit" }),
+      page.getByRole("heading", { level: 1, name: "Post-it" }),
     ).toBeVisible();
     // Not a redirect to the sign-in page, which is the failure mode that
     // matters here.

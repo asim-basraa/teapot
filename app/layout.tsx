@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Postit",
+  title: "Post-it",
   description: "Multi-tenant knowledge garden",
 };
 

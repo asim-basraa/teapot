@@ -135,7 +135,7 @@ export async function addTeamMember(
   if (error.code === "P0002" && /no account exists/i.test(error.message)) {
     return {
       ok: false,
-      error: `No Postit account exists for ${trimmed}. They need to sign up first.`,
+      error: `No Post-it account exists for ${trimmed}. They need to sign up first.`,
       status: 404,
     };
   }

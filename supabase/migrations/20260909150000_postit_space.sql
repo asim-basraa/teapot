@@ -1,4 +1,4 @@
--- The Postit space: the product's own documentation, as content.
+-- The Post-it space: the product's own documentation, as content.
 --
 -- Written as a data migration rather than seeded by hand so staging and
 -- production carry the same words, and so re-running it is a no-op. The skills
@@ -17,23 +17,23 @@ declare
 begin
   select id into v_owner from auth.users where email = 'asim@maqsoodlabs.com';
   if v_owner is null then
-    raise notice 'no owner for the Postit space here; skipping';
+    raise notice 'no owner for the Post-it space here; skipping';
     return;
   end if;
 
   select id into v_space from public.spaces where slug in ('postit', 'teapot');
   if v_space is not null then
-    raise notice 'the Postit space already exists; skipping';
+    raise notice 'the Post-it space already exists; skipping';
     return;
   end if;
 
   v_space := gen_random_uuid();
   insert into public.spaces (id, slug, name, owner_id)
-  values (v_space, 'postit', 'Postit', v_owner);
+  values (v_space, 'postit', 'Post-it', v_owner);
 
   v_node := gen_random_uuid();
   insert into public.nodes (id, space_id, parent_id, kind, name, slug, content, content_type)
-  values (v_node, v_space, null, 'file', 'Postit', 'index', 'Postit is a knowledge garden with real access control. Ordinary
+  values (v_node, v_space, null, 'file', 'Post-it', 'index', 'Post-it is a knowledge garden with real access control. Ordinary
 Markdown, rendered on the server, with permissions that are decided per page
 rather than per site.
 
@@ -69,13 +69,13 @@ does not exist. That is the same rule as above, applied to navigation.
 
   v_node := gen_random_uuid();
   insert into public.nodes (id, space_id, parent_id, kind, name, slug, content, content_type)
-  values (v_node, v_space, null, 'file', 'Connecting Claude', 'connecting-claude', 'Postit speaks MCP, so Claude can read and write the pages you
+  values (v_node, v_space, null, 'file', 'Connecting Claude', 'connecting-claude', 'Post-it speaks MCP, so Claude can read and write the pages you
 can, and nothing else. It acts as you: the same 404s, the same grants.
 
 ## Get a token
 
-Go to **Connect Postit to Claude** from your list of spaces. The token is shown
-once and never again — Postit stores only a hash of it, so a leaked database
+Go to **Connect Post-it to Claude** from your list of spaces. The token is shown
+once and never again — Post-it stores only a hash of it, so a leaked database
 yields hashes the endpoint refuses. If you lose it, revoke it and make another.
 
 ## Claude Code
@@ -135,7 +135,7 @@ One setting on every page, folder and skill, with three answers:
 | | What it means |
 | --- | --- |
 | **Private** | Only the people and teams you have shared it with. |
-| **Everyone signed in to Postit** | Your whole organisation. Read, or read and write. |
+| **Everyone signed in to Post-it** | Your whole organisation. Read, or read and write. |
 | **Public** | Anybody with the link. No account, no sign-in. |
 
 They are exclusive: choosing one withdraws the others, so there is never a
@@ -180,7 +180,7 @@ decision covers everything inside.
   insert into public.nodes (space_id, parent_id, kind, name, slug, content, content_type)
   values (v_space, v_folder, 'file', 'Chat Context', 'chat-context', '---
 name: Chat Context
-description: Record what a conversation established in Postit, and retrieve it at the start of a later one
+description: Record what a conversation established in Post-it, and retrieve it at the start of a later one
 ---
 
 # Chat Context
@@ -190,7 +190,7 @@ What people lose between conversations is rarely *what* was decided. It is
 
 ## At the start of a conversation
 
-Search Postit for context before assuming there is none:
+Search Post-it for context before assuming there is none:
 
 1. `search` the space for the project or topic by name.
 2. `read_page` anything that looks relevant.
@@ -244,13 +244,13 @@ the page, in the words of the people who made the decision.
   insert into public.nodes (space_id, parent_id, kind, name, slug, content, content_type)
   values (v_space, v_folder, 'file', 'Todo List', 'todo-list', '---
 name: Todo List
-description: Read and update the reader''s todo list, kept as a Markdown checklist in Postit
+description: Read and update the reader''s todo list, kept as a Markdown checklist in Post-it
 ---
 
 # Todo List
 
 Todos live in a normal page as GitHub-flavoured task lists. That format is the
-point: it renders as checkboxes in Postit, stays readable as plain text
+point: it renders as checkboxes in Post-it, stays readable as plain text
 anywhere else, and a person editing it by hand and Claude editing it through
 the API produce exactly the same thing.
 
@@ -473,7 +473,7 @@ With this skill loaded, on being asked to get up to speed on a project:
   insert into public.nodes (space_id, parent_id, kind, name, slug, content, content_type)
   values (v_space, v_folder, 'file', 'Runbooks', 'runbooks', '---
 name: Runbooks
-description: Follow an operational procedure from Postit, reading the current version rather than a remembered one
+description: Follow an operational procedure from Post-it, reading the current version rather than a remembered one
 ---
 
 # Runbooks
@@ -537,6 +537,6 @@ the node count from step 2.
 At three in the morning, the two **STOP** lines are the entire value of the
 page.
 ', 'skill');
-  raise notice 'Postit space created';
+  raise notice 'Post-it space created';
 end $$;
 

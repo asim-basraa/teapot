@@ -64,7 +64,7 @@ export async function signUp(
   // for something that is never coming. This says what is actually true in both
   // cases without giving away which one they are in.
   return {
-    notice: `If ${email} is new to Postit, a confirmation link is on its way, and you will not be able to sign in until you have followed it. If you already have an account, sign in below instead.`,
+    notice: `If ${email} is new to Post-it, a confirmation link is on its way, and you will not be able to sign in until you have followed it. If you already have an account, sign in below instead.`,
   };
 }
 

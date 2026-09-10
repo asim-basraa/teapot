@@ -83,7 +83,7 @@ export function Tokens({
         <div className="token-issued">
           <h2>Your new token</h2>
           <p className="hint">
-            Copy it now. Postit stores only a hash of it, so this is the one
+            Copy it now. Post-it stores only a hash of it, so this is the one
             and only time it can be shown. If you lose it, revoke it and make
             another.
           </p>
@@ -93,7 +93,7 @@ export function Tokens({
           <h3>Set it up</h3>
           <p className="hint">
             Pick the one for the client you are using. Each already contains
-            this token and this Postit&rsquo;s address.
+            this token and this Post-it&rsquo;s address.
           </p>
 
           <Copyable

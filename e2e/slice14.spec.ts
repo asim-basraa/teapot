@@ -165,7 +165,7 @@ test.describe("Sharing with everyone who has an account", () => {
     ).toHaveValue("private");
     await expect(
       owner.getByText(
-        "readable by everyone signed in to Postit, so this is too",
+        "readable by everyone signed in to Post-it, so this is too",
       ),
     ).toBeVisible();
   });

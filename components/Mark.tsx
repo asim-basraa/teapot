@@ -1,11 +1,11 @@
 /**
- * The Postit mark: a note with its corner turned down.
+ * The Post-it mark: a note with its corner turned down.
  *
  * Drawn rather than shipped as an image so it inherits the colour it sits in
  * and stays crisp at any size. One copy, because the landing page and the
  * header had no reason to hold two drawings of the same thing.
  *
- * Decorative everywhere it is used: the word "Postit" is always beside it, so
+ * Decorative everywhere it is used: the word "Post-it" is always beside it, so
  * announcing the drawing as well would say the name twice.
  */
 export function Mark({ size = 20 }: { size?: number }) {

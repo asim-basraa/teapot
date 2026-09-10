@@ -58,7 +58,7 @@ test.describe("Your account", () => {
   test("the settings are gathered there", async () => {
     await page.goto("/account");
 
-    await page.getByRole("link", { name: "Connect Postit to Claude" }).click();
+    await page.getByRole("link", { name: "Connect Post-it to Claude" }).click();
     await expect(page).toHaveURL(/\/settings\/mcp/);
 
     // And back, so it is a place rather than a one-way door.

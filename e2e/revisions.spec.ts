@@ -5,7 +5,7 @@ import { registerAndConfirm, createSpace } from "./auth";
  * History, diffs and restore.
  *
  * Quartz has none of this to borrow: its only version-adjacent feature reads a
- * last-modified date out of git, and Postit has no repository to read. So the
+ * last-modified date out of git, and Post-it has no repository to read. So the
  * question these answer is whether a history built on the database keeps the
  * one property that matters here, which is that a revision is exactly as
  * reachable as the page it belongs to.

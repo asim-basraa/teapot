@@ -116,7 +116,7 @@ test.describe("MCP server", () => {
     expect(token).toMatch(/^post_/);
 
     // Every client's configuration is shown alongside, with this token and
-    // this Postit's address already in it, so connecting is copy and paste
+    // this Post-it's address already in it, so connecting is copy and paste
     // rather than transcribing a secret by hand.
     for (const label of [
       "Claude Code, command line",

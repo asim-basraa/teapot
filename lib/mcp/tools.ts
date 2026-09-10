@@ -1,4 +1,5 @@
 import { readSkillMetadata, parseFrontmatter } from "@teapot/renderer";
+import { startingContent, translate } from "@/lib/nodes";
 import type { McpSession } from "./session";
 
 export type ToolResult = { text: string } | { error: string };
@@ -27,6 +28,12 @@ export type ToolDefinition = {
  * no way to change who can see anything. A leaked token that can only add is a
  * far smaller problem than one that can remove, and the web app is a perfectly
  * good place to do the dangerous things deliberately.
+ *
+ * That rule is about removing and re-permissioning, not about creating.
+ * create_folder was missing for a while and it was an oversight rather than a
+ * decision: folders are the only thing that can contain anything, so without
+ * it no structure could be built here at all, and somebody filing seventeen
+ * pages had to choose between a flat list and going to the browser.
  */
 
 function text(value: string): ToolResult {
@@ -193,6 +200,58 @@ const getSkill: ToolDefinition = {
   },
 };
 
+const createFolder: ToolDefinition = {
+  name: "create_folder",
+  description:
+    "Create a folder in a space, optionally inside another folder. Folders are the only thing that can contain other items, so building any structure starts here.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      space_id: { type: "string" },
+      name: { type: "string" },
+      parent_id: {
+        type: "string",
+        description: "Optional folder to create it in. Must be a folder.",
+      },
+    },
+    required: ["space_id", "name"],
+    additionalProperties: false,
+  },
+  async run(session, args) {
+    const spaceId = requireSpace(session, args.space_id);
+    if (typeof spaceId !== "string") return spaceId;
+
+    const name = String(args.name ?? "").trim();
+    if (!name) return { error: "A name is required." };
+
+    const id = crypto.randomUUID();
+
+    const { error } = await session.supabase.from("nodes").insert({
+      id,
+      space_id: spaceId,
+      parent_id: typeof args.parent_id === "string" ? args.parent_id : null,
+      kind: "folder",
+      name,
+    });
+
+    if (error) return { error: translate(error).error };
+
+    const { data } = await session.supabase
+      .from("nodes")
+      .select("id, name, path")
+      .eq("id", id)
+      .maybeSingle();
+
+    // The same shape create_page answers in, so a client that has learned to
+    // read one has learned to read both.
+    return text(
+      data
+        ? `Created folder ${name} at ${(data as { path: string }).path} (id: ${id}).`
+        : `Created folder ${name}.`,
+    );
+  },
+};
+
 const createPage: ToolDefinition = {
   name: "create_page",
   description:
@@ -227,18 +286,15 @@ const createPage: ToolDefinition = {
       kind: "file",
       name,
       content_type: contentType,
+      // The same starting text the browser uses. Two copies of this had already
+      // drifted: one seeded a heading the other had stopped seeding.
       content:
-        typeof args.content === "string" ? args.content : `# ${name}\n\n`,
+        typeof args.content === "string"
+          ? args.content
+          : startingContent(name, contentType),
     });
 
-    if (error) {
-      if (error.code === "23505") {
-        return { error: "Something with that name already exists there." };
-      }
-      // A policy refusal reads as not-found here for the same reason it does
-      // over HTTP: the caller learns nothing about what they cannot reach.
-      return { error: "Not found." };
-    }
+    if (error) return { error: translate(error).error };
 
     const { data } = await session.supabase
       .from("nodes")
@@ -364,6 +420,7 @@ export const TOOLS: ToolDefinition[] = [
   readPage,
   listSkills,
   getSkill,
+  createFolder,
   createPage,
   updatePage,
   listBacklinks,

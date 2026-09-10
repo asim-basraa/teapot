@@ -216,6 +216,37 @@ test.describe("MCP server", () => {
     expect(notASkill.isError).toBe(true);
   });
 
+  test("it can build structure, not just a flat list", async () => {
+    // The gap somebody hit filing seventeen pages from a repository: folders
+    // are the only thing that can contain anything, and there was no way to
+    // make one here, so the choice was a flat list or going to the browser.
+    const made = await call("create_folder", {
+      space_id: spaceId,
+      name: "Handbook",
+    });
+    expect(made.isError, made.text).toBeFalsy();
+    expect(made.text).toContain("at handbook");
+    const folderId = idFrom(made.text);
+
+    const inside = await call("create_page", {
+      space_id: spaceId,
+      name: "Leave",
+      parent_id: folderId,
+    });
+    expect(inside.isError, inside.text).toBeFalsy();
+    expect(inside.text).toContain("handbook/leave");
+
+    // And a page is not a folder. That used to answer "Not found", which sends
+    // somebody looking for a missing thing that is sitting in front of them.
+    const refused = await call("create_page", {
+      space_id: spaceId,
+      name: "Nested Too Far",
+      parent_id: idFrom(inside.text),
+    });
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain("Only folders can contain items");
+  });
+
   test("it can write, and refuses to clobber a concurrent edit", async () => {
     const created = await call("create_page", {
       space_id: spaceId,
@@ -301,3 +332,10 @@ test.describe("MCP server", () => {
     expect(body?.error?.message).toBe("Unauthorized");
   });
 });
+
+/** The id out of a create tool's answer, which reads as prose for a person. */
+function idFrom(answer: string | undefined): string {
+  const match = /\(id: ([0-9a-f-]{36})\)/.exec(answer ?? "");
+  expect(match, `no id in: ${answer}`).toBeTruthy();
+  return match![1];
+}

@@ -184,9 +184,10 @@ export default function DocsPage() {
             and follow the skills you have written
           </li>
           <li>
-            <code>create_page</code>, and <code>update_page</code> guarded by a
-            version number, so it cannot overwrite an edit you made while it was
-            thinking
+            <code>create_folder</code> and <code>create_page</code>, so it can
+            build structure and not just a flat list, and{" "}
+            <code>update_page</code> guarded by a version number, so it cannot
+            overwrite an edit you made while it was thinking
           </li>
           <li>
             <code>list_backlinks</code>, to see what points at a page

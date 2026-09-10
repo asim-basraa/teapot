@@ -161,7 +161,7 @@ export async function createNode(input: {
  * the part authors forget and the part a client needs. Prefilling it is cheaper
  * than flagging its absence later.
  */
-function startingContent(name: string, contentType?: ContentType): string {
+export function startingContent(name: string, contentType?: ContentType): string {
   if (contentType !== "skill") return "";
   return `---\nname: ${name}\ndescription: \n---\n\n`;
 }
@@ -382,7 +382,7 @@ export async function deleteNode(
  * RLS makes a forbidden write look like a missing row, so the honest status
  * is 404 rather than 403, consistent with how reads behave.
  */
-function translate(error: {
+export function translate(error: {
   code?: string;
   message: string;
 }): { ok: false; error: string; status: number } {
@@ -404,7 +404,15 @@ function translate(error: {
     };
   }
   if (/not a folder/i.test(error.message)) {
-    return { ok: false, error: "Only folders can contain items.", status: 400 };
+    // Named rather than hidden behind not-found. The caller reached the parent
+    // to name it, so its kind is not a secret, and "not found" here sends
+    // people looking for a missing thing that is sitting in front of them.
+    return {
+      ok: false,
+      error:
+        "Only folders can contain items. Make a folder first, then create things inside it.",
+      status: 400,
+    };
   }
   if (/home page of a space/i.test(error.message)) {
     return {

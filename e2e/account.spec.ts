@@ -85,10 +85,14 @@ test.describe("Your account", () => {
     await page.getByLabel("Email").fill(OWNER);
     await page.getByLabel("Password").fill(PASSWORD);
     await page.getByRole("button", { name: "Sign in" }).click();
-    // The text, not merely that something went red: a throttled sign-in also
-    // shows an alert, and a test that cannot tell the two apart reports the
-    // wrong thing when the next line fails.
-    await expect(page.getByRole("alert")).toHaveText(/not valid/);
+    // Scoped to the form, as slice1 already had to: Next's route announcer is
+    // an alert too, and it carries the page title. And asked for its text
+    // rather than merely that something went red, because a throttled sign-in
+    // shows an alert as well, and a test that cannot tell those apart reports
+    // the wrong thing when the next line fails.
+    await expect(
+      page.locator("form.auth-form").getByRole("alert"),
+    ).toHaveText(/not valid/);
 
     // A refused sign-in keeps the address. Retyping it is the cost of a typo
     // in the other field, and nothing is given away by showing back what was

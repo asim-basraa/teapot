@@ -251,23 +251,51 @@ to Claude's conventions, so Teapot can double as a skills repository.
 
 ### Connecting to Claude (MCP)
 
-**Your spaces → Connect Teapot to Claude**, or `/settings/mcp`.
+**Your account → Connect Teapot to Claude**, or `/settings/mcp`.
 
-Create a token. It is shown **once**, with a ready-to-paste configuration block.
-There is no way to see it again, by design; if you lose it, revoke and make
-another.
+Create a token and name it. A token can reach everything you can read, or be
+pinned to a single space; pin it where you can, so a leak costs one space
+rather than the account.
 
-What a connected Claude can do: list spaces, search, read pages, list and fetch
-skills, create pages, update pages. What it cannot do: delete anything, move
-anything, or change who can see anything.
+The token is shown **once**, with the configuration for each client already
+built around it: the `claude mcp add` command line, an `.mcp.json` block, a
+connector URL, and a curl for the Anthropic API. Each carries this token and
+this Teapot's address, so connecting is copy and paste rather than transcribing
+a secret by hand. There is no way to see it again; if you lose it, revoke it
+and make another. Reload the page and the token must be gone while the entry
+in the list stays.
+
+**The Claude apps take a URL and nothing else.** Their Add custom connector
+dialog has no field for a header, so the connector URL carries the token in the
+path. This is weaker than a header on purpose, and the page says so in red: a
+token in a URL is in every HTTP log that records the path, in whatever Claude
+stores for the connection, and anywhere the URL is pasted. It is a stopgap
+until Teapot speaks OAuth. Both routes reach the same endpoint and the same
+content; if one works and the other does not, that is a bug.
+
+What a connected Claude can do: list spaces, walk a space's tree, search, read
+pages, list and fetch skills, create folders, create pages, update pages. What
+it cannot do: delete anything, move anything, or change who can see anything.
+
+Worth trying, because this is where the last round of bugs was:
+
+- Ask Claude to file a folder of documents into a space. It should build the
+  structure rather than a flat list.
+- Ask for a folder by passing `content_type: "folder"` to a page, or by putting
+  a slash in a page's name. Both must be **refused, and say what to do
+  instead**. Quietly making something other than what was asked for is the bug
+  that was fixed here.
+- Make a folder in the browser, then ask Claude to find it. It should, through
+  the tree, even though a folder has no text to search.
+
+**A tool list is fetched once, when the connector is added.** A session
+connected before a tool shipped will not see it, and that is the client's cache
+rather than a missing feature. Reconnect before reporting a tool as absent.
 
 The property to test: **a token reaches exactly what its owner reaches, and
 never more.** Make a token, then have somebody share something new with you and
 confirm it appears; have them revoke it and confirm it disappears. Revoking the
 token itself must stop it on the very next request.
-
-> **Known gap.** Until staging's service key is configured, the MCP endpoint
-> refuses every token. Check with Asim before filing this.
 
 ---
 
@@ -300,6 +328,15 @@ Worth a second look, because these are where the bugs were.
   refusing.
 - **Who can see this.** The two separate controls, "everyone here" and "on the
   web", are one setting with four values, and choosing one withdraws the others.
+- **Your account.** There is a page for it now, and the header of every
+  signed-in page names the address you are signed in as and links to it.
+- **History.** Every page keeps its versions, with a diff and a restore.
+- **Connecting Claude.** A token now arrives with each client's configuration
+  already around it, including a URL for the Claude apps, which take nothing
+  else. Claude can create folders and walk a space's tree, and is refused
+  rather than obliged when it asks for a folder the wrong way.
+- **A refused sign-in keeps your address.** It used to empty both fields, so a
+  mistyped password cost two.
 
 ---
 
@@ -311,6 +348,9 @@ behaviour differs from what is written here.
 | Gap | Status |
 | --- | --- |
 | No standalone invite screen; you are invited by being shared something | Deliberate for now. Sharing with an unknown address invites it |
+| The Claude apps need the token in the URL | Stopgap. OAuth on the MCP endpoint is the replacement and is not built |
+| A restore puts back content and type, never the name or the position | Deliberate. A name is part of the address; moving is the tree's job |
+| Production has no content and is behind staging | Deliberate. Staging is where this round is tested |
 | Google Drive image links do not render | #10, not built |
 | No platform administrator view across spaces | #15, not built |
 | Landing page at `/` is still a placeholder | Deliberate for now |
@@ -323,16 +363,17 @@ behaviour differs from what is written here.
 
 So you know where the thin ice is, and where it is not.
 
-- **160-odd database-level assertions** covering every access rule:
+- **150-odd database-level assertions** covering every access rule:
   inheritance, teams, publishing, sharing with everyone, the exclusivity of the
   visibility setting, invitations and what accepting one delivers, revocation,
   search filtering, comment visibility, the protection on a space's front page,
-  and the specific three-valued-logic trap that once let any signed-in user
+  who may read and restore a page's history and the refusal to let anybody
+  write it by hand, and the specific three-valued-logic trap that once let any signed-in user
   grant themselves administrator on any page.
-- **125-odd browser tests** across fourteen suites, driving real sign-ups with
+- **145-odd browser tests** across eighteen suites, driving real sign-ups with
   real confirmation emails and real invitation emails, and using two or three
   separate browsers wherever the question is what a *different* person can see.
-- **57 unit tests** on the renderer and the pure logic.
+- **65 unit tests** on the renderer, the diff and the pure logic.
 
 All of it runs on every push and must be green before anything merges.
 

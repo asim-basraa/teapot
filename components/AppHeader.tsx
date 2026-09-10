@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { signOut } from "@/app/(auth)/actions";
+import { Mark } from "@/components/Mark";
 
 /**
  * The bar across the top of every signed-in page.
@@ -26,6 +27,7 @@ export function AppHeader({
   return (
     <header className={className ? `shell-header ${className}` : "shell-header"}>
       <Link href={email ? "/spaces" : "/"} className="shell-brand">
+        <Mark size={19} />
         Postit
       </Link>
 

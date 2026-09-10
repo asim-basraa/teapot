@@ -161,12 +161,20 @@ footer {
 }
 
 .auth-brand {
+  /* The mark and the word are one thing: inline-flex so they sit on a shared
+     baseline-ish line and travel together, rather than the drawing dropping to
+     its own line when the card narrows. */
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   font-size: 1.35rem;
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--text);
   text-decoration: none;
 }
+
+.auth-brand svg { color: var(--accent); }
 
 .auth-card {
   width: 100%;
@@ -274,11 +282,19 @@ footer {
 }
 
 .shell-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--text);
   text-decoration: none;
+  /* The header wraps its middle on a narrow screen; the brand should not be
+     what gives, and a two-line brand looks like a mistake. */
+  flex: none;
 }
+
+.shell-brand svg { color: var(--accent); }
 
 .btn-small { padding: 0.35rem 0.7rem; font-size: 0.84rem; }
 

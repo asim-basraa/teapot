@@ -4,10 +4,10 @@ import { notFound } from "next/navigation";
 import { currentUser } from "@/lib/supabase/server";
 import { getSpaceBySlug, INDEX_PATH } from "@/lib/spaces";
 import { listNodes, buildTree } from "@/lib/nodes";
-import { signOut } from "../../(auth)/actions";
 import { Tree } from "./Tree";
 import { Search } from "./Search";
 import { SpaceName } from "./SpaceName";
+import { AppHeader } from "@/components/AppHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -46,15 +46,8 @@ export default async function SpaceLayout({
     // The space id is in the markup because the tree's client actions need it
     // to create nodes, and tests read it rather than guessing at a UUID.
     <div className="space-shell" data-space-id={space.id}>
-      <header className="shell-header space-header">
-        <Link href={user ? "/spaces" : "/"} className="shell-brand">
-          Teapot
-        </Link>
-        <SpaceName
-          spaceId={space.id}
-          name={space.name}
-          canRename={canEdit}
-        />
+      <AppHeader email={user?.email} className="space-header">
+        <SpaceName spaceId={space.id} name={space.name} canRename={canEdit} />
         {canEdit ? (
           <Link
             href={`/spaces/${space.slug}/teams`}
@@ -63,18 +56,7 @@ export default async function SpaceLayout({
             Teams
           </Link>
         ) : null}
-        {user ? (
-          <form action={signOut}>
-            <button className="btn btn-secondary btn-small" type="submit">
-              Sign out
-            </button>
-          </form>
-        ) : (
-          <Link href="/login" className="btn btn-secondary btn-small">
-            Sign in
-          </Link>
-        )}
-      </header>
+      </AppHeader>
 
       <div className="space-body">
         <aside className="space-sidebar">

@@ -125,3 +125,33 @@ export async function updatePassword(
   revalidatePath("/", "layout");
   redirect("/spaces");
 }
+
+/**
+ * Changing your password from the account page.
+ *
+ * Separate from updatePassword, which is the end of the reset-by-email
+ * journey and rightly lands you in your spaces. Somebody changing their
+ * password from their account settings has not arrived from anywhere and
+ * should be left where they were, told it worked.
+ */
+export async function changePassword(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
+  if (password !== confirm) {
+    return { error: "Those passwords do not match." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { error: error.message };
+
+  revalidatePath("/account");
+  return { notice: "Your password has been changed." };
+}

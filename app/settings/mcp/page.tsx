@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listSpaces } from "@/lib/spaces";
 import { listTokens } from "@/lib/mcp/tokens";
-import { signOut } from "../../(auth)/actions";
 import { Tokens } from "./Tokens";
+import { AppHeader } from "@/components/AppHeader";
 
 export const metadata = { title: "Connect to Claude" };
 export const dynamic = "force-dynamic";
@@ -38,16 +38,11 @@ export default async function McpSettingsPage() {
 
   return (
     <main className="shell">
-      <header className="shell-header">
-        <Link href="/spaces" className="shell-brand">
-          Teapot
-        </Link>
-        <form action={signOut}>
-          <button className="btn btn-secondary btn-small" type="submit">
-            Sign out
-          </button>
-        </form>
-      </header>
+      <AppHeader email={user.email} />
+
+      <p className="crumb">
+        <Link href="/account">Your account</Link>
+      </p>
 
       <h1>Connect Teapot to Claude</h1>
       <p className="lede">

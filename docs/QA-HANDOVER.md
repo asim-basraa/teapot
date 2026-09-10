@@ -61,6 +61,17 @@ bug, and it is the single most common way to lose ten minutes here.
 
 ## What to test, and what "correct" looks like
 
+### Your account
+
+The header of every signed-in page shows the address you are signed in as, and
+that is a link to `/account`. Worth checking with two accounts open in two
+browsers: each header must name its own.
+
+The account page gathers what is about you rather than about a space: which
+account this is, your spaces, connecting Claude, and changing your password.
+Changing it there should tell you it worked and leave you where you are; the
+old password must then be refused at sign-in and the new one accepted.
+
 ### Spaces and pages
 
 Create a space, and it comes with a welcome page. Inside, build folders and

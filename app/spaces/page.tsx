@@ -2,8 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { listSpaces } from "@/lib/spaces";
-import { signOut } from "../(auth)/actions";
 import { NewSpaceForm } from "./NewSpaceForm";
+import { AppHeader } from "@/components/AppHeader";
 
 export const metadata = { title: "Your spaces" };
 export const dynamic = "force-dynamic";
@@ -20,21 +20,9 @@ export default async function SpacesPage() {
 
   return (
     <main className="shell">
-      <header className="shell-header">
-        <Link href="/spaces" className="shell-brand">
-          Teapot
-        </Link>
-        <form action={signOut}>
-          <button className="btn btn-secondary btn-small" type="submit">
-            Sign out
-          </button>
-        </form>
-      </header>
+      <AppHeader email={user.email} />
 
       <h1>Your spaces</h1>
-      <p>
-        <Link href="/settings/mcp">Connect Teapot to Claude</Link>
-      </p>
       <p className="lede">
         Spaces you own, and spaces others have shared with you.
       </p>

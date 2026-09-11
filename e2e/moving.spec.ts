@@ -68,7 +68,17 @@ test.describe("Moving things about", () => {
     await note.dragTo(archive);
     expect((await moved).status()).toBe(200);
 
-    // The address is what actually changed, so that is what to check.
+    // The address is what actually changed, so that is what to check — but on
+    // the link in the tree rather than by clicking it. The tree is re-rendered
+    // from the server after a move, and clicking before that lands follows the
+    // old href to the old path, which is a race the assertion would lose rather
+    // than a move that failed. Asserting the attribute retries until it updates.
+    await expect(tree.getByRole("link", { name: "Stray Note" })).toHaveAttribute(
+      "href",
+      `/s/${SPACE}/archive/stray-note`,
+    );
+
+    // And the new address is real, not just written down.
     await tree.getByRole("link", { name: "Stray Note" }).click();
     await expect(page).toHaveURL(`/s/${SPACE}/archive/stray-note`);
   });
@@ -84,8 +94,10 @@ test.describe("Moving things about", () => {
       .dragTo(tree.locator(".tree-header"));
     expect((await moved).status()).toBe(200);
 
-    await tree.getByRole("link", { name: "Stray Note" }).click();
-    await expect(page).toHaveURL(`/s/${SPACE}/stray-note`);
+    await expect(tree.getByRole("link", { name: "Stray Note" })).toHaveAttribute(
+      "href",
+      `/s/${SPACE}/stray-note`,
+    );
   });
 
   test("the Move button does the same thing without a mouse", async () => {
@@ -109,8 +121,10 @@ test.describe("Moving things about", () => {
 
     await dialog.getByRole("button", { name: "drafts", exact: true }).click();
 
-    await tree.getByRole("link", { name: "Stray Note" }).click();
-    await expect(page).toHaveURL(`/s/${SPACE}/drafts/stray-note`);
+    await expect(tree.getByRole("link", { name: "Stray Note" })).toHaveAttribute(
+      "href",
+      `/s/${SPACE}/drafts/stray-note`,
+    );
   });
 
   test("a folder cannot be moved inside itself", async () => {

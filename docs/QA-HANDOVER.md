@@ -620,7 +620,7 @@ Worth a second look, because these are where the bugs were.
   carries a spinner until the next page arrives — the one you clicked, and not
   the others in the list.
 - **The front page is the product, not a placeholder.** "Coming soon" is gone,
-  and the footer carries the credit and a **Tell me something** box that asks for
+  and the footer carries the credit and a **Tell me a joke** box that asks for
   nothing: no account, no address, no name. Notes land on a page only the owner
   of the documentation space can read.
 - **The product is Post-it**, and the rename reached everything a person

@@ -67,15 +67,15 @@ test.describe("The front page", () => {
       const footer = owner.locator(".site-footer");
       await expect(footer).toContainText("by Awsim");
       await expect(
-        footer.getByRole("button", { name: "Tell me something" }),
+        footer.getByRole("button", { name: "Tell me a joke" }),
       ).toBeVisible();
     }
   });
 
   test("a stranger can send a note without an account", async () => {
-    await visitor.getByRole("button", { name: "Tell me something" }).click();
+    await visitor.getByRole("button", { name: "Tell me a joke" }).click();
 
-    const dialog = visitor.getByRole("dialog", { name: "Tell me something" });
+    const dialog = visitor.getByRole("dialog", { name: "Tell me a joke" });
     await expect(dialog).toBeVisible();
 
     await dialog.getByLabel("A joke, a thought, anything").fill(JOKE);

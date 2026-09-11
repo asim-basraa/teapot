@@ -4,7 +4,17 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
-export type AuthState = { error?: string; notice?: string };
+export type AuthState = {
+  error?: string;
+  notice?: string;
+  /**
+   * What was typed, handed back so a refused form does not empty itself.
+   * React resets an uncontrolled form once its action returns, so a rejected
+   * sign-in wiped the address along with the password and made a mistyped
+   * password cost two fields instead of one. Passwords are never in here.
+   */
+  values?: { email?: string };
+};
 
 function siteUrl(): string {
   return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -24,10 +34,13 @@ export async function signUp(
   const { email, password } = readCredentials(formData);
 
   if (!email || !password) {
-    return { error: "Email and password are both required." };
+    return { error: "Email and password are both required.", values: { email } };
   }
   if (password.length < 8) {
-    return { error: "Password must be at least 8 characters." };
+    return {
+      error: "Password must be at least 8 characters.",
+      values: { email },
+    };
   }
 
   const supabase = await createClient();
@@ -41,7 +54,7 @@ export async function signUp(
     // The before-user-created hook rejects addresses outside the allowed
     // domain that hold no invitation. Its message is written for the reader,
     // so it is surfaced as-is rather than replaced with something generic.
-    return { error: error.message };
+    return { error: error.message, values: { email } };
   }
 
   // Deliberately conditional. Supabase answers a signup for an address that
@@ -51,7 +64,7 @@ export async function signUp(
   // for something that is never coming. This says what is actually true in both
   // cases without giving away which one they are in.
   return {
-    notice: `If ${email} is new to Teapot, a confirmation link is on its way, and you will not be able to sign in until you have followed it. If you already have an account, sign in below instead.`,
+    notice: `If ${email} is new to Post-it, a confirmation link is on its way, and you will not be able to sign in until you have followed it. If you already have an account, sign in below instead.`,
   };
 }
 
@@ -62,16 +75,26 @@ export async function signIn(
   const { email, password } = readCredentials(formData);
 
   if (!email || !password) {
-    return { error: "Email and password are both required." };
+    return { error: "Email and password are both required.", values: { email } };
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    // Deliberately uniform: distinguishing "no such account" from "wrong
-    // password" tells an attacker which addresses are registered.
-    return { error: "Those credentials are not valid." };
+    // A throttle is not a refusal, and saying "not valid" when the server is
+    // merely busy sends somebody off to reset a password that was never the
+    // problem. Nothing is given away by separating them: "too many" is true of
+    // an address whether or not it has an account.
+    if (error.status === 429) {
+      return {
+        error: "Too many attempts just now. Wait a minute and try again.",
+        values: { email },
+      };
+    }
+    // Deliberately uniform otherwise: distinguishing "no such account" from
+    // "wrong password" tells an attacker which addresses are registered.
+    return { error: "Those credentials are not valid.", values: { email } };
   }
 
   revalidatePath("/", "layout");
@@ -91,6 +114,7 @@ export async function requestPasswordReset(
 ): Promise<AuthState> {
   const email = String(formData.get("email") ?? "").trim();
   if (!email) return { error: "Enter your email address." };
+
 
   const supabase = await createClient();
   await supabase.auth.resetPasswordForEmail(email, {
@@ -124,4 +148,34 @@ export async function updatePassword(
 
   revalidatePath("/", "layout");
   redirect("/spaces");
+}
+
+/**
+ * Changing your password from the account page.
+ *
+ * Separate from updatePassword, which is the end of the reset-by-email
+ * journey and rightly lands you in your spaces. Somebody changing their
+ * password from their account settings has not arrived from anywhere and
+ * should be left where they were, told it worked.
+ */
+export async function changePassword(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
+  if (password !== confirm) {
+    return { error: "Those passwords do not match." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { error: error.message };
+
+  revalidatePath("/account");
+  return { notice: "Your password has been changed." };
 }

@@ -110,19 +110,49 @@ test.describe("MCP server", () => {
     await owner.getByLabel("Name this token").fill("Laptop");
     await owner.getByRole("button", { name: "Create token" }).click();
 
-    const value = owner.locator(".token-value");
+    const value = owner.locator("#copyable-token");
     await expect(value).toBeVisible();
     token = ((await value.textContent()) ?? "").trim();
-    expect(token).toMatch(/^tea_/);
+    expect(token).toMatch(/^post_/);
 
-    // The configuration is shown alongside, so connecting is copy and paste
-    // rather than a hunt through documentation.
-    await expect(owner.locator(".token-config")).toContainText("/api/mcp");
+    // Every client's configuration is shown alongside, with this token and
+    // this Post-it's address already in it, so connecting is copy and paste
+    // rather than transcribing a secret by hand.
+    for (const label of [
+      "Claude Code, command line",
+      "Claude Code, .mcp.json",
+      "Anthropic API",
+    ]) {
+      const block = owner.locator(".copyable").filter({ hasText: label });
+      await expect(block, `${label} should be offered`).toBeVisible();
+      const text = (await block.locator("pre").textContent()) ?? "";
+      expect(text, `${label} should carry the endpoint`).toContain("/api/mcp");
+      expect(text, `${label} should carry the token`).toContain(token);
+    }
 
     // Reloading must not show it again: only the hash was kept.
     await owner.reload();
-    await expect(owner.locator(".token-value")).toHaveCount(0);
+    await expect(owner.locator("#copyable-token")).toHaveCount(0);
     await expect(owner.getByText("Laptop")).toBeVisible();
+  });
+
+  test("the same endpoint answers with the token in the path", async () => {
+    // The Claude desktop and web apps add a connector from a URL and offer no
+    // field for a header, so the token has to travel in the path for them.
+    // Same endpoint, same answers, including the refusals.
+    const res = await api.post(`/api/mcp/${token}`, {
+      data: { jsonrpc: "2.0", id: 1, method: "tools/list" },
+    });
+    expect(res.status()).toBe(200);
+    const listed = await res.json();
+    expect(listed.result.tools.length).toBeGreaterThan(0);
+
+    // And it is the same credential, not a way around one: another account's
+    // token reaches nothing here either.
+    const wrong = await api.post("/api/mcp/post_not_a_real_token", {
+      data: { jsonrpc: "2.0", id: 1, method: "tools/list" },
+    });
+    expect(wrong.status()).toBe(401);
   });
 
   test("the endpoint refuses a request with no token", async () => {
@@ -131,7 +161,7 @@ test.describe("MCP server", () => {
   });
 
   test("an unknown token is refused, and looks exactly like a revoked one", async () => {
-    const unknown = await rpc("tools/list", undefined, "tea_not_a_real_token");
+    const unknown = await rpc("tools/list", undefined, "post_not_a_real_token");
     expect(unknown.status).toBe(401);
     expect(unknown.body?.error?.message).toBe("Unauthorized");
   });
@@ -143,7 +173,7 @@ test.describe("MCP server", () => {
       clientInfo: { name: "playwright", version: "1.0.0" },
     });
     expect(init.status).toBe(200);
-    expect(init.body.result.serverInfo.name).toBe("teapot");
+    expect(init.body.result.serverInfo.name).toBe("postit");
 
     const listed = await rpc("tools/list", {});
     const names = listed.body.result.tools.map((t: { name: string }) => t.name);
@@ -186,6 +216,89 @@ test.describe("MCP server", () => {
     expect(notASkill.isError).toBe(true);
   });
 
+  test("it can build structure, not just a flat list", async () => {
+    // The gap somebody hit filing seventeen pages from a repository: folders
+    // are the only thing that can contain anything, and there was no way to
+    // make one here, so the choice was a flat list or going to the browser.
+    const made = await call("create_folder", {
+      space_id: spaceId,
+      name: "Handbook",
+    });
+    expect(made.isError, made.text).toBeFalsy();
+    expect(made.text).toContain("at handbook");
+    const folderId = idFrom(made.text);
+
+    const inside = await call("create_page", {
+      space_id: spaceId,
+      name: "Leave",
+      parent_id: folderId,
+    });
+    expect(inside.isError, inside.text).toBeFalsy();
+    expect(inside.text).toContain("handbook/leave");
+
+    // And a page is not a folder. That used to answer "Not found", which sends
+    // somebody looking for a missing thing that is sitting in front of them.
+    const refused = await call("create_page", {
+      space_id: spaceId,
+      name: "Nested Too Far",
+      parent_id: idFrom(inside.text),
+    });
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain("Only folders can contain items");
+  });
+
+  test("and can see the structure it built, and find one made elsewhere", async () => {
+    // The gap that left somebody unable to find a folder created in the
+    // browser: search matches content, and a folder has none, so there was no
+    // way to enumerate a space at all.
+    const tree = await call("list_tree", { space_id: spaceId });
+    expect(tree.isError, tree.text).toBeFalsy();
+    expect(tree.text).toContain("handbook (folder");
+    expect(tree.text).toContain("handbook/leave (article");
+
+    const folders = await call("list_tree", {
+      space_id: spaceId,
+      kind: "folder",
+    });
+    expect(folders.text).toContain("handbook (folder");
+    expect(folders.text).not.toContain("handbook/leave");
+
+    // And reading a folder says what is in it, rather than "(no content)",
+    // which is true and useless.
+    const read = await call("read_page", {
+      space_id: spaceId,
+      path: "handbook",
+    });
+    expect(read.isError, read.text).toBeFalsy();
+    expect(read.text).toContain("type: folder");
+    expect(read.text).toContain("handbook/leave");
+  });
+
+  test("it is told when it is asking for a folder the wrong way", async () => {
+    // Both of these used to succeed quietly and produce something other than
+    // what was asked for, which is worse than a refusal.
+    const typed = await call("create_page", {
+      space_id: spaceId,
+      name: "Pretend Folder",
+      content_type: "folder",
+    });
+    expect(typed.isError).toBe(true);
+    expect(typed.text).toContain("create_folder");
+
+    const slashed = await call("create_page", {
+      space_id: spaceId,
+      name: "handbook/README",
+    });
+    expect(slashed.isError).toBe(true);
+    expect(slashed.text).toContain("cannot contain a slash");
+    expect(slashed.text).toContain("parent_id");
+
+    // Neither left anything behind.
+    const tree = await call("list_tree", { space_id: spaceId });
+    expect(tree.text).not.toContain("pretend-folder");
+    expect(tree.text).not.toContain("handbook-readme");
+  });
+
   test("it can write, and refuses to clobber a concurrent edit", async () => {
     const created = await call("create_page", {
       space_id: spaceId,
@@ -225,7 +338,9 @@ test.describe("MCP server", () => {
     await other.goto("/settings/mcp");
     await other.getByLabel("Name this token").fill("Theirs");
     await other.getByRole("button", { name: "Create token" }).click();
-    otherToken = ((await other.locator(".token-value").textContent()) ?? "").trim();
+    const theirs = other.locator("#copyable-token");
+    await expect(theirs).toBeVisible();
+    otherToken = ((await theirs.textContent()) ?? "").trim();
 
     // Their token sees none of the owner's spaces, and asking directly for a
     // page by id gets the same not-found a missing page would.
@@ -271,3 +386,10 @@ test.describe("MCP server", () => {
     expect(body?.error?.message).toBe("Unauthorized");
   });
 });
+
+/** The id out of a create tool's answer, which reads as prose for a person. */
+function idFrom(answer: string | undefined): string {
+  const match = /\(id: ([0-9a-f-]{36})\)/.exec(answer ?? "");
+  expect(match, `no id in: ${answer}`).toBeTruthy();
+  return match![1];
+}

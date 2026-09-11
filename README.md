@@ -1,7 +1,7 @@
-# Teapot
+# Postit
 
 A multi-tenant knowledge garden: the Quartz reading experience with real
-access control. See [issue #1](https://github.com/asim-basraa/teapot/issues/1)
+access control. See [issue #1](https://github.com/asim-basraa/postit/issues/1)
 for the PRD and the implementation slices.
 
 ## Status
@@ -22,10 +22,10 @@ npm run dev
 
 | Environment | App | Database |
 | --- | --- | --- |
-| local | `localhost:3000` | `teapot-dev` |
+| local | `localhost:3000` | `postit-dev` |
 | CI | ephemeral | local Supabase in Docker |
-| staging | Railway `staging` | `teapot-staging` |
-| production | Railway `production` | `teapot` |
+| staging | Railway `staging` | `postit-staging` |
+| production | Railway `production` | `postit` |
 
 `NEXT_PUBLIC_*` variables reach the browser. `SUPABASE_SERVICE_ROLE_KEY` is
 server-only and must never be given a `NEXT_PUBLIC_` prefix: it bypasses row

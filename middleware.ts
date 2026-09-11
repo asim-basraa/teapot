@@ -52,6 +52,15 @@ export async function middleware(request: NextRequest) {
   // the cookie, which a client can forge.
   await supabase.auth.getUser();
 
+  // Every page here depends on who is asking: the same address returns a
+  // document to one person and a 404 to the next. A response like that must
+  // never be stored, by a shared cache or by the browser that received it.
+  // Static assets are outside this matcher and keep their own caching.
+  response.headers.set(
+    "cache-control",
+    "private, no-store, max-age=0, must-revalidate",
+  );
+
   return response;
 }
 

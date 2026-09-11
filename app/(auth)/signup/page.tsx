@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AuthForm } from "../AuthForm";
 import { signUp } from "../actions";
 
-export const metadata = { title: "Create a Teapot account" };
+export const metadata = { title: "Create a Post-it account" };
 
 export default function SignUpPage() {
   return (

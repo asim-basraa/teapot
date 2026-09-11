@@ -20,10 +20,14 @@ type Bucket = { count: number; resetAt: number };
 const WINDOW_MS = 60_000;
 
 /** Requests a valid token may make in a window. Generous: this is a throttle. */
-const VALID_LIMIT = 120;
+export const VALID_LIMIT = 120;
 
-/** Failures one address may cause in a window. Tight: nothing legitimate fails. */
-const FAILURE_LIMIT = 20;
+/**
+ * Failures one address may cause in a window. Tight, which it can only afford
+ * to be because it counts failures and nothing else: a client that keeps
+ * presenting a token that works is never in this bucket at all.
+ */
+export const FAILURE_LIMIT = 20;
 
 const buckets = new Map<string, Bucket>();
 
@@ -45,8 +49,30 @@ export function allowToken(tokenId: string): boolean {
   return allow(`token:${tokenId}`, VALID_LIMIT);
 }
 
-export function allowFailure(address: string): boolean {
-  return allow(`fail:${address}`, FAILURE_LIMIT);
+/**
+ * Whether this address has already spent its failures.
+ *
+ * Asked before the token is looked up and without counting anything, so a
+ * flood of guesses cannot be turned into a flood of database round trips,
+ * while a client whose token is good never touches this bucket.
+ *
+ * Counting every request here instead, which is what this used to do, meant
+ * twenty requests a minute from one address and then refusals: enough for a
+ * person clicking about, nowhere near enough for the thing this endpoint
+ * exists to serve, which is a client filing a folder of documents.
+ */
+export function failuresSpent(address: string): boolean {
+  const bucket = buckets.get(`fail:${address}`);
+  return (
+    bucket !== undefined &&
+    bucket.resetAt > Date.now() &&
+    bucket.count >= FAILURE_LIMIT
+  );
+}
+
+/** Counts one. Called only where a token has actually been refused. */
+export function recordFailure(address: string): void {
+  allow(`fail:${address}`, FAILURE_LIMIT);
 }
 
 /**

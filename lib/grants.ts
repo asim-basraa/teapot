@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import type { Visibility } from "@/lib/visibility";
+import { inviteToNode } from "@/lib/invitations";
 
 export type GrantRole = "viewer" | "editor" | "admin";
 
@@ -15,7 +17,7 @@ export type EffectiveGrant = {
 };
 
 export type GrantResult =
-  | { ok: true }
+  | { ok: true; invited?: boolean }
   | { ok: false; error: string; status: number };
 
 export const ROLES: GrantRole[] = ["viewer", "editor", "admin"];
@@ -23,6 +25,15 @@ export const ROLES: GrantRole[] = ["viewer", "editor", "admin"];
 export function isRole(value: unknown): value is GrantRole {
   return typeof value === "string" && (ROLES as string[]).includes(value);
 }
+
+// Re-exported so callers that already have grants in hand do not need to know
+// that the pure half lives apart from the half that talks to the database.
+export type { Visibility };
+export {
+  isVisibility,
+  readVisibility,
+  readInheritedVisibility,
+} from "@/lib/visibility";
 
 /**
  * Every grant reaching a node, including inherited ones and where they came
@@ -50,6 +61,12 @@ export async function listEffectiveGrants(
  * and nothing running as the caller could look someone else up. See
  * grant_to_email: it checks admin before it looks at the address, so this
  * cannot be used to discover who has an account.
+ *
+ * An address with no account is invited rather than refused. Sign-up here is
+ * invitation-only, so refusing left the sharer holding an address that could
+ * never become an account: the person could not sign up, and nothing in the
+ * interface let anyone invite them. The invitation carries the grant, so they
+ * arrive at the thing they were shared rather than at an empty list of spaces.
  */
 export async function shareByEmail(
   nodeId: string,
@@ -70,14 +87,23 @@ export async function shareByEmail(
 
   if (!error) return { ok: true };
 
-  // P0002 is raised for an address with no account. The caller already holds
-  // admin here, so naming the problem is safe and useful.
+  // P0002 is raised for an address with no account, and only after the admin
+  // check has passed, so the caller is not a stranger fishing for addresses.
   if (error.code === "P0002" && /no account exists/i.test(error.message)) {
-    return {
-      ok: false,
-      error: `No Teapot account exists for ${trimmed}. They need to sign up first.`,
-      status: 404,
-    };
+    const invited = await inviteToNode(nodeId, trimmed, role);
+    if (!invited.ok) return invited;
+
+    // The account exists now, so the grant can be made the ordinary way. The
+    // trigger that runs on account creation has usually made it already; this
+    // is the same upsert, and it means the answer does not depend on which of
+    // the two got there first.
+    await supabase.rpc("grant_to_email", {
+      p_node_id: nodeId,
+      p_email: trimmed,
+      p_role: role,
+    });
+
+    return { ok: true, invited: true };
   }
 
   // Anything else, including "not admin", is reported as not-found so a
@@ -108,57 +134,30 @@ export async function revokeGrant(grantId: string): Promise<GrantResult> {
 }
 
 /**
- * Shares a node with everyone who has an account, or stops doing so.
+ * Sets how far a node reaches, in one write.
  *
- * A third thing, distinct from both a named grantee and publishing. Passing
- * null withdraws it. The database refuses admin here: viewer and editor are
- * both things somebody might want for a whole organisation, but the power to
- * change who else can see a thing is not something anyone hands to "everyone"
- * on purpose.
+ * One call rather than two, because it is one decision. Setting it through
+ * separate publish and share-with-everyone writes leaves a window in which a
+ * node is both, and leaves the reader to assemble the answer to "who can see
+ * this" from two controls that can disagree.
  */
-export async function setSharedWithEveryone(
+export async function setVisibility(
   nodeId: string,
+  visibility: Visibility,
   role: GrantRole | null,
 ): Promise<GrantResult> {
   const supabase = await createClient();
-  const { error } = await supabase.rpc("set_shared_with_everyone", {
+  const { error } = await supabase.rpc("set_node_visibility", {
     p_node_id: nodeId,
-    p_role: role,
+    p_visibility: visibility,
+    p_role: visibility === "everyone" ? (role ?? "viewer") : null,
   });
 
   if (!error) return { ok: true };
 
   if (/cannot confer admin/i.test(error.message)) {
-    return {
-      ok: false,
-      error: "Everyone cannot be given admin.",
-      status: 400,
-    };
+    return { ok: false, error: "Everyone cannot be given admin.", status: 400 };
   }
 
   return { ok: false, error: "Not found.", status: 404 };
-}
-
-/**
- * Publishes or unpublishes a node.
- *
- * Through set_public rather than a client-side upsert: uniqueness for public
- * grants is a partial index, which PostgREST cannot name in an ON CONFLICT
- * clause. The function makes the same admin check RLS would, and a trigger
- * refuses any public grant stronger than viewer, on every write path.
- *
- * Publishing a folder publishes what is under it, because that is what
- * inheritance already means. There is no second rule here to drift from it.
- */
-export async function setPublic(
-  nodeId: string,
-  isPublic: boolean,
-): Promise<GrantResult> {
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("set_public", {
-    p_node_id: nodeId,
-    p_public: isPublic,
-  });
-  if (error) return { ok: false, error: "Not found.", status: 404 };
-  return { ok: true };
 }

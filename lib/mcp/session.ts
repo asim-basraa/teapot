@@ -92,7 +92,7 @@ const REFRESH_MARGIN_MS = 5 * 60_000;
  * project. Supabase has moved to asymmetric signing keys whose private half
  * never leaves their infrastructure, and the legacy shared secret it replaced
  * is verify-only and revocable. Asking the auth server for a session instead
- * means this keeps working across a key rotation, and means Teapot never holds
+ * means this keeps working across a key rotation, and means Post-it never holds
  * signing material at all.
  *
  * The service role key is required and is used for nothing else.

@@ -88,7 +88,7 @@ test.describe("Slice 5: teams and team grants", () => {
     });
 
     expect(res.status()).toBe(404);
-    expect(await res.text()).toMatch(/no teapot account/i);
+    expect(await res.text()).toMatch(/no post-it account/i);
   });
 
   test("the owner adds a member", async () => {

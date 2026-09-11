@@ -57,7 +57,11 @@ test.describe("Slice 2: file tree and node CRUD", () => {
         r.url().includes("/api/v1/nodes") && r.request().method() === method,
     );
     answer(promptValue);
-    await page.getByRole("button", { name: buttonName }).click();
+    // Exact, because the tree header offers "New page at the top level" and a
+    // folder's own page offers "New page", and the two mean different places.
+    await page
+      .getByRole("button", { name: buttonName, exact: true })
+      .click();
     return waitForApi;
   }
 
@@ -73,18 +77,27 @@ test.describe("Slice 2: file tree and node CRUD", () => {
     await expect(page.locator(".tree-folder-name")).toContainText("Projects");
   });
 
-  test("creates a page inside that folder", async () => {
-    const response = await actAndAwait(
-      "New page in Projects",
-      "POST",
-      "Road Map",
-    );
+  test("creates a page inside that folder, from the folder", async () => {
+    // Not from the sidebar row. Creating things inside a folder lives on the
+    // folder's own page, where there is room for it and where you can see
+    // what is already there.
+    await page.getByRole("link", { name: "Projects" }).click();
+    await expect(page).toHaveURL(`/s/${SPACE_SLUG}/projects`);
+
+    const response = await actAndAwait("New page", "POST", "Road Map");
     expect(
       response.status(),
       await response.text().catch(() => ""),
     ).toBe(201);
 
-    const link = page.getByRole("link", { name: "Road Map" });
+    // Making a page takes you into it, rather than leaving you on the folder
+    // waiting for the sidebar to catch up.
+    await expect(page).toHaveURL(`/s/${SPACE_SLUG}/projects/road-map`);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Road Map" }),
+    ).toBeVisible();
+
+    const link = page.locator(".tree").getByRole("link", { name: "Road Map" });
     await expect(link).toBeVisible();
     await expect(link).toHaveAttribute(
       "href",
@@ -93,7 +106,8 @@ test.describe("Slice 2: file tree and node CRUD", () => {
   });
 
   test("navigates to the page through the sidebar", async () => {
-    await page.getByRole("link", { name: "Road Map" }).click();
+    await page.goto(`/s/${SPACE_SLUG}/projects`);
+    await page.locator(".tree").getByRole("link", { name: "Road Map" }).click();
 
     await expect(page).toHaveURL(`/s/${SPACE_SLUG}/projects/road-map`);
     await expect(

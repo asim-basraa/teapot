@@ -46,7 +46,7 @@ export async function createToken(input: {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not found.", status: 404 };
 
-  const token = `tea_${randomBytes(32).toString("base64url")}`;
+  const token = `post_${randomBytes(32).toString("base64url")}`;
   const id = crypto.randomUUID();
 
   const { error } = await supabase.from("mcp_tokens").insert({

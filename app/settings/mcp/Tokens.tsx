@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { Copyable } from "@/components/Copyable";
 import type { McpToken } from "@/lib/mcp/tokens";
 
 type Space = { id: string; name: string };
@@ -74,21 +76,37 @@ export function Tokens({
       ) : null}
 
       {issued ? (
+        // Every client, with the real token already in it. The alternative is
+        // a page that shows one shape and leaves you to work out the other
+        // two, transcribing a secret by hand in the process, where one wrong
+        // character costs an hour and reads like a permissions problem.
         <div className="token-issued">
           <h2>Your new token</h2>
           <p className="hint">
-            Copy it now. It is stored only as a hash, so this is the one and
-            only time it can be shown. If you lose it, revoke it and make
+            Copy it now. Post-it stores only a hash of it, so this is the one
+            and only time it can be shown. If you lose it, revoke it and make
             another.
           </p>
-          <code className="token-value">{issued}</code>
 
-          <h3>Configuration</h3>
-          <pre className="token-config">
-            {JSON.stringify(
+          <Copyable label="Token" text={issued} />
+
+          <h3>Set it up</h3>
+          <p className="hint">
+            Pick the one for the client you are using. Each already contains
+            this token and this Post-it&rsquo;s address.
+          </p>
+
+          <Copyable
+            label="Claude Code, command line"
+            text={`claude mcp add --transport http postit ${endpoint} \\\n  --header "Authorization: Bearer ${issued}"`}
+          />
+
+          <Copyable
+            label="Claude Code, .mcp.json"
+            text={JSON.stringify(
               {
                 mcpServers: {
-                  teapot: {
+                  postit: {
                     type: "http",
                     url: endpoint,
                     headers: { Authorization: `Bearer ${issued}` },
@@ -98,7 +116,42 @@ export function Tokens({
               null,
               2,
             )}
-          </pre>
+          />
+
+          <h3>The Claude apps, desktop and web</h3>
+          <p className="hint">
+            Settings, then Connectors, then Add custom connector, and give it
+            this URL. That dialog takes a URL and nothing else, so this is the
+            one form with the token in it.
+          </p>
+
+          <Copyable label="Connector URL" text={`${endpoint}/${issued}`} />
+
+          <p className="msg msg-error">
+            <strong>Weaker than the two above, on purpose.</strong> A token in a
+            URL is in every HTTP log that records the path, in whatever Claude
+            stores for the connection, and anywhere the URL is pasted. A token
+            in a header is in none of those. Use this only where a header is
+            not on offer, and prefer a token pinned to a single space so a leak
+            costs one space rather than your account.
+          </p>
+
+          {/* curl rather than a bare body, because the beta header is half of
+              the requirement and a JSON block cannot show it. Without the
+              header, and without the matching mcp_toolset entry, the request
+              is rejected as a validation error rather than merely ignoring the
+              server. */}
+          <Copyable
+            label="Anthropic API"
+            text={apiExample(endpoint, issued)}
+            collapsed
+          />
+
+          <p className="hint">
+            <Link href="/docs#reach">
+              What a connected Claude can and cannot reach
+            </Link>
+          </p>
 
           <button
             className="btn btn-secondary btn-small"
@@ -175,4 +228,43 @@ export function Tokens({
       )}
     </section>
   );
+}
+
+/**
+ * A complete request, header included.
+ *
+ * The MCP connector needs three things that are easy to give two of: the beta
+ * header, the server in `mcp_servers`, and a matching `mcp_toolset` entry in
+ * `tools`. Leaving the toolset out is not a quiet no-op; the request is
+ * refused. So this is a whole command rather than a body somebody has to
+ * assemble a request around.
+ */
+function apiExample(endpoint: string, token: string): string {
+  const body = JSON.stringify(
+    {
+      model: "claude-opus-5",
+      max_tokens: 2048,
+      messages: [{ role: "user", content: "What is on my todo list?" }],
+      mcp_servers: [
+        {
+          type: "url",
+          url: endpoint,
+          name: "postit",
+          authorization_token: token,
+        },
+      ],
+      tools: [{ type: "mcp_toolset", mcp_server_name: "postit" }],
+    },
+    null,
+    2,
+  );
+
+  return [
+    "curl https://api.anthropic.com/v1/messages \\",
+    '  -H "content-type: application/json" \\',
+    '  -H "x-api-key: $ANTHROPIC_API_KEY" \\',
+    '  -H "anthropic-version: 2023-06-01" \\',
+    '  -H "anthropic-beta: mcp-client-2025-11-20" \\',
+    `  -d '${body}'`,
+  ].join("\n");
 }

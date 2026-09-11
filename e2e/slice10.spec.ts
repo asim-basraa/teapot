@@ -13,7 +13,7 @@ description: Read and update the reader's todos
 
 # Todo List
 
-Ask Teapot for open items, then mark them done.
+Ask Post-it for open items, then mark them done.
 `;
 
 test.describe.configure({ mode: "serial" });
@@ -99,7 +99,7 @@ test.describe("Content types: article and skill", () => {
     await expect(
       article.getByRole("heading", { level: 1, name: "Todo List" }),
     ).toBeVisible();
-    await expect(article).toContainText("Ask Teapot for open items");
+    await expect(article).toContainText("Ask Post-it for open items");
     // The metadata belongs to the document, not in it.
     await expect(article).not.toContainText("description:");
     await expect(article).not.toContainText("---");
@@ -142,18 +142,26 @@ test.describe("Content types: article and skill", () => {
   });
 
   test("an author can reclassify a page in the editor", async () => {
-    await page.goto(`/s/${SPACE}/meeting-note?edit=1`);
+    const landed = await page.goto(`/s/${SPACE}/meeting-note?edit=1`);
+    expect(landed?.status()).toBe(200);
+
+    // The editor renders only for somebody the page says may edit, so its
+    // absence and a failure to change the type look identical from the outside.
+    // Asserting it first means a failure says which of the two happened.
+    await expect(
+      page.getByRole("textbox", { name: /Markdown source/ }),
+      "the editor must render before anything on it can be used",
+    ).toBeVisible();
 
     // By role, not by label: the tree's "Rename <space>" and "Delete <space>"
     // buttons carry the space name, and getByLabel matches on a substring.
-
     const [response] = await Promise.all([
       page.waitForResponse(
         (r) => r.url().includes("/api/v1/nodes/") && r.request().method() === "PATCH",
       ),
       page.getByRole("combobox", { name: "Type" }).selectOption("skill"),
     ]);
-    expect(response.status(), await response.text()).toBe(200);
+    expect(response.status()).toBe(200);
 
     // Saved but flagged: a skill with no metadata is still somebody's writing,
     // and refusing it would lose the work over a formatting detail.

@@ -1,6 +1,6 @@
 -- Authorization test suite.
 --
--- These are the security tests of the product. Every access decision in Teapot
+-- These are the security tests of the product. Every access decision in Postit
 -- is made by effective_role and its can_read / can_edit / can_admin wrappers,
 -- so this file is where that decision is held to account.
 --
@@ -643,34 +643,34 @@ select pg_temp.check('filtering by type finds documents, not folders',
 
 insert into public.mcp_tokens (id, user_id, name, token_hash) values
   ('d0000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','Owner laptop',
-   encode(extensions.digest('tea_owner_secret','sha256'),'hex')),
+   encode(extensions.digest('post_owner_secret','sha256'),'hex')),
   ('d0000000-0000-0000-0000-000000000002','22222222-2222-2222-2222-222222222222','Alice laptop',
-   encode(extensions.digest('tea_alice_secret','sha256'),'hex'));
+   encode(extensions.digest('post_alice_secret','sha256'),'hex'));
 
 select pg_temp.check('a live token resolves to its owner',
-  (select user_id::text from public.resolve_mcp_token('tea_owner_secret')),
+  (select user_id::text from public.resolve_mcp_token('post_owner_secret')),
   '11111111-1111-1111-1111-111111111111');
 select pg_temp.check('using a token records that it was used',
   (select (last_used_at is not null)::text from public.mcp_tokens
    where id = 'd0000000-0000-0000-0000-000000000001'), 'true');
 select pg_temp.check('an unknown token resolves to nothing',
-  (select count(*)::text from public.resolve_mcp_token('tea_not_a_token')), '0');
+  (select count(*)::text from public.resolve_mcp_token('post_not_a_token')), '0');
 
 -- The point of storing hashes. If presenting the stored hash worked, a leaked
 -- database would be enough to authenticate and the hashing would buy nothing.
 select pg_temp.check('presenting the stored hash is not enough',
   (select count(*)::text from public.resolve_mcp_token(
-     encode(extensions.digest('tea_owner_secret','sha256'),'hex'))), '0');
+     encode(extensions.digest('post_owner_secret','sha256'),'hex'))), '0');
 
 update public.mcp_tokens set revoked_at = now()
  where id = 'd0000000-0000-0000-0000-000000000001';
 select pg_temp.check('a revoked token stops working on the next request',
-  (select count(*)::text from public.resolve_mcp_token('tea_owner_secret')), '0');
+  (select count(*)::text from public.resolve_mcp_token('post_owner_secret')), '0');
 
 update public.mcp_tokens set revoked_at = null, expires_at = now() - interval '1 minute'
  where id = 'd0000000-0000-0000-0000-000000000001';
 select pg_temp.check('an expired token stops working too',
-  (select count(*)::text from public.resolve_mcp_token('tea_owner_secret')), '0');
+  (select count(*)::text from public.resolve_mcp_token('post_owner_secret')), '0');
 
 set local role authenticated;
 
@@ -884,5 +884,600 @@ reset role;
 
 select pg_temp.check('withdrawing it takes the access with it',
   public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-00000000000d')::text, 'false');
+
+-- The space's home page ------------------------------------------------------
+--
+-- Every space has one node at the path `index`, and /s/<slug> is that node. It
+-- used to sit in the file tree like any other page, where renaming it
+-- rederived its slug and took the space's address with it: the space 404ed for
+-- everybody, its owner included, with no way back. The interface no longer
+-- offers the rename, but an address a rename can destroy is not an address, so
+-- the refusal lives here.
+
+insert into public.nodes (id, space_id, parent_id, kind, name, slug, content) values
+  ('b0000000-0000-0000-0000-0000000000f1','a0000000-0000-0000-0000-000000000001',
+   null,'file','Authz Test','index','Welcome.');
+
+select pg_temp.check('the home page is at the address the space resolves to',
+  (select path from public.nodes where id = 'b0000000-0000-0000-0000-0000000000f1'), 'index');
+
+do $$
+begin
+  begin
+    perform public.move_node(
+      p_node_id => 'b0000000-0000-0000-0000-0000000000f1',
+      p_new_name => 'Renamed',
+      p_reparent => false);
+    raise exception 'FAIL: the home page was renamed out from under its address';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+select pg_temp.check('so the space still resolves',
+  (select path from public.nodes where id = 'b0000000-0000-0000-0000-0000000000f1'), 'index');
+
+do $$
+begin
+  begin
+    delete from public.nodes where id = 'b0000000-0000-0000-0000-0000000000f1';
+    raise exception 'FAIL: the home page was deleted';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+select pg_temp.check('and is still there',
+  (select count(*)::text from public.nodes where id = 'b0000000-0000-0000-0000-0000000000f1'), '1');
+
+-- Renaming the space renames its front page, which is a name change and
+-- nothing else. That must still be allowed, or a space could never be renamed.
+update public.nodes set name = 'Renamed Space'
+ where id = 'b0000000-0000-0000-0000-0000000000f1';
+
+select pg_temp.check('renaming the space renames its front page',
+  (select name || ' at ' || path from public.nodes
+    where id = 'b0000000-0000-0000-0000-0000000000f1'),
+  'Renamed Space at index');
+
+-- Removing the space takes its home page with it: the guard is about losing
+-- the front page of a space that still exists, not about keeping orphans.
+insert into public.spaces (id, slug, name, owner_id) values
+  ('a0000000-0000-0000-0000-0000000000f9','doomed','Doomed',
+   '11111111-1111-1111-1111-111111111111');
+insert into public.nodes (id, space_id, parent_id, kind, name, slug, content) values
+  ('b0000000-0000-0000-0000-0000000000f9','a0000000-0000-0000-0000-0000000000f9',
+   null,'file','Doomed','index','Welcome.');
+delete from public.spaces where id = 'a0000000-0000-0000-0000-0000000000f9';
+
+select pg_temp.check('deleting a space takes its home page with it',
+  (select count(*)::text from public.nodes
+    where id = 'b0000000-0000-0000-0000-0000000000f9'), '0');
+
+-- Inviting somebody who has no account --------------------------------------
+--
+-- Sign-up is invitation-only, so refusing to share with an unknown address was
+-- a dead end with no door: the person could not sign up, and nothing let
+-- anyone invite them. What the database has to guarantee is that an invitation
+-- is an administrator's decision, and that accepting one delivers the access
+-- it promised rather than an empty list of spaces.
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+
+do $$
+begin
+  begin
+    perform public.invite_to_node('b0000000-0000-0000-0000-000000000004',
+      'nobody@example.com', 'viewer');
+    raise exception 'FAIL: a stranger invited somebody to a node they cannot administer';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.invite_to_node('b0000000-0000-0000-0000-000000000001',
+  'Newcomer@Example.com', 'editor');
+reset role;
+
+select pg_temp.check('the invitation is recorded against the node, folded to lower case',
+  (select lower(email) || ' -> ' || role::text
+     from public.invitations
+    where node_id = 'b0000000-0000-0000-0000-000000000001'),
+  'newcomer@example.com -> editor');
+
+-- Re-inviting refreshes rather than duplicating: the second invitation is the
+-- one that counts, and the pending index would refuse a second row anyway.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.invite_to_node('b0000000-0000-0000-0000-000000000001',
+  'newcomer@example.com', 'viewer');
+reset role;
+
+select pg_temp.check('re-inviting refreshes the one invitation',
+  (select count(*)::text || ' at ' || max(role::text)
+     from public.invitations
+    where node_id = 'b0000000-0000-0000-0000-000000000001'),
+  '1 at viewer');
+
+-- The same address invited to a second node. The old index was unique on the
+-- address alone, which made this impossible for no good reason.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.invite_to_node('b0000000-0000-0000-0000-000000000004',
+  'newcomer@example.com', 'viewer');
+reset role;
+
+select pg_temp.check('one person can be invited to two things at once',
+  (select count(*)::text from public.invitations
+    where lower(email) = 'newcomer@example.com' and accepted_at is null), '2');
+
+-- Accepting is the account coming into being, so this creates one and lets
+-- the trigger do what it does. That is what makes the assertions below worth
+-- anything: nothing here reaches into the invitations table on its own behalf.
+insert into auth.users (id, instance_id, aud, role, email) values
+  ('55555555-5555-5555-5555-555555555555','00000000-0000-0000-0000-000000000000',
+   'authenticated','authenticated','newcomer@example.com');
+
+select pg_temp.check('accepting delivers the access the invitation promised',
+  public.can_read('55555555-5555-5555-5555-555555555555','b0000000-0000-0000-0000-000000000003')::text,
+  'true');
+select pg_temp.check('at the role it named',
+  public.can_edit('55555555-5555-5555-5555-555555555555','b0000000-0000-0000-0000-000000000003')::text,
+  'false');
+select pg_temp.check('and an invitation is single use',
+  (select count(*)::text from public.invitations
+    where lower(email) = 'newcomer@example.com' and accepted_at is null), '0');
+
+-- Visibility as one decision ------------------------------------------------
+--
+-- Reach used to be set through two independent controls, so a node could be
+-- published *and* shared with everyone at once: a state nobody chooses, and
+-- one where "who can see this" has two answers that can disagree. One function
+-- now decides between the three, and choosing any one of them withdraws the
+-- others. That exclusivity is the whole guarantee, so it is what is asserted.
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.set_node_visibility('b0000000-0000-0000-0000-000000000002','everyone','editor');
+reset role;
+
+select pg_temp.check('everyone means everyone with an account',
+  public.can_edit('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000003')::text, 'true');
+select pg_temp.check('and never an anonymous visitor',
+  public.can_read(null,'b0000000-0000-0000-0000-000000000003')::text, 'false');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.set_node_visibility('b0000000-0000-0000-0000-000000000002','public');
+reset role;
+
+select pg_temp.check('publishing withdraws the grant to everyone',
+  (select count(*)::text from public.grants
+    where node_id = 'b0000000-0000-0000-0000-000000000002'
+      and grantee_type = 'authenticated'), '0');
+select pg_temp.check('and reaches the internet instead',
+  public.can_read(null,'b0000000-0000-0000-0000-000000000003')::text, 'true');
+select pg_temp.check('read only, whatever it replaced',
+  public.can_edit(null,'b0000000-0000-0000-0000-000000000003')::text, 'false');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.set_node_visibility('b0000000-0000-0000-0000-000000000002','everyone','viewer');
+reset role;
+
+select pg_temp.check('and back the other way withdraws the public grant',
+  (select count(*)::text from public.grants
+    where node_id = 'b0000000-0000-0000-0000-000000000002'
+      and grantee_type = 'public'), '0');
+select pg_temp.check('so an anonymous visitor loses it again',
+  public.can_read(null,'b0000000-0000-0000-0000-000000000003')::text, 'false');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.set_node_visibility('b0000000-0000-0000-0000-000000000002','private');
+reset role;
+
+select pg_temp.check('private leaves neither behind',
+  (select count(*)::text from public.grants
+    where node_id = 'b0000000-0000-0000-0000-000000000002'
+      and grantee_type in ('public','authenticated')), '0');
+
+-- Handing "everyone" the power to decide who else can see a thing is not a
+-- decision anybody makes on purpose, so it is not on offer.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+do $$
+begin
+  begin
+    perform public.set_node_visibility('b0000000-0000-0000-0000-000000000002','everyone','admin');
+    raise exception 'FAIL: everyone was given admin';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+do $$
+begin
+  begin
+    perform public.set_node_visibility('b0000000-0000-0000-0000-000000000002','somewhere-else');
+    raise exception 'FAIL: an unknown visibility was accepted';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+-- A stranger cannot set the reach of somebody else's node, and is told the
+-- same thing they would be told about a node that does not exist.
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+do $$
+begin
+  begin
+    perform public.set_node_visibility('b0000000-0000-0000-0000-000000000004','public');
+    raise exception 'FAIL: a stranger published somebody else''s node';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+reset role;
+
+-- History -------------------------------------------------------------------
+--
+-- A page's revisions must be exactly as reachable as the page, through the
+-- same predicate. A history with its own visibility rule would be a second
+-- answer to "who can see this", and the second answer is the one that turns
+-- out to be wrong. Restoring is an edit and needs edit.
+
+-- Two saves on the deep note, which alice can read and the space owner can
+-- edit.
+update public.nodes
+   set content = '# note, second draft', content_version = content_version + 1
+ where id = 'b0000000-0000-0000-0000-000000000003';
+update public.nodes
+   set content = '# note, third draft', content_version = content_version + 1
+ where id = 'b0000000-0000-0000-0000-000000000003';
+
+select pg_temp.check('every save is recorded',
+  (select count(*)::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '3');
+
+-- A save that changes nothing is not a revision. Otherwise a history fills
+-- with entries that say nothing happened.
+update public.nodes
+   set updated_at = now()
+ where id = 'b0000000-0000-0000-0000-000000000003';
+
+select pg_temp.check('a write that changes nothing records nothing',
+  (select count(*)::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '3');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+
+select pg_temp.check('a reader of the page sees its history',
+  (select count(*)::text from public.node_history('b0000000-0000-0000-0000-000000000003')), '3');
+
+select pg_temp.check('and can read the revisions themselves',
+  (select count(*)::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '3');
+
+-- Alice holds viewer, so restoring is not hers to do.
+do $$
+declare v_id uuid;
+begin
+  select id into v_id from public.node_revisions
+   where node_id = 'b0000000-0000-0000-0000-000000000003'
+   order by created_at limit 1;
+  begin
+    perform public.restore_node_revision(v_id);
+    raise exception 'FAIL: a viewer restored a revision';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+-- Carol can read nothing here, so there is no history to see and no revision
+-- to name. Both answers are the same as for a page that does not exist.
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+
+select pg_temp.check('a stranger sees no history at all',
+  (select count(*)::text from public.node_history('b0000000-0000-0000-0000-000000000003')), '0');
+select pg_temp.check('and no revisions',
+  (select count(*)::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '0');
+
+-- The space owner, who holds admin on everything in it and whose access no
+-- earlier section of this suite has taken away. Bob's editor grant came
+-- through the Engineers team, and the teams section above revokes it: a test
+-- that leans on state set up a thousand lines earlier is a test that fails for
+-- a reason having nothing to do with what it is checking.
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+
+do $$
+declare v_id uuid;
+begin
+  select id into v_id from public.node_revisions
+   where node_id = 'b0000000-0000-0000-0000-000000000003'
+   order by created_at limit 1;
+  perform public.restore_node_revision(v_id);
+end $$;
+reset role;
+
+select pg_temp.check('restoring puts the old text back',
+  (select content from public.nodes
+    where id = 'b0000000-0000-0000-0000-000000000003'), '# note');
+
+-- Forward, never backward: the restore is itself an edit, so it takes a new
+-- version and appears in the history. A history you can rewind is a history
+-- somebody can quietly rewrite.
+--
+-- Three, not four: only the last three versions are kept, so the fourth save
+-- pushed the oldest off the end. The restore still read the text it was asked
+-- for before that happened, which is the ordering that matters.
+select pg_temp.check('and is recorded as a new revision rather than a rewind',
+  (select count(*)::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '3');
+
+-- The chain is reverse deltas anchored at what the page says now, so the head
+-- must reconstruct to exactly that. If it does not, every older version in the
+-- chain is wrong too and nothing else here would have noticed.
+select pg_temp.check('and the newest version is what the page now says',
+  (select t.content from public.node_revisions r
+     join lateral public.node_revision_text(r.id) t on true
+    where r.node_id = 'b0000000-0000-0000-0000-000000000003'
+    order by r.created_at desc, r.id desc limit 1),
+  '# note');
+
+select pg_temp.check('attributed to whoever restored it',
+  (select author_id::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'
+    order by created_at desc limit 1),
+  '11111111-1111-1111-1111-111111111111');
+
+-- Nobody writes history by hand. The table has a select policy and no other,
+-- so an insert by a signed-in user is refused however plausible it looks.
+-- Asked of the space owner, who has every right this product grants. If even
+-- they cannot write history by hand, nobody can.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+do $$
+begin
+  begin
+    insert into public.node_revisions
+      (node_id, content_version, name, prefix, suffix, middle, characters)
+    values ('b0000000-0000-0000-0000-000000000003', 99, 'Note', 0, 0, 'invented', 8);
+    raise exception 'FAIL: a revision was written by hand';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+
+  begin
+    delete from public.node_revisions
+     where node_id = 'b0000000-0000-0000-0000-000000000003';
+    if found then
+      raise exception 'FAIL: history was deleted';
+    end if;
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+reset role;
+
+select pg_temp.check('so the history is still whole',
+  (select count(*)::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '3');
+
+-- Deleting the page takes its history with it. Keeping revisions of something
+-- nobody can reach would be a copy of the content outliving the access rules
+-- that governed it.
+delete from public.nodes where id = 'b0000000-0000-0000-0000-000000000003';
+
+select pg_temp.check('deleting a page takes its history with it',
+  (select count(*)::text from public.node_revisions
+    where node_id = 'b0000000-0000-0000-0000-000000000003'), '0');
+
+-- Platform administrators -----------------------------------------------------
+--
+-- A power over accounts rather than over pages, and the only one in this
+-- schema that is not about a single node. What it must not become is a way to
+-- read everybody's writing: the rule the rest of this file exists to defend is
+-- that a page you cannot read is indistinguishable from one that does not
+-- exist, and an administrator who could read everything would be a standing
+-- exception to it. So the assertions here are as much about what the power
+-- does not carry as about what it does.
+
+select pg_temp.check('nobody administers the platform to begin with',
+  (select count(*)::text from public.profiles where is_admin), '0');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+
+select pg_temp.check('so the people list is empty even for a space owner',
+  (select count(*)::text from public.admin_users()), '0');
+
+-- Nor can somebody appoint themselves.
+do $$
+begin
+  begin
+    perform public.admin_set_admin('11111111-1111-1111-1111-111111111111', true);
+    raise exception 'FAIL: a non-administrator appointed one';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+reset role;
+
+select pg_temp.check('and nobody was appointed',
+  (select count(*)::text from public.profiles where is_admin), '0');
+
+update public.profiles set is_admin = true
+ where id = '11111111-1111-1111-1111-111111111111';
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+
+-- Five: the four the fixture starts with, and the colleague added by the
+-- sharing-with-everyone section above.
+select pg_temp.check('an administrator sees everybody',
+  (select count(*)::text from public.admin_users()), '5');
+
+-- Counts and sizes, and not one word of anybody's writing: there is no column
+-- here that could carry it, which is the point.
+select pg_temp.check('and what each of them holds',
+  (select (spaces > 0 and articles > 0 and content_bytes > 0)::text
+     from public.admin_users()
+    where email = 'owner@test.local'), 'true');
+
+-- Asked of the function's own signature rather than of a table, because
+-- admin_users is a function and information_schema would have answered zero
+-- for a question it never understood.
+select pg_temp.check('but its answer has no column that could carry writing',
+  (select count(*)::text
+     from pg_proc p, unnest(p.proargnames) as arg
+    where p.proname = 'admin_users'
+      and p.pronamespace = 'public'::regnamespace
+      and arg in ('content', 'middle')), '0');
+
+select pg_temp.check('and it does answer with the columns it should',
+  (select count(*)::text
+     from pg_proc p, unnest(p.proargnames) as arg
+    where p.proname = 'admin_users'
+      and p.pronamespace = 'public'::regnamespace
+      and arg in ('articles', 'skills', 'content_bytes', 'spaces')), '4');
+
+-- Somebody else's turn. Carol could read nothing in this space before and can
+-- read nothing in it now: being listed by an administrator is not access.
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+
+select pg_temp.check('a listed person is not thereby an administrator',
+  (select count(*)::text from public.admin_users()), '0');
+
+-- Handing a space over is how somebody leaves. It moves the administration
+-- with it, because ownership is where a space's administration comes from.
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.admin_transfer_space(
+  'a0000000-0000-0000-0000-000000000001',
+  '44444444-4444-4444-4444-444444444444');
+reset role;
+
+select pg_temp.check('the space has a new owner',
+  (select owner_id::text from public.spaces
+    where id = 'a0000000-0000-0000-0000-000000000001'),
+  '44444444-4444-4444-4444-444444444444');
+
+select pg_temp.check('who administers what is in it',
+  public.can_admin('44444444-4444-4444-4444-444444444444',
+                   'b0000000-0000-0000-0000-000000000001')::text, 'true');
+
+-- An account that still owns a space cannot be deleted, because a profile
+-- cascades to its spaces and a space to every page in it. Enforced here rather
+-- than only in the code that deletes, since forgetting is the failure that
+-- takes a team's writing with it.
+do $$
+begin
+  begin
+    delete from public.profiles where id = '44444444-4444-4444-4444-444444444444';
+    raise exception 'FAIL: an account owning spaces was deleted';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+select pg_temp.check('so the account is still there',
+  (select count(*)::text from public.profiles
+    where id = '44444444-4444-4444-4444-444444444444'), '1');
+
+-- And the last administrator cannot stand themselves down, because a platform
+-- nobody can administer has no way back through the interface.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+do $$
+begin
+  begin
+    perform public.admin_set_admin('11111111-1111-1111-1111-111111111111', false);
+    raise exception 'FAIL: the last administrator stood down';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+reset role;
+
+select pg_temp.check('there is still somebody who can administer this',
+  (select count(*)::text from public.profiles where is_admin), '1');
+
+-- Telling somebody something has been shared with them ------------------------
+--
+-- Sharing with an address that has no account has always sent an email, since
+-- that is how they get in at all. Sharing with somebody who already has one
+-- did nothing they could see: the grant landed, the page became theirs to
+-- read, and nothing told them. This is the record that does.
+
+-- A page and a grant of its own, so these assertions do not depend on what the
+-- sections above have moved, transferred or deleted.
+insert into public.nodes (id, space_id, parent_id, kind, name)
+values ('b0000000-0000-0000-0000-0000000000e1',
+        'a0000000-0000-0000-0000-000000000001', null, 'file', 'Handover');
+
+-- Shared by carol, who owns this space by now, having been handed it in the
+-- section above. By her rather than by the superuser this file otherwise runs
+-- as, because the whole point of the next assertion is who the database
+-- thought was asking, and the answer for nobody in particular is null.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+
+insert into public.grants (node_id, grantee_type, grantee_id, role)
+values ('b0000000-0000-0000-0000-0000000000e1', 'user',
+        '22222222-2222-2222-2222-222222222222', 'viewer');
+reset role;
+
+-- Who did it is stamped by a trigger rather than by each of the several
+-- functions that create grants, so the next one cannot forget.
+select pg_temp.check('a grant records who made it',
+  (select granted_by::text from public.grants
+    where node_id = 'b0000000-0000-0000-0000-0000000000e1'),
+  '44444444-4444-4444-4444-444444444444');
+
+-- One function per table, and this is not a style preference. Sharing one
+-- between them plans `tg_table_name = 'grants' and new.granted_by is null` as
+-- a single expression against whichever record it was handed, and fails
+-- outright on the table with no such column. The fixture at the top of this
+-- file is what caught it, by refusing to insert a team member at all, and is
+-- still the real test: if these two ever become one again, this suite does not
+-- reach its first assertion.
+select pg_temp.check('each table stamps through its own function',
+  (select count(*)::text from pg_trigger
+    where tgname in ('grants_stamp_granted_by', 'team_members_stamp_added_by')
+      and not tgisinternal), '2');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+
+select pg_temp.check('a page shared with you appears in your list',
+  (select count(*)::text from public.shared_with_me() where label = 'Handover'), '1');
+
+select pg_temp.check('and is new until you have looked',
+  (select is_new::text from public.shared_with_me() where label = 'Handover'), 'true');
+
+select pg_temp.check('the count in the header agrees that there is something',
+  (public.new_share_count() > 0)::text, 'true');
+
+select public.mark_shares_seen();
+
+select pg_temp.check('and nothing is new once you have',
+  (select is_new::text from public.shared_with_me() where label = 'Handover'), 'false');
+
+select pg_temp.check('nor does the count say otherwise',
+  public.new_share_count()::text, '0');
+
+-- Carol owns this space outright by now, having been handed it in the section
+-- above. Owning a thing is not being shared it, and it must not appear as
+-- something somebody did for her.
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+
+select pg_temp.check('a share of somebody else''s is not in your list',
+  (select count(*)::text from public.shared_with_me() where label = 'Handover'), '0');
+
+reset role;
 
 rollback;

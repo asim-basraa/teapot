@@ -4,12 +4,18 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import type { TreeNode } from "@/lib/nodes";
+import { ShareDialog } from "./Share";
 
 type Props = {
   spaceSlug: string;
   spaceId: string;
   tree: TreeNode[];
   canEdit: boolean;
+  /**
+   * Whether to offer sharing here. Separate from canEdit because they are
+   * different powers: an editor writes, an administrator decides who else can.
+   */
+  canShare: boolean;
 };
 
 type ApiResult = { error: string | null; node?: { path: string } };
@@ -27,11 +33,14 @@ async function api(url: string, init: RequestInit): Promise<ApiResult> {
   return { error: body.error ?? `Request failed (${res.status})` };
 }
 
-export function Tree({ spaceSlug, spaceId, tree, canEdit }: Props) {
+export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // One dialog for the whole tree rather than one per row: a sidebar with a
+  // hundred pages should not mount a hundred dialogs to show none of them.
+  const [sharing, setSharing] = useState<TreeNode | null>(null);
 
   const base = `/s/${spaceSlug}`;
 
@@ -174,14 +183,24 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit }: Props) {
           spaceSlug={spaceSlug}
           pathname={pathname}
           canEdit={canEdit}
+          canShare={canShare}
           depth={0}
-          onCreate={create}
           onRename={rename}
           onDelete={remove}
+          onShare={setSharing}
         />
       )}
 
       {pending ? <p className="tree-pending">Updating…</p> : null}
+
+      {sharing ? (
+        <ShareDialog
+          nodeId={sharing.id}
+          nodeName={sharing.name}
+          spaceId={spaceId}
+          onClose={() => setSharing(null)}
+        />
+      ) : null}
     </nav>
   );
 }
@@ -191,19 +210,21 @@ function TreeLevel({
   spaceSlug,
   pathname,
   canEdit,
+  canShare,
   depth,
-  onCreate,
   onRename,
   onDelete,
+  onShare,
 }: {
   nodes: TreeNode[];
   spaceSlug: string;
   pathname: string;
   canEdit: boolean;
+  canShare: boolean;
   depth: number;
-  onCreate: (parentId: string | null, kind: "folder" | "file") => void;
   onRename: (node: TreeNode) => void;
   onDelete: (node: TreeNode) => void;
+  onShare: (node: TreeNode) => void;
 }) {
   return (
     <ul
@@ -217,58 +238,62 @@ function TreeLevel({
         return (
           <li key={node.id} className={`tree-item tree-${node.kind}`}>
             <div className="tree-row">
-              {node.kind === "folder" ? (
-                <span className="tree-name tree-folder-name">{node.name}</span>
-              ) : (
-                <Link
-                  href={href}
-                  className="tree-name"
-                  aria-current={current ? "page" : undefined}
-                >
-                  {node.name}
-                  {node.content_type === "skill" ? (
-                    // A badge rather than an icon: a skill and an article are
-                    // both Markdown, and the difference is worth spelling out
-                    // where somebody is choosing between them.
-                    <span className="tree-badge">skill</span>
-                  ) : null}
-                </Link>
-              )}
+              {/* A folder is a link like anything else. It was a bare label,
+                  which meant a folder was the one thing in the tree you could
+                  not open, and therefore the one thing you could not share:
+                  the sharing controls live on the page you are looking at. */}
+              <Link
+                href={href}
+                className={
+                  node.kind === "folder"
+                    ? "tree-name tree-folder-name"
+                    : "tree-name"
+                }
+                aria-current={current ? "page" : undefined}
+              >
+                {node.name}
+                {node.content_type === "skill" ? (
+                  // A badge rather than an icon: a skill and an article are
+                  // both Markdown, and the difference is worth spelling out
+                  // where somebody is choosing between them.
+                  <span className="tree-badge">skill</span>
+                ) : null}
+              </Link>
 
-              {canEdit ? (
+              {/* Three at most. Creating things inside a folder used to be
+                  here too, which put five buttons on a folder row and left
+                  the name — the only part anybody reads — with no room. It
+                  lives on the folder's own page now, which is somewhere you
+                  can stand and see what is already in it. */}
+              {canShare || canEdit ? (
                 <span className="tree-actions">
-                  {node.kind === "folder" ? (
+                  {canShare ? (
+                    <button
+                      type="button"
+                      onClick={() => onShare(node)}
+                      aria-label={`Share ${node.name}`}
+                    >
+                      Share
+                    </button>
+                  ) : null}
+                  {canEdit ? (
                     <>
                       <button
                         type="button"
-                        onClick={() => onCreate(node.id, "folder")}
-                        aria-label={`New folder in ${node.name}`}
+                        onClick={() => onRename(node)}
+                        aria-label={`Rename ${node.name}`}
                       >
-                        +F
+                        Rename
                       </button>
                       <button
                         type="button"
-                        onClick={() => onCreate(node.id, "file")}
-                        aria-label={`New page in ${node.name}`}
+                        onClick={() => onDelete(node)}
+                        aria-label={`Delete ${node.name}`}
                       >
-                        +P
+                        Delete
                       </button>
                     </>
                   ) : null}
-                  <button
-                    type="button"
-                    onClick={() => onRename(node)}
-                    aria-label={`Rename ${node.name}`}
-                  >
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(node)}
-                    aria-label={`Delete ${node.name}`}
-                  >
-                    Delete
-                  </button>
                 </span>
               ) : null}
             </div>
@@ -279,10 +304,11 @@ function TreeLevel({
                 spaceSlug={spaceSlug}
                 pathname={pathname}
                 canEdit={canEdit}
+                canShare={canShare}
                 depth={depth + 1}
-                onCreate={onCreate}
                 onRename={onRename}
                 onDelete={onDelete}
+                onShare={onShare}
               />
             ) : null}
           </li>

@@ -54,6 +54,13 @@ export function AuthForm({
             name={field.name}
             type={field.type}
             autoComplete={field.autoComplete}
+            // Only what is safe to show again. React empties an uncontrolled
+            // form once the action returns, so without this a wrong password
+            // also took the address with it.
+            defaultValue={
+              field.type === "email" ? (state.values?.email ?? "") : undefined
+            }
+            key={`${field.name}:${state.values?.email ?? ""}`}
             required
           />
           {field.hint ? <span className="field-hint">{field.hint}</span> : null}

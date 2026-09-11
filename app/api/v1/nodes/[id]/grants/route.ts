@@ -64,7 +64,18 @@ export async function POST(request: NextRequest, { params }: Params) {
     typeof teamId === "string"
       ? await shareWithTeam(id, teamId, role)
       : await shareByEmail(id, email as string, role);
-  return result.ok
-    ? Response.json({ grants: await listEffectiveGrants(id) }, { status: 201 })
-    : Response.json({ error: result.error }, { status: result.status });
+  if (!result.ok) {
+    return Response.json({ error: result.error }, { status: result.status });
+  }
+
+  // `invited` says an account was created and an email sent, which the sharer
+  // needs to know: the person is on the list but cannot read anything until
+  // they accept.
+  return Response.json(
+    {
+      grants: await listEffectiveGrants(id),
+      invited: "invited" in result ? result.invited === true : false,
+    },
+    { status: 201 },
+  );
 }

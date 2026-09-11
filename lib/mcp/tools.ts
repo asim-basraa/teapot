@@ -1,4 +1,5 @@
-import { readSkillMetadata, parseFrontmatter } from "@teapot/renderer";
+import { readSkillMetadata, parseFrontmatter } from "@postit/renderer";
+import { startingContent, translate } from "@/lib/nodes";
 import type { McpSession } from "./session";
 
 export type ToolResult = { text: string } | { error: string };
@@ -27,10 +28,38 @@ export type ToolDefinition = {
  * no way to change who can see anything. A leaked token that can only add is a
  * far smaller problem than one that can remove, and the web app is a perfectly
  * good place to do the dangerous things deliberately.
+ *
+ * That rule is about removing and re-permissioning, not about creating.
+ * create_folder was missing for a while and it was an oversight rather than a
+ * decision: folders are the only thing that can contain anything, so without
+ * it no structure could be built here at all, and somebody filing seventeen
+ * pages had to choose between a flat list and going to the browser.
  */
 
 function text(value: string): ToolResult {
   return { text: value };
+}
+
+/**
+ * A name, or the reason it is not one.
+ *
+ * A slash is the thing people reach for when they mean "put this inside that",
+ * because every other tool they have used works that way. Here it is just a
+ * character, slugified into a hyphen, so "hybrid-web/README" quietly became one
+ * flat page called hybrid-web-readme. Saying so is the whole fix.
+ */
+function readName(value: unknown): string | { error: string } {
+  const name = String(value ?? "").trim();
+  if (!name) return { error: "A name is required." };
+
+  if (name.includes("/")) {
+    return {
+      error:
+        "A name cannot contain a slash. Nesting is done with parent_id: make the folder with create_folder, then pass its id here.",
+    };
+  }
+
+  return name;
 }
 
 const listSpaces: ToolDefinition = {
@@ -93,7 +122,7 @@ const search: ToolDefinition = {
 const readPage: ToolDefinition = {
   name: "read_page",
   description:
-    "Read one page by its path within a space, or by id. Returns the Markdown source.",
+    "Read one page by its path within a space, or by id. Returns the Markdown source. Reading a folder lists what is inside it instead.",
   inputSchema: {
     type: "object",
     properties: {
@@ -107,16 +136,109 @@ const readPage: ToolDefinition = {
     const node = await findNode(session, args);
     if ("error" in node) return node;
 
+    // A folder has no body, and answering "(no content)" for one is true and
+    // useless. What somebody reading a folder wants is what is in it.
+    if (node.content_type === null) {
+      const { data } = await session.supabase
+        .from("nodes")
+        .select("name, path, kind, content_type")
+        .eq("parent_id", node.id)
+        .order("kind")
+        .order("name");
+
+      const children = (data ?? []) as {
+        name: string;
+        path: string;
+        kind: string;
+        content_type: string | null;
+      }[];
+
+      return text(
+        [
+          `# ${node.name}`,
+          `path: ${node.path}`,
+          `id: ${node.id}`,
+          `type: folder`,
+          "",
+          children.length === 0
+            ? "This folder is empty."
+            : children
+                .map(
+                  (child) =>
+                    `- ${child.path} (${child.kind === "folder" ? "folder" : (child.content_type ?? "article")})`,
+                )
+                .join("\n"),
+        ].join("\n"),
+      );
+    }
+
     return text(
       [
         `# ${node.name}`,
         `path: ${node.path}`,
         `id: ${node.id}`,
-        `type: ${node.content_type ?? "folder"}`,
+        `type: ${node.content_type}`,
         `version: ${node.content_version}`,
         "",
         node.content ?? "(no content)",
       ].join("\n"),
+    );
+  },
+};
+
+const listTree: ToolDefinition = {
+  name: "list_tree",
+  description:
+    "List everything in a space that this token can reach, as paths, with each item's kind and id. This is how you find a folder to put things in, and how you see what structure already exists.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      space_id: { type: "string" },
+      kind: {
+        type: "string",
+        enum: ["folder", "file"],
+        description: "Optional. Narrow to just folders or just pages.",
+      },
+    },
+    required: ["space_id"],
+    additionalProperties: false,
+  },
+  async run(session, args) {
+    const spaceId = requireSpace(session, args.space_id);
+    if (typeof spaceId !== "string") return spaceId;
+
+    let query = session.supabase
+      .from("nodes")
+      .select("id, name, path, kind, content_type")
+      .eq("space_id", spaceId)
+      .order("path");
+
+    if (args.kind === "folder" || args.kind === "file") {
+      query = query.eq("kind", args.kind);
+    }
+
+    const { data, error } = await query;
+    if (error) return { error: error.message };
+
+    const nodes = (data ?? []) as {
+      id: string;
+      name: string;
+      path: string;
+      kind: string;
+      content_type: string | null;
+    }[];
+    if (nodes.length === 0) return text("Nothing here.");
+
+    // Path order is tree order, so this reads as the shape it describes
+    // without having to nest anything.
+    return text(
+      nodes
+        .map((node) => {
+          const what =
+            node.kind === "folder" ? "folder" : (node.content_type ?? "article");
+          return `- ${node.path} (${what}, id: ${node.id})`;
+        })
+        .join("\n"),
     );
   },
 };
@@ -193,6 +315,58 @@ const getSkill: ToolDefinition = {
   },
 };
 
+const createFolder: ToolDefinition = {
+  name: "create_folder",
+  description:
+    "Create a folder in a space, optionally inside another folder. Folders are the only thing that can contain other items, so building any structure starts here.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      space_id: { type: "string" },
+      name: { type: "string" },
+      parent_id: {
+        type: "string",
+        description: "Optional folder to create it in. Must be a folder.",
+      },
+    },
+    required: ["space_id", "name"],
+    additionalProperties: false,
+  },
+  async run(session, args) {
+    const spaceId = requireSpace(session, args.space_id);
+    if (typeof spaceId !== "string") return spaceId;
+
+    const name = readName(args.name);
+    if (typeof name !== "string") return name;
+
+    const id = crypto.randomUUID();
+
+    const { error } = await session.supabase.from("nodes").insert({
+      id,
+      space_id: spaceId,
+      parent_id: typeof args.parent_id === "string" ? args.parent_id : null,
+      kind: "folder",
+      name,
+    });
+
+    if (error) return { error: translate(error).error };
+
+    const { data } = await session.supabase
+      .from("nodes")
+      .select("id, name, path")
+      .eq("id", id)
+      .maybeSingle();
+
+    // The same shape create_page answers in, so a client that has learned to
+    // read one has learned to read both.
+    return text(
+      data
+        ? `Created folder ${name} at ${(data as { path: string }).path} (id: ${id}).`
+        : `Created folder ${name}.`,
+    );
+  },
+};
+
 const createPage: ToolDefinition = {
   name: "create_page",
   description:
@@ -213,8 +387,25 @@ const createPage: ToolDefinition = {
     const spaceId = requireSpace(session, args.space_id);
     if (typeof spaceId !== "string") return spaceId;
 
-    const name = String(args.name ?? "").trim();
-    if (!name) return { error: "A name is required." };
+    const name = readName(args.name);
+    if (typeof name !== "string") return name;
+
+    // Named rather than quietly corrected. Passing "folder" here used to
+    // produce an article, which reads as the call having worked and leaves
+    // somebody wondering why their folder cannot hold anything.
+    if (args.content_type === "folder") {
+      return {
+        error:
+          "A folder is not a kind of page. Use create_folder to make one, then pass its id as parent_id here.",
+      };
+    }
+    if (
+      args.content_type !== undefined &&
+      args.content_type !== "article" &&
+      args.content_type !== "skill"
+    ) {
+      return { error: "content_type must be article or skill." };
+    }
 
     const id = crypto.randomUUID();
     const contentType =
@@ -227,18 +418,15 @@ const createPage: ToolDefinition = {
       kind: "file",
       name,
       content_type: contentType,
+      // The same starting text the browser uses. Two copies of this had already
+      // drifted: one seeded a heading the other had stopped seeding.
       content:
-        typeof args.content === "string" ? args.content : `# ${name}\n\n`,
+        typeof args.content === "string"
+          ? args.content
+          : startingContent(name, contentType),
     });
 
-    if (error) {
-      if (error.code === "23505") {
-        return { error: "Something with that name already exists there." };
-      }
-      // A policy refusal reads as not-found here for the same reason it does
-      // over HTTP: the caller learns nothing about what they cannot reach.
-      return { error: "Not found." };
-    }
+    if (error) return { error: translate(error).error };
 
     const { data } = await session.supabase
       .from("nodes")
@@ -361,9 +549,11 @@ const listBacklinks: ToolDefinition = {
 export const TOOLS: ToolDefinition[] = [
   listSpaces,
   search,
+  listTree,
   readPage,
   listSkills,
   getSkill,
+  createFolder,
   createPage,
   updatePage,
   listBacklinks,

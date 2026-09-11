@@ -43,7 +43,7 @@ export default async function TeamsPage({
     <main className="shell">
       <header className="shell-header">
         <Link href="/spaces" className="shell-brand">
-          Teapot
+          Post-it
         </Link>
         <form action={signOut}>
           <button className="btn btn-secondary btn-small" type="submit">

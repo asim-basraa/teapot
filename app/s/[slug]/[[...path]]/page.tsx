@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { renderMarkdown } from "@teapot/renderer";
-import { nodeCapabilities } from "@/lib/nodes";
+import { renderMarkdown } from "@postit/renderer";
+import { nodeCapabilities, listChildren } from "@/lib/nodes";
 import { listBacklinks } from "@/lib/links";
 import { listComments } from "@/lib/comments";
 import { currentUser } from "@/lib/supabase/server";
 import { Share } from "../Share";
 import { Mermaid } from "../Mermaid";
 import { Comments } from "../Comments";
+import { History } from "../History";
+import { NewChild } from "../NewChild";
 import {
   getSpaceBySlug,
   getNodeByPath,
@@ -49,9 +51,20 @@ export default async function NodePage({
   const { canEdit, canAdmin } = await nodeCapabilities(node.id);
   const viewHref = `/s/${space.slug}/${node.path}`;
 
+  // History is offered to anyone who can read the page, not only to editors.
+  // "What did this say last week" is a reader's question at least as often as
+  // a writer's, and the revisions are already exactly as readable as the page.
   const actions =
-    canEdit || canAdmin ? (
+    node.kind === "file" || canEdit || canAdmin ? (
       <div className="page-actions">
+        {node.kind === "file" ? (
+          <History
+            nodeId={node.id}
+            nodeName={node.name}
+            canEdit={canEdit}
+            currentContent={node.content ?? ""}
+          />
+        ) : null}
         {canAdmin ? (
           <Share nodeId={node.id} nodeName={node.name} spaceId={space.id} />
         ) : null}
@@ -67,12 +80,43 @@ export default async function NodePage({
     ) : null;
 
   if (node.kind === "folder") {
+    // A folder is somewhere you can stand now that the tree links to one, so
+    // it shows what is in it. Only what this viewer can read reaches here: RLS
+    // removed the rest before we saw the list.
+    const children = await listChildren(node.id);
+
     return (
       <>
         {actions}
         <article className="prose">
           <h1>{node.name}</h1>
-          <p className="empty">This folder has no page of its own.</p>
+
+          {canEdit ? (
+            <NewChild
+              spaceId={space.id}
+              spaceSlug={space.slug}
+              parentId={node.id}
+            />
+          ) : null}
+
+          {children.length === 0 ? (
+            <p className="empty">This folder is empty.</p>
+          ) : (
+            <ul className="folder-contents">
+              {children.map((child) => (
+                <li key={child.id}>
+                  <Link href={`/s/${space.slug}/${child.path}`}>
+                    {child.name}
+                  </Link>
+                  {child.kind === "folder" ? (
+                    <span className="tree-badge">folder</span>
+                  ) : child.content_type === "skill" ? (
+                    <span className="tree-badge">skill</span>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
         </article>
       </>
     );
@@ -108,7 +152,13 @@ export default async function NodePage({
         className="prose"
         // Safe: renderMarkdown sanitizes author HTML before KaTeX and Shiki
         // add their own trusted markup. See packages/renderer/src/sanitize.ts.
-        dangerouslySetInnerHTML={{ __html: html }}
+        // The title is prepended here rather than written into the document,
+        // so renaming a page renames what the page calls itself. It is escaped
+        // because a node name is not Markdown and has not been through the
+        // sanitizer.
+        dangerouslySetInnerHTML={{
+          __html: `<h1>${escapeHtml(node.name)}</h1>` + html,
+        }}
       />
 
       {/* Hydrates any ```mermaid blocks the document contains. Renders
@@ -143,4 +193,14 @@ export default async function NodePage({
       ) : null}
     </>
   );
+}
+
+/** A node name is plain text; this is what makes it safe to place in markup. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }

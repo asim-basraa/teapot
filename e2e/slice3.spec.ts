@@ -38,13 +38,15 @@ test.describe("Slice 3: editing with optimistic locking", () => {
 
     const area = page.getByRole("textbox");
     await area.fill(
-      "# Rewritten\n\nA ==fresh== body.\n\n> [!warning] Careful\n> Mind the step.\n",
+      "A ==fresh== body.\n\n> [!warning] Careful\n> Mind the step.\n",
     );
     await page.getByRole("button", { name: "Save" }).click();
 
     await expect(page).toHaveURL(INDEX);
+    // The title is the page's name and stays put: rewriting the body is not a
+    // rename, and a document does not get to disagree with what it is called.
     await expect(
-      page.getByRole("heading", { level: 1, name: "Rewritten" }),
+      page.getByRole("heading", { level: 1, name: SPACE_NAME }),
     ).toBeVisible();
     await expect(page.locator("mark")).toContainText("fresh");
     await expect(page.locator(".callout-warning")).toBeVisible();

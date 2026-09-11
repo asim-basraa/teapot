@@ -130,8 +130,8 @@ test.describe("Slice 8: permission-filtered search", () => {
 
   test("publishing a page puts it in an anonymous visitor's results", async () => {
     const published = await owner.request.put(
-      `/api/v1/nodes/${id["Open Page"]}/public`,
-      { data: { public: true } },
+      `/api/v1/nodes/${id["Open Page"]}/visibility`,
+      { data: { visibility: "public" } },
     );
     expect(published.status(), await published.text()).toBe(200);
 

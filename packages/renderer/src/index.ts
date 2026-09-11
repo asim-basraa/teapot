@@ -12,6 +12,7 @@ import rehypeStringify from "rehype-stringify";
 
 import { remarkWikilinks, extractWikilinkTargets } from "./wikilinks";
 import { remarkCallouts } from "./callouts";
+import { remarkStripTitle } from "./title";
 import { remarkHighlights } from "./highlights";
 import { rehypeMermaid } from "./mermaid";
 import { sanitizeSchema } from "./sanitize";
@@ -49,6 +50,9 @@ export async function renderMarkdown(
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkMath)
+    // Before anything else looks at the document: the title belongs to the
+    // node, so a leading level-one heading is a restatement of it.
+    .use(remarkStripTitle)
     .use(remarkCallouts)
     .use(remarkHighlights)
     .use(remarkWikilinks, ctx)

@@ -1,30 +1,30 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { STARTER_SKILLS } from "@/content/skills";
-import { Copyable } from "./Copyable";
+import { Copyable } from "@/components/Copyable";
 
 export const metadata: Metadata = {
-  title: "Teapot documentation",
+  title: "Post-it documentation",
   description:
-    "How to connect Teapot to Claude, and a handful of skills worth copying.",
+    "How to connect Post-it to Claude, and a handful of skills worth copying.",
 };
 
 /**
  * The one documentation page.
  *
- * Public, and deliberately so: somebody deciding whether to connect Teapot to
+ * Public, and deliberately so: somebody deciding whether to connect Post-it to
  * Claude needs to read what it will and will not reach before they have an
  * account. Requiring a login to read that would be asking for trust before
  * offering any.
  */
 export default function DocsPage() {
-  const mcpUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://your-teapot"}/api/mcp`;
+  const mcpUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://your-postit"}/api/mcp`;
 
   return (
     <main className="shell docs">
       <header className="shell-header">
         <Link href="/" className="shell-brand">
-          Teapot
+          Post-it
         </Link>
         <Link href="/login" className="btn btn-secondary btn-small">
           Sign in
@@ -32,10 +32,10 @@ export default function DocsPage() {
       </header>
 
       <article className="prose">
-        <h1>Teapot</h1>
+        <h1>Post-it</h1>
 
         <p className="lede">
-          Teapot is a place to write things down, where who can read what is the
+          Post-it is a place to write things down, where who can read what is the
           product rather than a setting on the side of it. You write Markdown in
           spaces, organise it in folders, and share a page or a whole folder
           with a person, with a team, or with anyone at all. A page you have not
@@ -49,13 +49,13 @@ export default function DocsPage() {
           anywhere. That is what the rest of this page is about.
         </p>
 
-        <h2 id="connecting">Connecting Teapot to Claude</h2>
+        <h2 id="connecting">Connecting Post-it to Claude</h2>
 
         <h3>1. Make a token</h3>
 
         <p>
           Sign in, then go to <strong>Your spaces</strong> and follow{" "}
-          <strong>Connect Teapot to Claude</strong>, or go straight to{" "}
+          <strong>Connect Post-it to Claude</strong>, or go straight to{" "}
           <code>/settings/mcp</code>. Give the token a name you will recognise
           in six months, like the machine it is going on.
         </p>
@@ -86,7 +86,7 @@ export default function DocsPage() {
 
         <Copyable
           label="Claude Code, command line"
-          text={`claude mcp add --transport http teapot ${mcpUrl} \\\n  --header "Authorization: Bearer tea_your_token_here"`}
+          text={`claude mcp add --transport http postit ${mcpUrl} \\\n  --header "Authorization: Bearer post_your_token_here"`}
         />
 
         <Copyable
@@ -94,10 +94,10 @@ export default function DocsPage() {
           text={JSON.stringify(
             {
               mcpServers: {
-                teapot: {
+                postit: {
                   type: "http",
                   url: mcpUrl,
-                  headers: { Authorization: "Bearer tea_your_token_here" },
+                  headers: { Authorization: "Bearer post_your_token_here" },
                 },
               },
             },
@@ -107,36 +107,59 @@ export default function DocsPage() {
         />
 
         <p>
-          <strong>The Claude desktop app.</strong> Settings, then Connectors,
-          then Add custom connector, and give it the endpoint above. Where it
-          asks for a header, use <code>Authorization</code> with the value{" "}
-          <code>Bearer</code> followed by your token.
+          <strong>The Claude apps</strong>, desktop and web. Settings, then
+          Connectors, then Add custom connector. That dialog takes a URL and
+          nothing else, so for these the token goes in the URL itself:{" "}
+          <code>{mcpUrl}/your-token</code>, which the token screen gives you
+          ready to paste.
         </p>
 
         <p>
-          <strong>The API.</strong> Pass the server in the <code>mcp_servers</code>{" "}
-          block of a Messages request.
+          That form is deliberately the weaker one. A token in a URL is in every
+          HTTP log that records the path, in whatever the client stores for the
+          connection, and anywhere the URL is pasted; a token in a header is in
+          none of those. Use it only where a header is not on offer, and prefer
+          a token pinned to a single space so that a leak costs one space rather
+          than an account.
+        </p>
+
+        <p>
+          <strong>The API.</strong> Three things are needed and it is easy to
+          give two: the beta header, the server in <code>mcp_servers</code>, and
+          a matching <code>mcp_toolset</code> entry in <code>tools</code>.
+          Leaving the toolset out does not quietly ignore the server, it makes
+          the request invalid.
         </p>
 
         <Copyable
           label="Anthropic API"
-          text={JSON.stringify(
-            {
-              model: "claude-opus-5",
-              max_tokens: 2048,
-              messages: [{ role: "user", content: "What is on my todo list?" }],
-              mcp_servers: [
-                {
-                  type: "url",
-                  url: mcpUrl,
-                  name: "teapot",
-                  authorization_token: "tea_your_token_here",
-                },
-              ],
-            },
-            null,
-            2,
-          )}
+          text={[
+            "curl https://api.anthropic.com/v1/messages \\",
+            '  -H "content-type: application/json" \\',
+            '  -H "x-api-key: $ANTHROPIC_API_KEY" \\',
+            '  -H "anthropic-version: 2023-06-01" \\',
+            '  -H "anthropic-beta: mcp-client-2025-11-20" \\',
+            `  -d '${JSON.stringify(
+              {
+                model: "claude-opus-5",
+                max_tokens: 2048,
+                messages: [
+                  { role: "user", content: "What is on my todo list?" },
+                ],
+                mcp_servers: [
+                  {
+                    type: "url",
+                    url: mcpUrl,
+                    name: "postit",
+                    authorization_token: "post_your_token_here",
+                  },
+                ],
+                tools: [{ type: "mcp_toolset", mcp_server_name: "postit" }],
+              },
+              null,
+              2,
+            )}'`,
+          ].join("\n")}
         />
 
         <h2 id="reach">What a connected Claude can and cannot reach</h2>
@@ -153,17 +176,19 @@ export default function DocsPage() {
 
         <ul>
           <li>
-            <code>list_spaces</code>, <code>search</code> within a space, and{" "}
-            <code>read_page</code> by path or id
+            <code>list_spaces</code>, <code>list_tree</code> to see what is in
+            one, <code>search</code> within it, and <code>read_page</code> by
+            path or id
           </li>
           <li>
             <code>list_skills</code> and <code>get_skill</code>, so it can find
             and follow the skills you have written
           </li>
           <li>
-            <code>create_page</code>, and <code>update_page</code> guarded by a
-            version number, so it cannot overwrite an edit you made while it was
-            thinking
+            <code>create_folder</code> and <code>create_page</code>, so it can
+            build structure and not just a flat list, and{" "}
+            <code>update_page</code> guarded by a version number, so it cannot
+            overwrite an edit you made while it was thinking
           </li>
           <li>
             <code>list_backlinks</code>, to see what points at a page
@@ -190,11 +215,11 @@ export default function DocsPage() {
         <h2 id="skills">Articles and skills</h2>
 
         <p>
-          Every page in Teapot is an <strong>article</strong> or a{" "}
+          Every page in Post-it is an <strong>article</strong> or a{" "}
           <strong>skill</strong>. An article is prose: notes, a decision, a
           write-up. A skill is a Markdown file written as instructions for
           Claude to follow, in the same shape Claude uses elsewhere, which means
-          Teapot doubles as a place to keep them.
+          Post-it doubles as a place to keep them.
         </p>
 
         <p>The distinction earns its keep the moment you ask for your skills:</p>
@@ -235,7 +260,7 @@ export default function DocsPage() {
         </ul>
 
         <p>
-          Teapot will not stop you saving a skill with no description. It will
+          Post-it will not stop you saving a skill with no description. It will
           say so and save it anyway: losing what you wrote over a formatting
           detail is a much worse outcome than an incomplete skill.
         </p>

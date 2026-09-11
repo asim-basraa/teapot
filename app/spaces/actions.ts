@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createSpace } from "@/lib/spaces";
+import { createSpace, renameSpace } from "@/lib/spaces";
 
 export type SpaceFormState = { error?: string };
 
@@ -30,4 +30,23 @@ export async function createSpaceAction(
 
   revalidatePath("/spaces");
   redirect(`/s/${result.slug}`);
+}
+
+/**
+ * Renames a space.
+ *
+ * Both places the space is named have to be told: the list at /spaces and the
+ * space's own pages, which carry its name in the header and on its front page.
+ * Missing either is what makes a rename look like it did not take.
+ */
+export async function renameSpaceAction(
+  spaceId: string,
+  name: string,
+): Promise<SpaceFormState> {
+  const result = await renameSpace(spaceId, name);
+  if (result.error) return { error: result.error };
+
+  revalidatePath("/spaces");
+  revalidatePath("/s", "layout");
+  return {};
 }

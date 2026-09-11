@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
  * The documentation page.
  *
  * Reachable without an account on purpose: somebody deciding whether to connect
- * Teapot to Claude needs to read what it will and will not reach before they
+ * Post-it to Claude needs to read what it will and will not reach before they
  * have one. So this whole suite runs in a context that never signs in.
  */
 test.describe("Documentation", () => {
@@ -13,7 +13,7 @@ test.describe("Documentation", () => {
     expect(response?.status()).toBe(200);
 
     await expect(
-      page.getByRole("heading", { level: 1, name: "Teapot" }),
+      page.getByRole("heading", { level: 1, name: "Post-it" }),
     ).toBeVisible();
     // Not a redirect to the sign-in page, which is the failure mode that
     // matters here.
@@ -26,7 +26,16 @@ test.describe("Documentation", () => {
     await expect(page.getByText("/api/mcp").first()).toBeVisible();
     await expect(page.getByText("claude mcp add")).toBeVisible();
     await expect(page.getByText("mcpServers")).toBeVisible();
-    await expect(page.getByText("mcp_servers")).toBeVisible();
+    // Named in prose and again inside the block below it, so this asks for the
+    // first rather than for the only one.
+    await expect(page.getByText("mcp_servers").first()).toBeVisible();
+
+    // The two halves it is easy to give one of. Without the beta header, or
+    // without the toolset entry, the request is refused outright.
+    const api = page.locator(".copyable").filter({ hasText: "Anthropic API" });
+    const text = (await api.locator("pre").textContent()) ?? "";
+    expect(text).toContain("anthropic-beta: mcp-client-2025-11-20");
+    expect(text).toContain("mcp_toolset");
   });
 
   test("it is honest about the token being shown once", async ({ page }) => {

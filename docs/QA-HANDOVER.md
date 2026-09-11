@@ -1,7 +1,12 @@
 # Post-it: QA handover
 
 Everything a tester needs to start, plus the things worth knowing before you
-file a bug. Written for the first QA round.
+file a bug.
+
+**This round.** The teams feature answers the two questions QA asked last round:
+see [Teams](#teams), which has both answers written out. The front page is real
+now rather than a holding page, and links show that they have been clicked. Full
+list under [Fixed since the last round](#fixed-since-the-last-round).
 
 ---
 
@@ -151,22 +156,58 @@ than a decision: see the note at the end of [Shared with you](#shared-with-you).
 
 ### Teams
 
-From a space you own, the **Teams** button in the header. Create a team, add
-people by email, share a folder with the team.
+Changed this round in response to the two questions QA asked. Read the answers
+below before testing: the first is why the old behaviour was correct, and the
+second is what was actually wrong with it.
+
+**The owner's side.** From a space you own, the **Teams** button in the header.
+Create a team, add people by email, share a folder with the team.
 
 - Removing somebody from a team removes their access immediately.
 - Deleting a team removes every grant made to it.
 - A member of a team cannot manage that team. Only the space owner can.
+- Opening a team now shows **What this team can reach** beneath the roster. When
+  nothing has been shared with it, it says so, and says how to change that.
 
-**What the new member sees.** Being added to a team appears at the top of their
-**Your spaces**, marked new, naming whoever added them. So does anything shared
-with that team, including things shared with it before they joined, which count
-as news on the day they join rather than the day they were shared. Again there
-is no email. See [Shared with you](#shared-with-you).
+**The member's side, new.** `/teams`, reached from **You are on N teams** on
+**Your spaces**, and from the "added to this team" line in **Shared with you**,
+which used to be the one notification in the product that went nowhere. For each
+team you are on it shows the space it belongs to, how many people are on it, who
+added you, **who else is on it**, and **what being on it lets you read**.
 
-Worth checking, because it reads oddly the first time: a new member is told they
-joined the team even though **team membership by itself grants no access to
-anything**. That is correct. The team is how access arrives later.
+It is read-only, deliberately and completely. A member cannot add anybody,
+rename the team, or share anything with it. `/spaces/<slug>/teams` is still a
+plain 404 for anyone but the owner, and so is every write behind it.
+
+#### The two questions, answered
+
+**"If a user is added to a team but the space is not shared with that user, what
+is the purpose of adding them?"** Working as designed, and it was signposted
+badly. A team is a *name you can share with*, not a bundle of access. Joining one
+grants nothing on its own, because the alternative is worse: if membership
+carried the team's access, adding somebody to a team would silently hand them
+everything that team had ever been given, including things nobody remembered
+sharing with it. The purpose of adding them first is that the next share reaches
+everybody at once, and taking them off withdraws it again. Both screens now say
+this in words, and a team that reaches nothing says that rather than sitting
+there looking broken.
+
+**"If the user can only see a notification on the welcome screen but cannot see
+what is inside the team or who else has been added to the team, how is the team
+functionality expected to work?"** This was a real gap and is fixed. "Why can
+this person see this page" had an answer for the space owner and none at all for
+the member, who would find a folder in their list with no account of where it
+came from. `/teams` is that answer. Note what did *not* change: seeing is not
+administering, and a member still has no write of any kind.
+
+Worth checking, because it still reads oddly the first time: a new member is told
+they joined the team even though **team membership by itself grants no access to
+anything**. That is correct, and `/teams` now says so on the team's own card.
+
+**Worth trying to break.** Somebody on no team should get nothing: no **You are
+on N teams** line on **Your spaces**, an empty `/teams` that says as much, and
+nothing at all from a roster they ask for directly. Somebody on one team should
+see that team and no other, and nobody's addresses but their own team-mates'.
 
 ### People, for a platform administrator
 
@@ -242,7 +283,9 @@ account did nothing they could see.
   of their spaces list, marked new, naming you.
 - Reload. The new marks go, and the entries stay.
 - Add somebody to a team. That appears too, even though team membership by
-  itself grants no access to anything.
+  itself grants no access to anything. **New:** that line is now a link, and it
+  goes to `/teams`. It used to be the one entry in this list that went nowhere,
+  which is exactly the complaint QA filed about teams.
 - Nothing in anybody else's list, and nothing in the sharer's own: they did it,
   so it is not news to them.
 - Owning a space is not being shared it, and must not appear.
@@ -433,6 +476,18 @@ Worth a second look, because these are where the bugs were.
 - **The MCP endpoint stopped throttling clients that were doing nothing
   wrong.** Its failure budget counted every request rather than every refusal,
   so a Claude filing a folder of documents ran into a 429 after twenty calls.
+- **A member of a team can see the team.** Who else is on it, and what being on
+  it lets them read. Previously the owner could see all of that and the people
+  on the team could see none of it. See [Teams](#teams).
+- **Clicking a link now shows that you clicked it.** Every page that reads
+  content waits on the database, so a slow navigation used to leave the page
+  looking exactly as it did before the click, and people clicked again, which
+  started the navigation over and made the wait longer. The link you clicked now
+  carries a spinner, and the page being replaced says what it is fetching.
+- **The front page is the product, not a placeholder.** "Coming soon" is gone,
+  and the footer carries the credit and a **Tell me something** box that asks for
+  nothing: no account, no address, no name. Notes land on a page only the owner
+  of the documentation space can read.
 - **The product is Post-it**, and the rename reached everything a person
   reads. Identifiers deliberately did not move: the documentation space is
   still at `/s/postit`, the MCP server is still named `postit` in the
@@ -451,11 +506,12 @@ behaviour differs from what is written here.
 | No standalone invite screen; you are invited by being shared something | Deliberate for now. Sharing with an unknown address invites it |
 | The Claude apps need the token in the URL | Stopgap. OAuth on the MCP endpoint is the replacement and is not built |
 | A restore puts back content and type, never the name or the position | Deliberate. A name is part of the address; moving is the tree's job |
-| Production has no content and is behind staging | Deliberate. Staging is where this round is tested |
+| Production is behind staging | Deliberate. Staging is where this round is tested, and this round's team changes are not on production |
+| A member cannot leave a team themselves | Known. Only the space owner can remove somebody. Report it as a gap, not a bug |
+| `/teams` shows team-mates' email addresses | Deliberate. You are on a named team together and knowing who else can read what you write is the point |
 | Google Drive image links do not render | #10, not built |
 | No email when you share with somebody who already has an account | Known. They are told in **Shared with you**; email needs a mail sender this product does not have |
 | An administrator cannot read anybody's content, only count it | Deliberate. It is the one exception this product does not make |
-| Landing page at `/` is still a placeholder | Deliberate for now |
 | Staging is hosted in San Francisco, its database in Singapore | Known; staging is slower than production for this reason alone |
 | Attachments and uploads | Will not be built. Images are referenced from elsewhere; diagrams are Mermaid |
 
@@ -465,14 +521,15 @@ behaviour differs from what is written here.
 
 So you know where the thin ice is, and where it is not.
 
-- **150-odd database-level assertions** covering every access rule:
-  inheritance, teams, publishing, sharing with everyone, the exclusivity of the
+- **180-odd database-level assertions** covering every access rule:
+  inheritance, teams, who may read a team's roster and what a team reaches,
+  publishing, sharing with everyone, the exclusivity of the
   visibility setting, invitations and what accepting one delivers, revocation,
   search filtering, comment visibility, the protection on a space's front page,
   who may read and restore a page's history and the refusal to let anybody
   write it by hand, and the specific three-valued-logic trap that once let any signed-in user
   grant themselves administrator on any page.
-- **145-odd browser tests** across eighteen suites, driving real sign-ups with
+- **155-odd browser tests** across twenty suites, driving real sign-ups with
   real confirmation emails and real invitation emails, and using two or three
   separate browsers wherever the question is what a *different* person can see.
 - **69 unit tests** on the renderer, the diff, the MCP throttle and the pure
@@ -483,7 +540,9 @@ All of it runs on every push and must be green before anything merges.
 What this does **not** cover, and where your attention is worth most:
 
 - Anything visual. Layout, spacing, dark mode, small screens, long names,
-  right-to-left text, very long pages.
+  right-to-left text, very long pages. This includes the new spinner on a
+  clicked link: the tests check that a slow page says something, not that it
+  looks right while it does.
 - Real email in the wild: deliverability, spam folders, what the messages
   actually look like.
 - Anything about how it *feels*: whether the affordances are where you expect,

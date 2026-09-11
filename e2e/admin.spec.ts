@@ -75,10 +75,12 @@ test.describe("People", () => {
 
     const row = boss.locator("tr", { hasText: STAFF });
     await expect(row).toBeVisible();
-    // One space, one article, and a size: the questions the screen exists for.
-    await expect(row.locator("td").nth(1)).toHaveText("1");
-    await expect(row.locator("td").nth(2)).toHaveText("1");
-    await expect(row.locator("td").nth(4)).not.toHaveText("0 B");
+    // One space, and a size. Two articles rather than one: a space comes with
+    // its own front page, which is a page like any other and counts like one.
+    await expect(row.locator("td").nth(1), "spaces").toHaveText("1");
+    await expect(row.locator("td").nth(2), "articles").toHaveText("2");
+    await expect(row.locator("td").nth(3), "skills").toHaveText("0");
+    await expect(row.locator("td").nth(4), "storage").not.toHaveText("0 B");
   });
 
   test("and not one word of what any of it says", async () => {

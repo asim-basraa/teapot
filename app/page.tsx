@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Mark } from "@/components/Mark";
-import { SiteFooter } from "@/components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "Post-it",
@@ -23,7 +22,6 @@ export default function Landing() {
         <Link href="/login">Sign in</Link>
       </p>
 
-      <SiteFooter />
     </main>
   );
 }

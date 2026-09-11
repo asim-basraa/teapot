@@ -30,7 +30,14 @@ body {
   color: var(--text);
   font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
+  /* So the footer can be pushed to the bottom of a short page rather than
+     sitting immediately under two lines of text. */
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
 }
+
+.page { flex: 1 0 auto; }
 
 main {
   max-width: 46rem;
@@ -267,7 +274,7 @@ footer {
 .auth-alt a:hover { color: var(--text); }
 
 /* App shell */
-.shell { max-width: 46rem; margin: 0 auto; padding: 2rem 1.5rem 6rem; }
+.shell { max-width: 46rem; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
 
 .shell-header {
   display: flex;
@@ -371,7 +378,7 @@ footer {
 .soon-signin a:hover { color: var(--text); }
 
 /* Space shell with sidebar */
-.space-shell { max-width: 68rem; margin: 0 auto; padding: 2rem 1.5rem 6rem; }
+.space-shell { max-width: 68rem; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
 
 .space-header { display: flex; align-items: center; gap: 1rem; }
 .space-title {
@@ -974,10 +981,15 @@ a.shared-what:hover { text-decoration: underline; }
 
 /* The credit, and the note box ------------------------------------------- */
 
+/* On every page, so it carries a rule above it: without one it reads as a stray
+   line of content rather than the bottom of the page. */
 .site-footer {
   display: flex; align-items: baseline; justify-content: center;
   flex-wrap: wrap; gap: 0.5rem;
-  margin-top: 3.5rem; font-size: 0.84rem; color: var(--muted);
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border);
+  padding: 1.25rem 1.5rem;
+  font-size: 0.84rem; color: var(--muted);
 }
 
 /* A button, because it opens a dialog rather than going anywhere, and a link

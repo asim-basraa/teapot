@@ -57,6 +57,21 @@ test.describe("The front page", () => {
     await expect(visitor.locator(".site-footer")).toContainText("by Awsim");
   });
 
+  test("and the footer is on every page, not only the front one", async () => {
+    // It began on the front page alone, which meant anybody already signed in
+    // and reading their own notes never saw the credit or the box. Checked on a
+    // signed-in page and inside a space, because those are the two shells and
+    // the footer lives outside both of them now.
+    for (const url of ["/spaces", "/s/postit"]) {
+      await owner.goto(url);
+      const footer = owner.locator(".site-footer");
+      await expect(footer).toContainText("by Awsim");
+      await expect(
+        footer.getByRole("button", { name: "Tell me something" }),
+      ).toBeVisible();
+    }
+  });
+
   test("a stranger can send a note without an account", async () => {
     await visitor.getByRole("button", { name: "Tell me something" }).click();
 

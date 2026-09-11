@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { listSpaces } from "@/lib/spaces";
 import { NewSpaceForm } from "./NewSpaceForm";
 import { AppHeader } from "@/components/AppHeader";
+import { isPlatformAdmin } from "@/lib/admin";
 
 export const metadata = { title: "Your spaces" };
 export const dynamic = "force-dynamic";
@@ -17,10 +18,11 @@ export default async function SpacesPage() {
   if (!user) redirect("/login");
 
   const spaces = await listSpaces();
+  const admin = await isPlatformAdmin();
 
   return (
     <main className="shell">
-      <AppHeader email={user.email} />
+      <AppHeader email={user.email} admin={admin} />
 
       <h1>Your spaces</h1>
       <p className="lede">

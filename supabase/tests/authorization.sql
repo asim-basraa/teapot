@@ -1277,4 +1277,133 @@ select pg_temp.check('deleting a page takes its history with it',
   (select count(*)::text from public.node_revisions
     where node_id = 'b0000000-0000-0000-0000-000000000003'), '0');
 
+-- Platform administrators -----------------------------------------------------
+--
+-- A power over accounts rather than over pages, and the only one in this
+-- schema that is not about a single node. What it must not become is a way to
+-- read everybody's writing: the rule the rest of this file exists to defend is
+-- that a page you cannot read is indistinguishable from one that does not
+-- exist, and an administrator who could read everything would be a standing
+-- exception to it. So the assertions here are as much about what the power
+-- does not carry as about what it does.
+
+select pg_temp.check('nobody administers the platform to begin with',
+  (select count(*)::text from public.profiles where is_admin), '0');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+
+select pg_temp.check('so the people list is empty even for a space owner',
+  (select count(*)::text from public.admin_users()), '0');
+
+-- Nor can somebody appoint themselves.
+do $$
+begin
+  begin
+    perform public.admin_set_admin('11111111-1111-1111-1111-111111111111', true);
+    raise exception 'FAIL: a non-administrator appointed one';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+reset role;
+
+select pg_temp.check('and nobody was appointed',
+  (select count(*)::text from public.profiles where is_admin), '0');
+
+update public.profiles set is_admin = true
+ where id = '11111111-1111-1111-1111-111111111111';
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+
+-- Five: the four the fixture starts with, and the colleague added by the
+-- sharing-with-everyone section above.
+select pg_temp.check('an administrator sees everybody',
+  (select count(*)::text from public.admin_users()), '5');
+
+-- Counts and sizes, and not one word of anybody's writing: there is no column
+-- here that could carry it, which is the point.
+select pg_temp.check('and what each of them holds',
+  (select (spaces > 0 and articles > 0 and content_bytes > 0)::text
+     from public.admin_users()
+    where email = 'owner@test.local'), 'true');
+
+-- Asked of the function's own signature rather than of a table, because
+-- admin_users is a function and information_schema would have answered zero
+-- for a question it never understood.
+select pg_temp.check('but its answer has no column that could carry writing',
+  (select count(*)::text
+     from pg_proc p, unnest(p.proargnames) as arg
+    where p.proname = 'admin_users'
+      and p.pronamespace = 'public'::regnamespace
+      and arg in ('content', 'middle')), '0');
+
+select pg_temp.check('and it does answer with the columns it should',
+  (select count(*)::text
+     from pg_proc p, unnest(p.proargnames) as arg
+    where p.proname = 'admin_users'
+      and p.pronamespace = 'public'::regnamespace
+      and arg in ('articles', 'skills', 'content_bytes', 'spaces')), '4');
+
+-- Somebody else's turn. Carol could read nothing in this space before and can
+-- read nothing in it now: being listed by an administrator is not access.
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+
+select pg_temp.check('a listed person is not thereby an administrator',
+  (select count(*)::text from public.admin_users()), '0');
+
+-- Handing a space over is how somebody leaves. It moves the administration
+-- with it, because ownership is where a space's administration comes from.
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.admin_transfer_space(
+  'a0000000-0000-0000-0000-000000000001',
+  '44444444-4444-4444-4444-444444444444');
+reset role;
+
+select pg_temp.check('the space has a new owner',
+  (select owner_id::text from public.spaces
+    where id = 'a0000000-0000-0000-0000-000000000001'),
+  '44444444-4444-4444-4444-444444444444');
+
+select pg_temp.check('who administers what is in it',
+  public.can_admin('44444444-4444-4444-4444-444444444444',
+                   'b0000000-0000-0000-0000-000000000001')::text, 'true');
+
+-- An account that still owns a space cannot be deleted, because a profile
+-- cascades to its spaces and a space to every page in it. Enforced here rather
+-- than only in the code that deletes, since forgetting is the failure that
+-- takes a team's writing with it.
+do $$
+begin
+  begin
+    delete from public.profiles where id = '44444444-4444-4444-4444-444444444444';
+    raise exception 'FAIL: an account owning spaces was deleted';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+select pg_temp.check('so the account is still there',
+  (select count(*)::text from public.profiles
+    where id = '44444444-4444-4444-4444-444444444444'), '1');
+
+-- And the last administrator cannot stand themselves down, because a platform
+-- nobody can administer has no way back through the interface.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+do $$
+begin
+  begin
+    perform public.admin_set_admin('11111111-1111-1111-1111-111111111111', false);
+    raise exception 'FAIL: the last administrator stood down';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+reset role;
+
+select pg_temp.check('there is still somebody who can administer this',
+  (select count(*)::text from public.profiles where is_admin), '1');
+
 rollback;

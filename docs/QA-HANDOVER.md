@@ -146,6 +146,38 @@ people by email, share a folder with the team.
 - Deleting a team removes every grant made to it.
 - A member of a team cannot manage that team. Only the space owner can.
 
+### People, for a platform administrator
+
+A **People** link appears in the header for administrators and for nobody else.
+Everyone else gets a plain 404 on `/admin`, the same answer a typo gives, and
+no link anywhere hinting the screen exists.
+
+It lists every account with **how much they hold and never what it says**: how
+many spaces, articles and skills they own, how many bytes that comes to,
+whether they are disabled, and when they last signed in. Content is attributed
+to whoever owns the space it sits in.
+
+The property worth attacking hardest: **being an administrator is not access.**
+Make somebody an administrator, then have them open a space they were never
+shared. It must still 404. If an administrator can read somebody's writing
+anywhere in this product, that is the highest-priority bug on this page.
+
+- **Make admin / Stand down.** An administrator can appoint and remove others.
+  The last one cannot stand themselves down, because a platform nobody can
+  administer has no way back through the interface.
+- **Disable.** Stops somebody signing in and touches nothing they hold. Their
+  spaces, pages and grants are exactly as they were; enabling puts them back
+  with nothing to restore. Check that a disabled person is refused at sign-in
+  and that their shared pages still work for everybody else.
+- **Hand over.** One space at a time, to a named person. The new owner
+  administers everything in it; the old owner keeps only what they were
+  separately granted.
+- **Delete.** Refused while they still own a space, and the message says how
+  many. Hand the spaces over first, then delete. The database refuses it too,
+  so there is no route, including through the API, where deleting an account
+  quietly takes a team's writing with it. Worth trying to find one.
+- You cannot disable or delete **yourself**, and the buttons are not offered.
+
 ### Who can see this
 
 One control at the top of the Share dialog, with four settings:
@@ -367,7 +399,7 @@ behaviour differs from what is written here.
 | A restore puts back content and type, never the name or the position | Deliberate. A name is part of the address; moving is the tree's job |
 | Production has no content and is behind staging | Deliberate. Staging is where this round is tested |
 | Google Drive image links do not render | #10, not built |
-| No platform administrator view across spaces | #15, not built |
+| An administrator cannot read anybody's content, only count it | Deliberate. It is the one exception this product does not make |
 | Landing page at `/` is still a placeholder | Deliberate for now |
 | Staging is hosted in San Francisco, its database in Singapore | Known; staging is slower than production for this reason alone |
 | Attachments and uploads | Will not be built. Images are referenced from elsewhere; diagrams are Mermaid |

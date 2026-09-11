@@ -4,6 +4,7 @@ import { currentUser } from "@/lib/supabase/server";
 import { listSpaces } from "@/lib/spaces";
 import { listTokens } from "@/lib/mcp/tokens";
 import { AppHeader } from "@/components/AppHeader";
+import { isPlatformAdmin } from "@/lib/admin";
 import { AuthForm } from "../(auth)/AuthForm";
 import { changePassword } from "../(auth)/actions";
 
@@ -27,12 +28,13 @@ export default async function AccountPage() {
   // that loses that race comes back empty rather than failing.
   const spaces = await listSpaces();
   const tokens = await listTokens();
+  const admin = await isPlatformAdmin();
 
   const live = tokens.filter((token) => !token.revoked_at);
 
   return (
     <main className="shell">
-      <AppHeader email={user.email} />
+      <AppHeader email={user.email} admin={admin} />
 
       <h1>Your account</h1>
 

@@ -18,10 +18,13 @@ import { Mark } from "@/components/Mark";
 export function AppHeader({
   email,
   className,
+  admin = false,
   children,
 }: {
   email?: string | null;
   className?: string;
+  /** Whether to offer the way in to the people screen. */
+  admin?: boolean;
   children?: ReactNode;
 }) {
   return (
@@ -38,6 +41,11 @@ export function AppHeader({
       <div className="shell-actions">
         {email ? (
           <>
+            {admin ? (
+              <Link href="/admin" className="shell-admin">
+                People
+              </Link>
+            ) : null}
             <Link href="/account" className="shell-account" title="Your account">
               {email}
             </Link>

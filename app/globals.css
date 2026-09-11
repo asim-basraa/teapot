@@ -913,3 +913,38 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 .diff-added { display: block; background: rgba(47, 133, 90, 0.16); }
 .diff-removed { display: block; background: rgba(180, 60, 60, 0.16); }
 .diff-same { display: block; color: var(--muted); }
+
+/* People ------------------------------------------------------------------ */
+
+.shell-admin { color: var(--muted); text-decoration: none; font-size: 0.88rem; }
+.shell-admin:hover { color: var(--text); }
+
+/* A table is the right shape for this and the wrong shape for a phone, so it
+   scrolls sideways inside its own box rather than making the page do it. */
+.table-scroll { overflow-x: auto; margin: 1.5rem 0; }
+
+.people { border-collapse: collapse; width: 100%; min-width: 44rem; font-size: 0.92rem; }
+
+.people th {
+  text-align: left; font-size: 0.72rem; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--muted); font-weight: 600;
+  padding: 0 0.75rem 0.5rem; white-space: nowrap;
+}
+
+.people td { padding: 0.7rem 0.75rem; border-top: 1px solid var(--border); vertical-align: middle; }
+.people .num { text-align: right; font-variant-numeric: tabular-nums; }
+.people .person-email { margin-right: 0.5rem; }
+
+/* Still legible, still actionable: a disabled account is the one an
+   administrator most often needs to click next. */
+.people tr.is-disabled .person-email { color: var(--muted); text-decoration: line-through; }
+
+.row-actions { display: flex; gap: 0.4rem; justify-content: flex-end; flex-wrap: wrap; }
+
+.btn-danger { border-color: #b4453a; color: #b4453a; background: transparent; }
+.btn-danger:hover:not(:disabled) { background: #b4453a; color: #fff; }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}

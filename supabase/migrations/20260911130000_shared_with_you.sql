@@ -18,6 +18,12 @@
 -- Set by a trigger rather than by each of the several functions that create
 -- grants, because "whoever is asking" is the same answer in all of them and
 -- one place cannot be forgotten when the next one is added.
+--
+-- One function per table, not one shared by both. PL/pgSQL plans a condition
+-- as a single SQL expression, so `tg_table_name = 'grants' and
+-- new.granted_by is null` is planned against whichever record it was handed
+-- and fails outright on the table that has no such column. The branch being
+-- false does not save you: there is no short-circuit to rely on.
 
 alter table public.grants
   add column if not exists granted_by uuid references public.profiles (id) on delete set null;
@@ -26,16 +32,28 @@ alter table public.team_members
   add column if not exists added_at timestamptz not null default now(),
   add column if not exists added_by uuid references public.profiles (id) on delete set null;
 
-create or replace function public.stamp_actor()
+create or replace function public.stamp_granted_by()
 returns trigger
 language plpgsql
 security definer
 set search_path = public, pg_temp
 as $$
 begin
-  if tg_table_name = 'grants' and new.granted_by is null then
+  if new.granted_by is null then
     new.granted_by := (select auth.uid());
-  elsif tg_table_name = 'team_members' and new.added_by is null then
+  end if;
+  return new;
+end;
+$$;
+
+create or replace function public.stamp_added_by()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if new.added_by is null then
     new.added_by := (select auth.uid());
   end if;
   return new;
@@ -43,14 +61,18 @@ end;
 $$;
 
 drop trigger if exists grants_stamp_actor on public.grants;
-create trigger grants_stamp_actor
-  before insert on public.grants
-  for each row execute function public.stamp_actor();
-
 drop trigger if exists team_members_stamp_actor on public.team_members;
-create trigger team_members_stamp_actor
+drop function if exists public.stamp_actor();
+
+drop trigger if exists grants_stamp_granted_by on public.grants;
+create trigger grants_stamp_granted_by
+  before insert on public.grants
+  for each row execute function public.stamp_granted_by();
+
+drop trigger if exists team_members_stamp_added_by on public.team_members;
+create trigger team_members_stamp_added_by
   before insert on public.team_members
-  for each row execute function public.stamp_actor();
+  for each row execute function public.stamp_added_by();
 
 -- When they last looked ---------------------------------------------------------
 

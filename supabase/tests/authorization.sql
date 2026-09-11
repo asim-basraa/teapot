@@ -1429,6 +1429,18 @@ select pg_temp.check('a grant records who made it',
   (select (granted_by is not null)::text from public.grants
     where node_id = 'b0000000-0000-0000-0000-0000000000f1'), 'true');
 
+-- One function per table, and this is not a style preference. Sharing one
+-- between them plans `tg_table_name = 'grants' and new.granted_by is null` as
+-- a single expression against whichever record it was handed, and fails
+-- outright on the table with no such column. The fixture at the top of this
+-- file is what caught it, by refusing to insert a team member at all, and is
+-- still the real test: if these two ever become one again, this suite does not
+-- reach its first assertion.
+select pg_temp.check('each table stamps through its own function',
+  (select count(*)::text from pg_trigger
+    where tgname in ('grants_stamp_granted_by', 'team_members_stamp_added_by')
+      and not tgisinternal), '2');
+
 set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
 

@@ -1,11 +1,11 @@
-# Postit: QA handover
+# Post-it: QA handover
 
 Everything a tester needs to start, plus the things worth knowing before you
 file a bug. Written for the first QA round.
 
 ---
 
-## What Postit is
+## What Post-it is
 
 A knowledge garden where **who can see what is the product**, not a setting on
 the side of it. People write Markdown in spaces, organise it in folders, and
@@ -24,12 +24,12 @@ bug and it is the most valuable bug you can file.
 
 **Staging:** https://web-staging-347f.up.railway.app
 
-**Read `/docs` first.** It is public, needs no account, and explains what Postit
+**Read `/docs` first.** It is public, needs no account, and explains what Post-it
 is, how to connect it to Claude, and what a connected Claude can and cannot
 reach. It is also a thing to test in its own right.
 
-**Then read the Postit space**, at `/s/postit`, once you are signed in. It is
-the same material as living content: what Postit is, connecting Claude, how
+**Then read the Post-it space**, at `/s/postit`, once you are signed in. It is
+the same material as living content: what Post-it is, connecting Claude, how
 sharing works, and six starter skills you can copy into your own space. It is
 shared with everyone who has an account and with nobody who does not, so it
 doubles as a check on that: open `/s/postit` in a private window and it must
@@ -39,7 +39,7 @@ doubles as a check on that: open `/s/postit` in a private window and it must
 address. Everyone else is refused unless they have been invited.
 
 **Being invited.** Somebody sharing a page or folder with an address that has
-no account now invites it. The invitation email arrives from Postit; following
+no account now invites it. The invitation email arrives from Post-it; following
 the link asks you to set a password and then puts you straight on the thing you
 were shared. That is the route in for a tester whose address is not on
 `maqsoodlabs.com`: ask somebody to share something with you.
@@ -137,6 +137,18 @@ Try: share a folder, then check a page three levels down. Try: share one page
 and confirm its siblings still 404. Try: raise somebody from viewer to editor
 and confirm the Edit link appears for them.
 
+**What the person on the other end sees.** This was reported as missing twice,
+so it is worth stating exactly. There are two cases and they behave
+differently on purpose:
+
+| You share with | What reaches them |
+| --- | --- |
+| An address with **no account** | An invitation **email**, because that is the only way they can get in at all. See [Inviting somebody who has no account](#inviting-somebody-who-has-no-account). |
+| Somebody who **already has an account** | An entry at the top of **Your spaces**, marked new, naming you. See [Shared with you](#shared-with-you). **No email.** |
+
+There is deliberately no email in the second case, and that is a gap rather
+than a decision: see the note at the end of [Shared with you](#shared-with-you).
+
 ### Teams
 
 From a space you own, the **Teams** button in the header. Create a team, add
@@ -145,6 +157,16 @@ people by email, share a folder with the team.
 - Removing somebody from a team removes their access immediately.
 - Deleting a team removes every grant made to it.
 - A member of a team cannot manage that team. Only the space owner can.
+
+**What the new member sees.** Being added to a team appears at the top of their
+**Your spaces**, marked new, naming whoever added them. So does anything shared
+with that team, including things shared with it before they joined, which count
+as news on the day they join rather than the day they were shared. Again there
+is no email. See [Shared with you](#shared-with-you).
+
+Worth checking, because it reads oddly the first time: a new member is told they
+joined the team even though **team membership by itself grants no access to
+anything**. That is correct. The team is how access arrives later.
 
 ### People, for a platform administrator
 
@@ -185,8 +207,8 @@ One control at the top of the Share dialog, with four settings:
 | Setting | Who that is |
 | --- | --- |
 | Private | Only the people and teams listed below, and the space's owner. |
-| Everyone signed in to Postit can read | Every person who can sign in. |
-| Everyone signed in to Postit can edit | The same people, with writing. |
+| Everyone signed in to Post-it can read | Every person who can sign in. |
+| Everyone signed in to Post-it can edit | The same people, with writing. |
 | Public | The open internet. No account at all. |
 
 The distinction between the middle two and the last matters more than anything
@@ -225,14 +247,20 @@ account did nothing they could see.
   so it is not news to them.
 - Owning a space is not being shared it, and must not appear.
 
-> **Known gap.** There is no **email** to somebody who already has an account,
-> only this list. The only mail this product sends is sent by the auth service
-> on its own account when it invites a new address, and there is no mail sender
-> configured for anything else. Ask Asim before filing it.
+**Where to find it:** the top of `/spaces`, which is where signing in lands
+you. Nowhere else. There is no badge elsewhere in the product, no email, and
+nothing inside a space.
+
+> **Known gap, do not file it.** There is no **email** to somebody who already
+> has an account, only this list. The only mail this product sends is sent by
+> the auth service on its own account when it invites a new address; there is
+> no mail sender configured for anything else, and adding one is a decision
+> about infrastructure rather than a bug. Ask Asim before filing anything about
+> it.
 
 ### Inviting somebody who has no account
 
-Share with an email address that has never signed up. Postit invites it: the
+Share with an email address that has never signed up. Post-it invites it: the
 person appears in the list, and an invitation email goes out.
 
 - Follow the link in that email. It should land on a page asking for a
@@ -302,7 +330,7 @@ need edit rights.
 ### Articles and skills
 
 Every page is an **article** or a **skill**. Skills are Markdown files written
-to Claude's conventions, so Postit can double as a skills repository.
+to Claude's conventions, so Post-it can double as a skills repository.
 
 - **+ Skill** in the tree header, and **New skill** on a folder's page, create
   one with its frontmatter already filled in.
@@ -315,7 +343,7 @@ to Claude's conventions, so Postit can double as a skills repository.
 
 ### Connecting to Claude (MCP)
 
-**Your account → Connect Postit to Claude**, or `/settings/mcp`.
+**Your account → Connect Post-it to Claude**, or `/settings/mcp`.
 
 Create a token and name it. A token can reach everything you can read, or be
 pinned to a single space; pin it where you can, so a leak costs one space
@@ -324,7 +352,7 @@ rather than the account.
 The token is shown **once**, with the configuration for each client already
 built around it: the `claude mcp add` command line, an `.mcp.json` block, a
 connector URL, and a curl for the Anthropic API. Each carries this token and
-this Postit's address, so connecting is copy and paste rather than transcribing
+this Post-it's address, so connecting is copy and paste rather than transcribing
 a secret by hand. There is no way to see it again; if you lose it, revoke it
 and make another. Reload the page and the token must be gone while the entry
 in the list stays.
@@ -334,7 +362,7 @@ dialog has no field for a header, so the connector URL carries the token in the
 path. This is weaker than a header on purpose, and the page says so in red: a
 token in a URL is in every HTTP log that records the path, in whatever Claude
 stores for the connection, and anywhere the URL is pasted. It is a stopgap
-until Postit speaks OAuth. Both routes reach the same endpoint and the same
+until Post-it speaks OAuth. Both routes reach the same endpoint and the same
 content; if one works and the other does not, that is a bug.
 
 What a connected Claude can do: list spaces, walk a space's tree, search, read
@@ -405,9 +433,11 @@ Worth a second look, because these are where the bugs were.
 - **The MCP endpoint stopped throttling clients that were doing nothing
   wrong.** Its failure budget counted every request rather than every refusal,
   so a Claude filing a folder of documents ran into a 429 after twenty calls.
-- **The product is Postit.** It shipped as Teapot; the name is the only thing
-  that changed. The documentation space is at `/s/postit`, and new tokens begin
-  `post_` rather than `tea_`. Tokens issued before the change still work.
+- **The product is Post-it**, and the rename reached everything a person
+  reads. Identifiers deliberately did not move: the documentation space is
+  still at `/s/postit`, the MCP server is still named `postit` in the
+  configuration you paste into a client, and tokens begin `post_`. Any token
+  issued before the rename still works.
 
 ---
 
@@ -423,6 +453,7 @@ behaviour differs from what is written here.
 | A restore puts back content and type, never the name or the position | Deliberate. A name is part of the address; moving is the tree's job |
 | Production has no content and is behind staging | Deliberate. Staging is where this round is tested |
 | Google Drive image links do not render | #10, not built |
+| No email when you share with somebody who already has an account | Known. They are told in **Shared with you**; email needs a mail sender this product does not have |
 | An administrator cannot read anybody's content, only count it | Deliberate. It is the one exception this product does not make |
 | Landing page at `/` is still a placeholder | Deliberate for now |
 | Staging is hosted in San Francisco, its database in Singapore | Known; staging is slower than production for this reason alone |

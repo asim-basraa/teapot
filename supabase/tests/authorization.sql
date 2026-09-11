@@ -1406,4 +1406,57 @@ reset role;
 select pg_temp.check('there is still somebody who can administer this',
   (select count(*)::text from public.profiles where is_admin), '1');
 
+-- Telling somebody something has been shared with them ------------------------
+--
+-- Sharing with an address that has no account has always sent an email, since
+-- that is how they get in at all. Sharing with somebody who already has one
+-- did nothing they could see: the grant landed, the page became theirs to
+-- read, and nothing told them. This is the record that does.
+
+-- A page and a grant of its own, so these assertions do not depend on what the
+-- sections above have moved, transferred or deleted.
+insert into public.nodes (id, space_id, parent_id, kind, name)
+values ('b0000000-0000-0000-0000-0000000000f1',
+        'a0000000-0000-0000-0000-000000000001', null, 'file', 'Handover');
+
+insert into public.grants (node_id, grantee_type, grantee_id, role)
+values ('b0000000-0000-0000-0000-0000000000f1', 'user',
+        '22222222-2222-2222-2222-222222222222', 'viewer');
+
+-- Who did it is stamped by a trigger rather than by each of the several
+-- functions that create grants, so the next one cannot forget.
+select pg_temp.check('a grant records who made it',
+  (select (granted_by is not null)::text from public.grants
+    where node_id = 'b0000000-0000-0000-0000-0000000000f1'), 'true');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+
+select pg_temp.check('a page shared with you appears in your list',
+  (select count(*)::text from public.shared_with_me() where label = 'Handover'), '1');
+
+select pg_temp.check('and is new until you have looked',
+  (select is_new::text from public.shared_with_me() where label = 'Handover'), 'true');
+
+select pg_temp.check('the count in the header agrees that there is something',
+  (public.new_share_count() > 0)::text, 'true');
+
+select public.mark_shares_seen();
+
+select pg_temp.check('and nothing is new once you have',
+  (select is_new::text from public.shared_with_me() where label = 'Handover'), 'false');
+
+select pg_temp.check('nor does the count say otherwise',
+  public.new_share_count()::text, '0');
+
+-- Carol owns this space outright by now, having been handed it in the section
+-- above. Owning a thing is not being shared it, and it must not appear as
+-- something somebody did for her.
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+
+select pg_temp.check('a share of somebody else''s is not in your list',
+  (select count(*)::text from public.shared_with_me() where label = 'Handover'), '0');
+
+reset role;
+
 rollback;

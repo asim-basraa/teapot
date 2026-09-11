@@ -206,6 +206,30 @@ must still 404.
   it comes from. Setting this page to Private there will not make it private —
   the message says so rather than letting you believe otherwise.
 
+### Shared with you
+
+**Your spaces** carries a **Shared with you** list at the top: pages, folders
+and skills somebody granted you by name, things granted to a team you are on,
+and being put on a team in the first place. Newest first, with who did it, and
+the recent ones marked **new** until you have seen the list once.
+
+This is what closes the gap where sharing with somebody who already had an
+account did nothing they could see.
+
+- Share a page with a colleague who has an account. It must appear at the top
+  of their spaces list, marked new, naming you.
+- Reload. The new marks go, and the entries stay.
+- Add somebody to a team. That appears too, even though team membership by
+  itself grants no access to anything.
+- Nothing in anybody else's list, and nothing in the sharer's own: they did it,
+  so it is not news to them.
+- Owning a space is not being shared it, and must not appear.
+
+> **Known gap.** There is no **email** to somebody who already has an account,
+> only this list. The only mail this product sends is sent by the auth service
+> on its own account when it invites a new address, and there is no mail sender
+> configured for anything else. Ask Asim before filing it.
+
 ### Inviting somebody who has no account
 
 Share with an email address that has never signed up. Postit invites it: the

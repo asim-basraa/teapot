@@ -7,12 +7,8 @@ nowhere to try anything first. This is the shape it should have had.
 
 | | Branch | Railway environment | Supabase project | URL |
 | --- | --- | --- | --- | --- |
-| Staging | `staging` | `staging` | `teapot-staging` | https://web-staging-347f.up.railway.app |
-| Production | `main` | `production` | `teapot` | https://web-production-f323f.up.railway.app |
-
-The Supabase projects and the Railway project still carry the name the product
-shipped with. Renaming them changes addresses other systems already hold, so
-they are listed as they are rather than as they read.
+| Staging | `staging` | `staging` | `postit-staging` | https://web-staging-347f.up.railway.app |
+| Production | `main` | `production` | `postit` | https://web-production-f323f.up.railway.app |
 
 ## How work moves
 

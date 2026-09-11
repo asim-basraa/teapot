@@ -5,6 +5,8 @@ import { listSpaces } from "@/lib/spaces";
 import { NewSpaceForm } from "./NewSpaceForm";
 import { AppHeader } from "@/components/AppHeader";
 import { isPlatformAdmin } from "@/lib/admin";
+import { listShares } from "@/lib/shares";
+import { Shared } from "./Shared";
 
 export const metadata = { title: "Your spaces" };
 export const dynamic = "force-dynamic";
@@ -19,10 +21,13 @@ export default async function SpacesPage() {
 
   const spaces = await listSpaces();
   const admin = await isPlatformAdmin();
+  const shares = await listShares();
 
   return (
     <main className="shell">
       <AppHeader email={user.email} admin={admin} />
+
+      <Shared shares={shares} />
 
       <h1>Your spaces</h1>
       <p className="lede">

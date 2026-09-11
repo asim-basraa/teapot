@@ -156,8 +156,16 @@ test.describe("Names, the space's own page, and sharing from the tree", () => {
     expect(owner.url()).toContain(`/s/${SLUG}`);
 
     await owner.goto("/spaces");
-    await expect(owner.getByText("Second Name")).toBeVisible();
-    await expect(owner.getByText("First Name")).toHaveCount(0);
+    // Scoped to the list, for the same reason invitations.spec is: the page
+    // now opens with what has been shared with you, and a space you own is
+    // not that, but a name matched anywhere on the page is not evidence of
+    // which of the two it came from.
+    await expect(
+      owner.locator(".space-list").getByText("Second Name"),
+    ).toBeVisible();
+    await expect(
+      owner.locator(".space-list").getByText("First Name"),
+    ).toHaveCount(0);
   });
 
   test("a folder is somewhere you can go, and it lists what is in it", async () => {

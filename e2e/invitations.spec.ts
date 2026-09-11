@@ -94,8 +94,14 @@ test.describe("Inviting somebody who has no account", () => {
   test("they arrive at the thing they were invited to", async () => {
     // Not an empty list of spaces, which is what an invitation with no grant
     // behind it looks like, and is indistinguishable from being told no.
+    //
+    // Scoped to the list itself: the same page now opens with what has been
+    // shared with you, so the space's name is on it twice and an unscoped
+    // match cannot tell which one it found.
     await newcomer.goto("/spaces");
-    await expect(newcomer.getByText("Invited Space")).toBeVisible();
+    await expect(
+      newcomer.locator(".space-list").getByText("Invited Space"),
+    ).toBeVisible();
 
     const page = await newcomer.goto(SHARED);
     expect(page?.status()).toBe(200);

@@ -483,7 +483,8 @@ Worth a second look, because these are where the bugs were.
   content waits on the database, so a slow navigation used to leave the page
   looking exactly as it did before the click, and people clicked again, which
   started the navigation over and made the wait longer. The link you clicked now
-  carries a spinner, and the page being replaced says what it is fetching.
+  carries a spinner until the next page arrives — the one you clicked, and not
+  the others in the list.
 - **The front page is the product, not a placeholder.** "Coming soon" is gone,
   and the footer carries the credit and a **Tell me something** box that asks for
   nothing: no account, no address, no name. Notes land on a page only the owner
@@ -541,8 +542,8 @@ What this does **not** cover, and where your attention is worth most:
 
 - Anything visual. Layout, spacing, dark mode, small screens, long names,
   right-to-left text, very long pages. This includes the new spinner on a
-  clicked link: the tests check that a slow page says something, not that it
-  looks right while it does.
+  clicked link: nothing automated checks how it looks, only that widening what a
+  member can see did not widen what they can do.
 - Real email in the wild: deliverability, spam folders, what the messages
   actually look like.
 - Anything about how it *feels*: whether the affordances are where you expect,

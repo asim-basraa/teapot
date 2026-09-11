@@ -15,6 +15,14 @@ import type { ComponentProps } from "react";
  * useLinkStatus is pending only for the link that actually started the
  * navigation, which is the useful property: the one you clicked says so, and the
  * other nine in the list do not pretend to be loading.
+ *
+ * Do not reach for a route-level `loading.tsx` instead, which is the obvious
+ * answer and is wrong here. It puts the segment behind a Suspense boundary, so
+ * Next begins streaming and commits HTTP 200 before the page has decided
+ * anything — and then notFound() renders inside a 200 response. This product
+ * makes unreadable and nonexistent indistinguishable, and the status code is
+ * part of what a caller sees, so eight tests across the suite caught it at once
+ * when it was tried. A spinner on the link changes no status code.
  */
 export function NavLink({
   children,

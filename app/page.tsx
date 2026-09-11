@@ -1,13 +1,14 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Mark } from "@/components/Mark";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "Post-it",
-  description: "A knowledge garden with real access control. Coming soon.",
+  description: "A knowledge garden with real access control.",
 };
 
-export default function ComingSoon() {
+export default function Landing() {
   return (
     <main className="soon">
       <div className="mark">
@@ -16,12 +17,13 @@ export default function ComingSoon() {
 
       <h1>Post-it</h1>
       <p className="tagline">A knowledge garden with real access control.</p>
-      <p className="soon-note">Coming soon.</p>
       <p className="soon-signin">
         <Link href="/docs">Read the documentation</Link>
         <span aria-hidden="true">·</span>
         <Link href="/login">Sign in</Link>
       </p>
+
+      <SiteFooter />
     </main>
   );
 }

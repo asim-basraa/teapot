@@ -156,25 +156,51 @@ test.describe("Moving things about", () => {
     const viewer = await viewerCtx.newPage();
     await registerAndConfirm(viewer, `moving-viewer-${RUN}@maqsoodlabs.com`, PASSWORD);
 
+    // Inside a folder on purpose. A viewer sees only the page granted to them,
+    // so moving it *out* to the top level is the one move they can describe
+    // without naming a destination they cannot see — and therefore the one that
+    // reaches the UPDATE and gets refused by RLS rather than by a missing
+    // destination. Asking to move a top-level node to the top level is not a
+    // refusal at all: move_node short-circuits it as the no-op it is.
+    const archive = await page.request.get(`/api/v1/nodes?space_id=${spaceId}`);
+    const archiveId = (await archive.json()).nodes.find(
+      (n: { name: string }) => n.name === "Archive",
+    ).id;
+
     const shared = await page.request.post("/api/v1/nodes", {
-      data: { space_id: spaceId, kind: "file", name: "Read Only" },
+      data: {
+        space_id: spaceId,
+        parent_id: archiveId,
+        kind: "file",
+        name: "Read Only",
+      },
     });
     const nodeId = (await shared.json()).node.id;
     await page.request.post(`/api/v1/nodes/${nodeId}/grants`, {
       data: { email: `moving-viewer-${RUN}@maqsoodlabs.com`, role: "viewer" },
     });
 
-    await viewer.goto(`/s/${SPACE}/read-only`);
+    await viewer.goto(`/s/${SPACE}/archive/read-only`);
     await expect(
       viewer.getByRole("button", { name: /^Move / }),
     ).toHaveCount(0);
     await expect(viewer.locator(".tree-row.is-draggable")).toHaveCount(0);
 
-    // And the refusal is the endpoint's, not the screen's.
+    // And the refusal is the endpoint's, not the screen's. This is the case that
+    // used to answer 200 with the unmoved page: move_node is SECURITY INVOKER,
+    // so a viewer trips RLS on the UPDATE, which changes nothing and raises
+    // nothing, and we reported success for a move that never happened.
     const refused = await viewer.request.patch(`/api/v1/nodes/${nodeId}`, {
       data: { parent_id: null },
     });
     expect(refused.status()).toBe(404);
+
+    // Refused, and still where it was.
+    const after = await page.request.get(`/api/v1/nodes?space_id=${spaceId}`);
+    const stillThere = (await after.json()).nodes.find(
+      (n: { id: string }) => n.id === nodeId,
+    );
+    expect(stillThere.path).toBe("archive/read-only");
 
     await viewerCtx.close();
   });

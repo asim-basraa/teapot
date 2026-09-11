@@ -83,6 +83,22 @@ test.describe("People", () => {
     await expect(row.locator("td").nth(4), "storage").not.toHaveText("0 B");
   });
 
+  test("an administrator can appoint another, and stand them down", async () => {
+    const row = boss.locator("tr", { hasText: STAFF });
+
+    await row.getByRole("button", { name: "Make admin" }).click();
+    await expect(row.getByText("admin", { exact: true })).toBeVisible();
+
+    await row.getByRole("button", { name: "Stand down" }).click();
+    await expect(row.getByText("admin", { exact: true })).toHaveCount(0);
+
+    // That the last one cannot stand themselves down is asserted in the
+    // database suite instead. This database is shared by every spec in the
+    // suite and a retry stands up an administrator of its own, so "the last
+    // one" is not something a browser test can establish here, and a test that
+    // asserts it anyway is asserting whatever else happened to be running.
+  });
+
   test("and not one word of what any of it says", async () => {
     // The whole justification for the screen's shape. Counting somebody's
     // pages is not reading them, and the page itself must be exactly as absent
@@ -160,18 +176,5 @@ test.describe("People", () => {
       .click();
 
     await expect(boss.locator("tr", { hasText: STAFF })).toHaveCount(0);
-  });
-
-  test("but never the last administrator", async () => {
-    await boss.goto("/admin");
-    await boss
-      .locator("tr", { hasText: BOSS })
-      .getByRole("button", { name: "Stand down" })
-      .click();
-
-    await expect(boss.locator(".msg-error")).toContainText("administer");
-    await expect(
-      boss.locator("tr", { hasText: BOSS }).getByText("admin"),
-    ).toBeVisible();
   });
 });

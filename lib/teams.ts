@@ -93,7 +93,7 @@ export async function deleteTeam(teamId: string): Promise<GrantResult> {
 }
 
 /**
- * Who is on a team.
+ * Who is on a team: the space owner or anybody on the team may ask.
  *
  * Through team_roster rather than team_members directly: the RLS policy there
  * lets a member see only their own row, and joining to profiles for addresses
@@ -188,4 +188,70 @@ export async function shareWithTeam(
   }
 
   return { ok: false, error: "Not found.", status: 404 };
+}
+
+export type TeamReach = {
+  node_id: string;
+  label: string;
+  href: string;
+  role: GrantRole;
+  space_name: string;
+};
+
+export type MyTeam = {
+  team_id: string;
+  team_name: string;
+  space_name: string;
+  space_slug: string;
+  my_role: "member" | "manager";
+  member_count: number;
+  reach_count: number;
+  added_at: string;
+  added_by: string | null;
+};
+
+/**
+ * What a team reaches: the pages and folders shared with it.
+ *
+ * The space owner and the team's own members both get an answer; anybody else
+ * gets an empty list, which is the same thing they would get for a team that
+ * does not exist.
+ */
+export async function teamReach(teamId: string): Promise<TeamReach[]> {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("team_reach", { p_team_id: teamId });
+  return (data as TeamReach[] | null) ?? [];
+}
+
+/** The teams the caller is on, across every space. */
+export async function myTeams(): Promise<MyTeam[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("my_teams");
+  if (error) {
+    console.error("my_teams failed: %s", error.message);
+    return [];
+  }
+  return (data as MyTeam[] | null) ?? [];
+}
+
+/**
+ * Everything all of the caller's teams reach, keyed by team.
+ *
+ * One call rather than one per team: the page groups the rows itself.
+ */
+export async function myTeamReach(): Promise<Map<string, TeamReach[]>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("my_team_reach");
+  if (error) {
+    console.error("my_team_reach failed: %s", error.message);
+    return new Map();
+  }
+
+  const byTeam = new Map<string, TeamReach[]>();
+  for (const row of (data as (TeamReach & { team_id: string })[] | null) ?? []) {
+    const list = byTeam.get(row.team_id);
+    if (list) list.push(row);
+    else byTeam.set(row.team_id, [row]);
+  }
+  return byTeam;
 }

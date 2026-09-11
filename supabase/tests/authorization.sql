@@ -513,8 +513,16 @@ select pg_temp.check('a member can see the team they are on',
    where id = 'c0000000-0000-0000-0000-00000000000a'), '1');
 select pg_temp.check('a member sees only their own membership row',
   (select count(*)::text from public.team_members), '1');
-select pg_temp.check('a member cannot read the roster',
-  (select count(*)::text from public.team_roster('c0000000-0000-0000-0000-00000000000a')), '0');
+-- Reversed deliberately. The roster used to be the space owner's alone, which
+-- left a member able to see that a team existed and not who else was on it, so
+-- the only question they had, who else can read what I write here, had no answer
+-- anywhere in the product. Being put on a named team together is the consent. It
+-- stops at the team: a stranger still gets nothing, asserted below.
+select pg_temp.check('a member reads the roster of a team they are on',
+  (select count(*)::text from public.team_roster('c0000000-0000-0000-0000-00000000000a')), '1');
+select pg_temp.check('and it is themselves they find on it',
+  (select email from public.team_roster('c0000000-0000-0000-0000-00000000000a')),
+  'bob@test.local');
 
 -- Alice owns nothing and is on nothing, so she is the honest stranger here.
 select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
@@ -522,8 +530,96 @@ select pg_temp.check('a stranger sees no teams',
   (select count(*)::text from public.teams), '0');
 select pg_temp.check('a stranger sees no memberships',
   (select count(*)::text from public.team_members), '0');
+select pg_temp.check('a stranger cannot read a roster',
+  (select count(*)::text from public.team_roster('c0000000-0000-0000-0000-00000000000a')), '0');
+select pg_temp.check('nor what a team they are not on reaches',
+  (select count(*)::text from public.team_reach('c0000000-0000-0000-0000-00000000000a')), '0');
 
 reset role;
+
+-- What a team reaches ---------------------------------------------------------
+--
+-- The other half of the same gap. A member could be handed a folder through a
+-- team and had no way to learn that was why, because the list of what a team
+-- reaches was the owner's alone. Now both get the same answer, from the same
+-- function, so the two can never disagree.
+--
+-- On its own fixture, torn down at the end of the section: the assertions below
+-- turn on a team holding a grant, and every team grant made earlier in this file
+-- has already been revoked on purpose.
+
+insert into public.teams (id, space_id, name) values
+  ('c0000000-0000-0000-0000-00000000000b','a0000000-0000-0000-0000-000000000001','Reach Check');
+insert into public.team_members (team_id, user_id) values
+  ('c0000000-0000-0000-0000-00000000000b','33333333-3333-3333-3333-333333333333');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}', true);
+
+select pg_temp.check('a member sees every team they are on',
+  (select count(*)::text from public.my_teams()), '2');
+
+-- The state QA found, and the one worth being explicit about: a team can be
+-- real, have people on it, and grant nothing. That is not a fault.
+select pg_temp.check('a team nothing has been shared with reaches nothing',
+  (select reach_count::text from public.my_teams() where team_name = 'Reach Check'), '0');
+select pg_temp.check('and says how many people are on it regardless',
+  (select member_count::text from public.my_teams() where team_name = 'Reach Check'), '1');
+
+-- Now share something with it, as the owner, who is the only one who can.
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.grant_to_team(
+  'b0000000-0000-0000-0000-000000000001','c0000000-0000-0000-0000-00000000000b','viewer');
+
+select pg_temp.check('the owner sees what the team reaches',
+  (select label from public.team_reach('c0000000-0000-0000-0000-00000000000b')), 'Projects');
+
+select set_config('request.jwt.claims','{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}', true);
+
+select pg_temp.check('the member sees the same thing',
+  (select label from public.team_reach('c0000000-0000-0000-0000-00000000000b')), 'Projects');
+select pg_temp.check('with the role it carries',
+  (select role::text from public.team_reach('c0000000-0000-0000-0000-00000000000b')), 'viewer');
+select pg_temp.check('and a link that goes somewhere',
+  (select href from public.team_reach('c0000000-0000-0000-0000-00000000000b')),
+  '/s/authz-test/projects');
+select pg_temp.check('the count on the team agrees',
+  (select reach_count::text from public.my_teams() where team_name = 'Reach Check'), '1');
+select pg_temp.check('and one round trip answers it for all their teams',
+  (select count(*)::text from public.my_team_reach()), '1');
+
+-- Seeing is not administering. Reading the roster of a team confers nothing on
+-- the team itself, which is the whole reason this was safe to widen.
+do $$
+begin
+  begin
+    perform public.add_team_member(
+      'c0000000-0000-0000-0000-00000000000b','carol@test.local','member');
+    raise exception 'FAIL: a member was allowed to add to their own team';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+select pg_temp.check('a member cannot add anybody to their own team',
+  (select count(*)::text from public.team_roster('c0000000-0000-0000-0000-00000000000b')), '1');
+
+-- Alice is on neither team and owns nothing.
+select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+select pg_temp.check('somebody on no team is told about no team',
+  (select count(*)::text from public.my_teams()), '0');
+select pg_temp.check('and learns nothing of what other teams reach',
+  (select count(*)::text from public.my_team_reach()), '0');
+
+reset role;
+
+-- Torn down so the rest of the file sees the access it expects: deleting the
+-- team takes its grant with it, which the section above already proves.
+delete from public.teams where id = 'c0000000-0000-0000-0000-00000000000b';
+
+select pg_temp.check('and the fixture leaves no team grant behind',
+  (select count(*)::text from public.grants where grantee_type = 'team'), '0');
 
 -- Search ---------------------------------------------------------------------
 --

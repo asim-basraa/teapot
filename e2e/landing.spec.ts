@@ -54,6 +54,7 @@ test.describe("The front page", () => {
     ).toBeVisible();
     await expect(visitor.getByText("Coming soon")).toHaveCount(0);
     await expect(visitor.getByText("Built with love")).toBeVisible();
+    await expect(visitor.locator(".site-footer")).toContainText("by Awsim");
   });
 
   test("a stranger can send a note without an account", async () => {

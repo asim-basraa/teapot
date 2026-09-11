@@ -54,15 +54,17 @@ export default async function TeamsPage({
 
       <h1>Teams in {space.name}</h1>
       <p className="lede">
-        A team is a name for a group of people. Share a folder with the team and
-        everyone on it can read the folder and everything beneath it; take
-        somebody off the team and their access goes with them.
+        A team is a name for a group of people, and nothing more: putting
+        somebody on one gives them no access by itself. Share a folder{" "}
+        <em>with the team</em> and everyone on it can read the folder and
+        everything beneath it; take somebody off the team and their access goes
+        with them.
       </p>
       <p>
         <Link href={`/s/${space.slug}`}>Back to {space.name}</Link>
       </p>
 
-      <Teams spaceId={space.id} initialTeams={teams} />
+      <Teams spaceId={space.id} spaceSlug={space.slug} initialTeams={teams} />
     </main>
   );
 }

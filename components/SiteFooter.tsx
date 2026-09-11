@@ -16,7 +16,7 @@ export function SiteFooter() {
   return (
     <footer className="site-footer">
       <span>
-        Built with love <span aria-label="love">❤️</span> by Asim
+        Built with love <span aria-label="love">❤️</span> by Awsim
       </span>
       <span aria-hidden="true">·</span>
       <button type="button" className="linkish" onClick={() => setOpen(true)}>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import type { TreeNode } from "@/lib/nodes";
 import { ShareDialog } from "./Share";
+import { Pending } from "@/components/NavLink";
 
 type Props = {
   spaceSlug: string;
@@ -258,6 +259,7 @@ function TreeLevel({
                   // where somebody is choosing between them.
                   <span className="tree-badge">skill</span>
                 ) : null}
+                <Pending />
               </Link>
 
               {/* Three at most. Creating things inside a folder used to be

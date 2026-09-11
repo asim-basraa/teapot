@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { signOut } from "@/app/(auth)/actions";
 import { Mark } from "@/components/Mark";
+import { Pending } from "@/components/NavLink";
 
 /**
  * The bar across the top of every signed-in page.
@@ -44,10 +45,12 @@ export function AppHeader({
             {admin ? (
               <Link href="/admin" className="shell-admin">
                 People
+                <Pending />
               </Link>
             ) : null}
             <Link href="/account" className="shell-account" title="Your account">
               {email}
+              <Pending />
             </Link>
             <form action={signOut}>
               <button className="btn btn-secondary btn-small" type="submit">

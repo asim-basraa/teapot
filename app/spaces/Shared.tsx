@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import type { Share } from "@/lib/shares";
+import { Pending } from "@/components/NavLink";
 
 /**
  * What other people have handed you.
@@ -33,6 +34,7 @@ export function Shared({ shares }: { shares: Share[] }) {
             {share.href ? (
               <Link href={share.href} className="shared-what">
                 {share.label}
+                <Pending />
               </Link>
             ) : (
               <span className="shared-what">{share.label}</span>

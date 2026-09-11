@@ -1,13 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
-import type { Team, TeamMember } from "@/lib/teams";
+import type { Team, TeamMember, TeamReach } from "@/lib/teams";
+import { NavLink } from "@/components/NavLink";
 
 export function Teams({
   spaceId,
+  spaceSlug,
   initialTeams,
 }: {
   spaceId: string;
+  spaceSlug: string;
   initialTeams: Team[];
 }) {
   const [teams, setTeams] = useState(initialTeams);
@@ -76,7 +80,12 @@ export function Teams({
       ) : (
         <ul className="team-list">
           {teams.map((team) => (
-            <TeamCard key={team.id} team={team} onDelete={remove} />
+            <TeamCard
+              key={team.id}
+              team={team}
+              spaceSlug={spaceSlug}
+              onDelete={remove}
+            />
           ))}
         </ul>
       )}
@@ -86,12 +95,15 @@ export function Teams({
 
 function TeamCard({
   team,
+  spaceSlug,
   onDelete,
 }: {
   team: Team;
+  spaceSlug: string;
   onDelete: (team: Team) => void;
 }) {
   const [members, setMembers] = useState<TeamMember[] | null>(null);
+  const [reach, setReach] = useState<TeamReach[] | null>(null);
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -101,10 +113,12 @@ function TeamCard({
     if (!res.ok) {
       setError("Could not load this team.");
       setMembers([]);
+      setReach([]);
       return;
     }
     const body = await res.json();
     setMembers(body.members ?? []);
+    setReach(body.reach ?? []);
   }
 
   async function add(event: React.FormEvent) {
@@ -128,6 +142,7 @@ function TeamCard({
 
     setEmail("");
     setMembers(body.members ?? []);
+    setReach(body.reach ?? []);
   }
 
   async function removeMember(member: TeamMember) {
@@ -198,6 +213,8 @@ function TeamCard({
           </ul>
         )}
 
+        <Reach reach={reach} teamName={team.name} spaceSlug={spaceSlug} />
+
         <p className="team-danger">
           <button
             className="btn btn-secondary btn-small"
@@ -213,6 +230,56 @@ function TeamCard({
         </p>
       </details>
     </li>
+  );
+}
+
+/**
+ * What this team can actually reach.
+ *
+ * The question QA asked: a team with nobody's pages in it looks broken, and a
+ * team with somebody on it looks like it must have granted them something. Both
+ * readings are wrong, and neither was contradicted anywhere on this screen.
+ * Being a team is not being given anything; a grant is, and this is the list of
+ * them.
+ */
+function Reach({
+  reach,
+  teamName,
+  spaceSlug,
+}: {
+  reach: TeamReach[] | null;
+  teamName: string;
+  spaceSlug: string;
+}) {
+  if (reach === null) return null;
+
+  return (
+    <div className="team-reach">
+      <h3 className="team-reach-head">What this team can reach</h3>
+
+      {reach.length === 0 ? (
+        <p className="hint">
+          Nothing yet. Being on {teamName} grants nobody anything on its own —
+          open a page or folder in{" "}
+          <Link href={`/s/${spaceSlug}`}>this space</Link>, choose Share, and
+          share it with {teamName}. Everyone on the team gets it at once, and
+          anyone taken off the team loses it.
+        </p>
+      ) : (
+        <ul className="team-reach-list">
+          {reach.map((item) => (
+            <li key={item.node_id}>
+              <NavLink href={item.href} className="team-reach-what">
+                {item.label}
+              </NavLink>
+              <span className="team-reach-role">
+                {item.role} · and everything beneath it
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

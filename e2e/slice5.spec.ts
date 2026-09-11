@@ -152,10 +152,18 @@ test.describe("Slice 5: teams and team grants", () => {
     });
     expect(res.status()).toBe(404);
 
-    const roster = await member.request.get(`/api/v1/teams/${teamId}/members`);
-    expect((await roster.json()).members).toHaveLength(0);
-
     expect((await member.goto(`/spaces/${SPACE}/teams`))?.status()).toBe(404);
+  });
+
+  test("but they can see who else is on it", async () => {
+    // This used to be an empty list, and the emptiness was doing duty as proof
+    // that a member had no powers. It proved something else as well, which was
+    // that somebody handed a folder through a team could not find out who else
+    // could read it. Reading the roster is not a power; the test above is what
+    // holds the powers to account.
+    const roster = await member.request.get(`/api/v1/teams/${teamId}/members`);
+    const { members } = await roster.json();
+    expect(members.map((m: { email: string }) => m.email)).toContain(MEMBER);
   });
 
   test("removing the member removes their access", async () => {

@@ -990,3 +990,95 @@ a.shared-what:hover { text-decoration: underline; }
 
 .note-dialog { width: min(30rem, calc(100vw - 2rem)); }
 .note-box { resize: vertical; min-height: 6rem; font: inherit; line-height: 1.5; }
+
+/* --- Click feedback ------------------------------------------------------- */
+
+/* Every content page is force-dynamic, so a navigation waits on the database
+   and nothing on screen changes in the meantime. These two say otherwise: a
+   spinner on the link that was clicked, and a line on the page being replaced. */
+
+.link-pending { display: inline-flex; margin-left: 0.4rem; vertical-align: middle; }
+
+.link-spinner {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: 0.65;
+  animation: link-spin 0.6s linear infinite;
+}
+
+@keyframes link-spin { to { transform: rotate(360deg); } }
+
+/* Motion is the whole point of a spinner, so with motion turned off it becomes
+   a steady mark instead: still there, still saying "this one", not moving. */
+@media (prefers-reduced-motion: reduce) {
+  .link-spinner { animation: none; border-right-color: currentColor; opacity: 0.45; }
+}
+
+.loading {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* --- Teams: who is on one, and what it reaches ---------------------------- */
+
+.team-reach { margin: 1.25rem 0 0; }
+
+.team-reach-head {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+}
+
+.team-reach-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+
+.team-reach-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.team-reach-what { font-weight: 600; color: var(--text); text-decoration: none; }
+.team-reach-what:hover { text-decoration: underline; }
+.team-reach-role { color: var(--muted); font-size: 0.82rem; }
+
+.teams-link { margin: 1.5rem 0 0; font-size: 0.92rem; }
+.teams-link .hint { color: var(--muted); }
+
+.my-teams { list-style: none; margin: 1.5rem 0 0; padding: 0; display: grid; gap: 1.75rem; }
+
+.my-team {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.1rem 1.25rem;
+}
+
+.my-team-name {
+  font-size: 1.05rem;
+  margin: 0 0 0.35rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.my-team-space { font-weight: 400; font-size: 0.85rem; color: var(--muted); }
+.my-team-meta { color: var(--muted); font-size: 0.85rem; margin: 0 0 0.85rem; }
+.my-team-why { font-size: 0.88rem; margin: 0 0 0.5rem; }
+.my-team-roster { margin-top: 1rem; }
+.my-team-roster summary { cursor: pointer; color: var(--muted); font-size: 0.88rem; }
+.my-team-addr { color: var(--muted); font-size: 0.82rem; margin-left: 0.5rem; }
+
+.back { margin-top: 2.5rem; font-size: 0.92rem; }

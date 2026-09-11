@@ -78,12 +78,25 @@ Project `postit`, service `web`,
    a round trip out of every query. Apply it or discard it deliberately; it
    has been sitting there since an earlier attempt timed out.
 
-9. **Fix the DNS for `post.maqsoodlabs.com`.** Railway reports the required
-   `CNAME` to `bu7v20tg.up.railway.app` as **not currently in place**: it
-   reads the record's current value as empty and marks it as requiring an
-   update. The certificate is valid and the domain is verified, so this may be
-   a stale reading, but confirm the record resolves before you tell anybody
-   the address.
+9. **The DNS for `post.maqsoodlabs.com` needs one check.** The `CNAME` to
+   `bu7v20tg.up.railway.app` is in Cloudflare, confirmed. Railway still reads
+   its current value as empty and marks the record as requiring an update,
+   while reporting the domain verified and the certificate valid.
+
+   The usual cause of exactly that pair of readings is **Cloudflare's proxy
+   being on**: an orange-clouded record answers public lookups with
+   Cloudflare's own addresses rather than the CNAME target, so Railway's check
+   sees no match even though traffic reaches the service. Either turn the
+   proxy off for this record, which makes Railway's check agree and is the
+   simpler arrangement; or keep it on and make sure Cloudflare's SSL/TLS mode
+   is **Full (strict)**, because Flexible in front of Railway produces a
+   redirect loop.
+
+   The settling test takes ten seconds: open `https://post.maqsoodlabs.com`.
+   If the old "Coming soon" page appears, it resolves and terminates TLS
+   correctly and Railway's status line is merely pedantic. I cannot run that
+   test myself: this container has no DNS tooling and its egress proxy refuses
+   the host.
 
 10. **Turn on "Wait for CI"** (check suites) for the production environment.
     It is off, so `main` deploys whether or not the tests passed. Staging is

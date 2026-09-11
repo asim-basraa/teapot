@@ -1416,18 +1416,27 @@ select pg_temp.check('there is still somebody who can administer this',
 -- A page and a grant of its own, so these assertions do not depend on what the
 -- sections above have moved, transferred or deleted.
 insert into public.nodes (id, space_id, parent_id, kind, name)
-values ('b0000000-0000-0000-0000-0000000000f1',
+values ('b0000000-0000-0000-0000-0000000000e1',
         'a0000000-0000-0000-0000-000000000001', null, 'file', 'Handover');
 
+-- Shared by carol, who owns this space by now, having been handed it in the
+-- section above. By her rather than by the superuser this file otherwise runs
+-- as, because the whole point of the next assertion is who the database
+-- thought was asking, and the answer for nobody in particular is null.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+
 insert into public.grants (node_id, grantee_type, grantee_id, role)
-values ('b0000000-0000-0000-0000-0000000000f1', 'user',
+values ('b0000000-0000-0000-0000-0000000000e1', 'user',
         '22222222-2222-2222-2222-222222222222', 'viewer');
+reset role;
 
 -- Who did it is stamped by a trigger rather than by each of the several
 -- functions that create grants, so the next one cannot forget.
 select pg_temp.check('a grant records who made it',
-  (select (granted_by is not null)::text from public.grants
-    where node_id = 'b0000000-0000-0000-0000-0000000000f1'), 'true');
+  (select granted_by::text from public.grants
+    where node_id = 'b0000000-0000-0000-0000-0000000000e1'),
+  '44444444-4444-4444-4444-444444444444');
 
 -- One function per table, and this is not a style preference. Sharing one
 -- between them plans `tg_table_name = 'grants' and new.granted_by is null` as

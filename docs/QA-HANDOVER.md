@@ -3,10 +3,136 @@
 Everything a tester needs to start, plus the things worth knowing before you
 file a bug.
 
-**This round.** The teams feature answers the two questions QA asked last round:
-see [Teams](#teams), which has both answers written out. The front page is real
-now rather than a holding page, and links show that they have been clicked. Full
-list under [Fixed since the last round](#fixed-since-the-last-round).
+**Start here.** The next section replays the two questions QA asked last round
+and answers both, with the steps to verify each. One of them describes correct
+behaviour the product failed to explain; the other was a genuine bug and is fixed.
+Reading it first will save you filing the first one again.
+
+Also this round: the front page is real rather than a holding page, and a link
+shows that it has been clicked. Full list under
+[Fixed since the last round](#fixed-since-the-last-round).
+
+---
+
+## Answers to last round's questions
+
+QA asked two questions about teams. Both were fair, and they have different
+answers: the first describes correct behaviour that the product never explained,
+and the second was a real bug. Read both before testing teams, or you will file
+the first one again and miss what was actually wrong.
+
+### 1. "If a user is added to a team but the space is not shared with that user, what is the purpose of adding them to the team?"
+
+**Verdict: working as designed. The product was wrong to leave you guessing, not
+wrong in what it did.**
+
+A team is **a name you can share with**, not a bundle of access. Adding somebody
+to a team grants them nothing at all, and that is the point.
+
+Consider the alternative. If membership carried the team's access, then adding
+one person to a team would hand them, in a single click, everything that team had
+ever been given — including pages shared with it months ago by somebody who has
+since left, which nobody present remembers. Access would arrive silently, in
+bulk, as a side effect of an administrative act. In a product whose whole subject
+is who can see what, that is the worst possible default.
+
+So the purpose of adding them first is what happens next:
+
+- Share a folder **with the team**, once, and everybody on it can read that
+  folder and everything beneath it.
+- Add a fourth person later and they get the same thing, without anybody
+  revisiting the folder.
+- Take somebody off the team and their access goes with them, in every folder
+  the team was ever given.
+
+That is the whole value: sharing once instead of five times, and revoking once
+instead of five times. Until the first share happens, a team is a list of names
+and nothing more — correctly.
+
+**What changed.** Nothing about the behaviour. What changed is that the product
+now says so, in three places:
+
+- The owner's **Teams** screen: the description no longer implies membership is
+  access, and each team carries a **What this team can reach** list. When that
+  list is empty it says "Nothing yet", explains that being on the team grants
+  nobody anything on its own, and tells you how to change it.
+- The member's **`/teams`** screen: a team with nothing shared says "Nothing has
+  been shared with this team yet, so it gives you nothing to read for the
+  moment. That is the ordinary state of a new team, not a fault."
+- This document.
+
+**How to verify.** Create a team, add somebody, share nothing. They must be able
+to see the team exists and must **not** be able to read anything in the space.
+Both screens should tell you that is expected. Then share one folder with the
+team and watch it appear for them.
+
+This is asserted at the database level too, so it cannot drift: a member of a
+team with no grants resolves to no role and no read on every node in the space.
+
+### 2. "If the user can only see a notification on the welcome screen but cannot see what is inside the team or who else has been added to the team, how is the team functionality expected to work?"
+
+**Verdict: a real gap, and it is fixed.**
+
+You were right, and the problem was worse than "a bit opaque" — it was
+asymmetric. The question this product exists to answer is *who can see what*, and
+until now:
+
+- The **space owner** could see the team, its roster, and what it reached.
+- The **people on the team** could see none of those three things.
+
+So somebody added to "QA" would find a folder appear in their list with no
+account of where it came from, no way to learn who else could read what they
+wrote in it, and a notification on the welcome screen that was not even a link.
+The one question they had — *why can I see this, and who else can?* — had an
+answer for one party and none for the other.
+
+**What changed.** A member now gets the same answer the owner does:
+
+| Before | Now |
+| --- | --- |
+| Roster readable by the space owner only | Readable by the owner **or** anybody on the team |
+| No screen for a member at all | **`/teams`**, listing every team you are on |
+| "Added to this team" notification went nowhere | It links to `/teams` |
+| No way to learn why a folder appeared | Each team lists what being on it lets you read |
+
+For each team you are on, `/teams` shows the space it belongs to, how many people
+are on it, who added you, **who else is on it**, and **what being on it lets you
+read** — each entry a link straight to the page or folder.
+
+**What deliberately did not change: seeing is not administering.** This is the
+part most worth trying to break. A member has no write of any kind:
+
+- `/spaces/<slug>/teams` is still a plain 404 for anybody but the space owner.
+- A member cannot add anybody, remove anybody, rename the team, delete it, or
+  share anything with it. Every one of those is refused with a 404.
+- Only the space owner can remove somebody from a team — including themselves.
+  A member cannot leave a team on their own. That is a known gap, listed below;
+  do not file it as a bug.
+
+**How to find it.** **Your spaces** carries a **You are on N teams** line when
+you are on any, which goes to `/teams`. So does the "added to this team" entry in
+**Shared with you**.
+
+**How to verify, including the refusals.**
+
+1. As the owner, create a team in your space and add two other people.
+2. As one of them, open `/teams`. You should see the team, the space it is in,
+   who added you, and both other names under **Who else is on it**.
+3. Still as them, try `/spaces/<slug>/teams` directly. You must get a 404 —
+   the same answer a typo gives, not a "permission denied".
+4. As the owner, share a folder with the team.
+5. Back as the member, reload `/teams`. The folder must be listed, with the role
+   it carries, and clicking it must open it.
+6. As somebody on **no** team: no **You are on N teams** line anywhere, `/teams`
+   says you are on no teams, and asking for that team's roster directly returns
+   nothing at all — not an error, nothing, which is what a team that does not
+   exist also returns.
+
+One thing to know before you file it: `/teams` shows your team-mates' email
+addresses. That is deliberate. You are on a named team together, somebody put you
+both there, and knowing who else can read what you write is exactly the thing
+this product is for. It stops at the team — it reveals nobody in the space who is
+not on a team with you.
 
 ---
 
@@ -156,9 +282,9 @@ than a decision: see the note at the end of [Shared with you](#shared-with-you).
 
 ### Teams
 
-Changed this round in response to the two questions QA asked. Read the answers
-below before testing: the first is why the old behaviour was correct, and the
-second is what was actually wrong with it.
+Changed this round. The two questions QA asked are answered in full under
+[Answers to last round's questions](#answers-to-last-rounds-questions), including
+how to verify each one; this section is the mechanics.
 
 **The owner's side.** From a space you own, the **Teams** button in the header.
 Create a team, add people by email, share a folder with the team.
@@ -178,27 +304,6 @@ added you, **who else is on it**, and **what being on it lets you read**.
 It is read-only, deliberately and completely. A member cannot add anybody,
 rename the team, or share anything with it. `/spaces/<slug>/teams` is still a
 plain 404 for anyone but the owner, and so is every write behind it.
-
-#### The two questions, answered
-
-**"If a user is added to a team but the space is not shared with that user, what
-is the purpose of adding them?"** Working as designed, and it was signposted
-badly. A team is a *name you can share with*, not a bundle of access. Joining one
-grants nothing on its own, because the alternative is worse: if membership
-carried the team's access, adding somebody to a team would silently hand them
-everything that team had ever been given, including things nobody remembered
-sharing with it. The purpose of adding them first is that the next share reaches
-everybody at once, and taking them off withdraws it again. Both screens now say
-this in words, and a team that reaches nothing says that rather than sitting
-there looking broken.
-
-**"If the user can only see a notification on the welcome screen but cannot see
-what is inside the team or who else has been added to the team, how is the team
-functionality expected to work?"** This was a real gap and is fixed. "Why can
-this person see this page" had an answer for the space owner and none at all for
-the member, who would find a folder in their list with no account of where it
-came from. `/teams` is that answer. Note what did *not* change: seeing is not
-administering, and a member still has no write of any kind.
 
 Worth checking, because it still reads oddly the first time: a new member is told
 they joined the team even though **team membership by itself grants no access to

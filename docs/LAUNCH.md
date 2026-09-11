@@ -1,5 +1,11 @@
 # Taking Post-it to production
 
+> **Progress, 11 September.** Phase 3 is done: the production database carries
+> every migration but one, and `main` is promoted and deployed. What is left is
+> in phases 1, 2 and 4, and all of it needs a dashboard. The three blocking
+> items are the signup hook, the staged Railway patch, and the Cloudflare SSL
+> mode. Each is marked **TODO** below.
+
 Written after checking the production environment rather than from memory.
 Everything here was true at the time of writing; the parts I could not read
 for myself are marked **verify**.
@@ -33,27 +39,27 @@ launch, that is the first thing a stranger reads.
 Project `postit`, `https://supabase.com/dashboard/project/ylqtvfghqfwotfhjmtgl`.
 None of this can be done from code, and none of it is visible to me.
 
-1. **Enable the signup hook. Do this first.**
+1. **TODO. Enable the signup hook. Do this first.**
    Authentication → Hooks → Before User Created →
    `public.hook_restrict_signup_by_email_domain`.
    The function is already in the database; whether the auth service calls it
    is a dashboard setting. **Until it is on, anybody on the internet can
    create an account**, because the restriction lives entirely in that hook.
 
-2. **URL configuration.** Site URL `https://post.maqsoodlabs.com`. Redirect
+2. **TODO. URL configuration.** Site URL `https://post.maqsoodlabs.com`. Redirect
    allow list must include `https://post.maqsoodlabs.com/**`. Without it,
    confirmation and invitation links bounce to the site root instead of
    landing where they should.
 
-3. **SMTP.** Authentication → Emails. Without a real sender, no confirmation
+3. **TODO. SMTP.** Authentication → Emails. Without a real sender, no confirmation
    email goes out and **you cannot create even the first account**.
 
-4. **Rate limits.** The default is thirty sign-ins and sign-ups per five
+4. **TODO. Rate limits.** The default is thirty sign-ins and sign-ups per five
    minutes per IP address. If several people will be signing in from one
    office network, raise it: an exhausted limit refuses a *correct* password
    with the same message a wrong one gets.
 
-5. **Copy the service role key**, Settings → API. Phase 2 needs it.
+5. Done. The key is already in Railway's staged patch.
 
 ---
 
@@ -62,9 +68,17 @@ None of this can be done from code, and none of it is visible to me.
 Project `postit`, service `web`,
 `https://railway.com/project/3a3f54d9-0797-4a21-8c34-2c5a6918ea47`.
 
-6. **Set `SUPABASE_SERVICE_ROLE_KEY`.** It is **not set on production today**.
-   Without it the MCP endpoint refuses every token and no invitation can be
+6. **TODO, and this is the one blocking item here. Press Deploy on the
+   production environment.** The key is entered but sits in a staged patch
+   that has never been committed, so the running service does not have it.
+   `list-variables`, which reads the live service, does not show it; the
+   dashboard does, because that view applies staged changes. Until it is
+   deployed the MCP endpoint refuses every token and no invitation can be
    sent.
+
+   I tried to commit it from here and the call timed out at the tooling layer,
+   twice on different days, applying nothing both times. It is one click in the
+   dashboard.
 
 7. **Verify the other variables.** Railway hides values from me, so these are
    yours to check: `NEXT_PUBLIC_SITE_URL` must be
@@ -72,11 +86,13 @@ Project `postit`, service `web`,
    `NEXT_PUBLIC_SUPABASE_URL` must be the `postit` project, not
    `postit-staging`; `NEXT_PUBLIC_APP_ENV` should say `production`.
 
-8. **There is a staged patch on production that has never been applied**,
-   nine changes deep. It adds the service role key and moves the deployment
-   from `sfo` to `sin`. Singapore is where the database is, so that move takes
-   a round trip out of every query. Apply it or discard it deliberately; it
-   has been sitting there since an earlier attempt timed out.
+8. **The staged patch was pointing production at the wrong branch, and is
+   now fixed.** It had been edited to build from
+   `claude/teapot-setup-requirements-ddy3n1`, a working branch stuck at an
+   early September commit, so deploying it would have rolled production back
+   by thirty commits. Its source is now `main` again. What remains in it is
+   the service role key and the move from `sfo` to `sin`, which puts the
+   application in the same region as its database.
 
 9. **The DNS for `post.maqsoodlabs.com` needs one check.** The `CNAME` to
    `bu7v20tg.up.railway.app` is in Cloudflare, confirmed. Railway still reads
@@ -106,7 +122,13 @@ Project `postit`, service `web`,
 
 ## Phase 3: promoting, which is mine to do on your word
 
-11. **Fourteen migrations to apply to the production database**: comments,
+11. **Done, 11 September.** Thirteen of the fourteen are applied and the
+    schema was verified afterwards by probing it: twelve functions, five
+    triggers, the delta columns present and the old content column gone, and
+    the `authenticated` grantee type. The fourteenth is the documentation
+    space seed, deliberately held for phase 4.
+
+    The fourteen were: comments,
     authenticated grants, sharing with everyone, the space home protection,
     the documentation space, invitations, visibility, node capabilities,
     revisions, the two rename steps, revision deltas, platform administrators,
@@ -114,8 +136,8 @@ Project `postit`, service `web`,
     is additive and old code ignores what it does not know about, while new
     code against an old database breaks immediately.
 
-12. **Merge `staging` into `main`.** Railway deploys it. I will not touch
-    `main` until you say so.
+12. **Done, 11 September.** `main` is at `6bbd0b0`, thirty commits promoted,
+    and Railway built and deployed it successfully.
 
 ---
 
@@ -124,14 +146,21 @@ Project `postit`, service `web`,
 This cannot happen before phase 3, and two seeds cannot happen before it.
 
 13. **You sign up** at `post.maqsoodlabs.com` as `asim@maqsoodlabs.com` and
-    follow the confirmation email.
+    follow the confirmation email. Blocked until phase 1 is done: without
+    SMTP there is no confirmation email to follow.
 
-14. **I run two things that were written to wait for you.** The documentation
-    space seed and the first-administrator seed both look for that address and
-    return quietly when it is absent, which is exactly what they will have
-    done during phase 3. Re-running their bodies once the account exists
-    creates `/s/postit` and makes you an administrator. Without this step
-    production has no documentation space and nobody who can reach `/admin`.
+14. **I run two things that were written to wait for you.**
+
+    The documentation space seed has deliberately **not** been applied to
+    production. It looks for that address and returns quietly when it is
+    absent, and a migration that has skipped never runs again, so applying it
+    to an empty database would have burned it. It goes in after you sign up,
+    where it does its job in one pass.
+
+    The first-administrator step did run, as part of the platform
+    administrators migration, and found nobody to promote. Once your account
+    exists I set the flag. Until then production has nobody who can reach
+    `/admin`.
 
 ---
 

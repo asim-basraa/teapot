@@ -221,8 +221,9 @@ There are now two ways, and they do the same thing:
   and failing. To take something back out to the top level, drop it on the
   **Files** header, which says "Move to the top level" while you are over it.
 - **The Move button** on the row, which opens a list of destinations. This exists
-  because a drag cannot be done from a keyboard and is miserable on a
-  touchscreen, so it is not a lesser path — it is the one that always works.
+  because a drag cannot be done from a keyboard and does not work **at all** on a
+  touchscreen — that is a limitation of drag-and-drop in browsers, not a bug to
+  file. On a phone or tablet, Move is the way, and it is not a lesser one.
 
 Worth trying to break: a folder must not be offered as a destination for itself
 or for anything inside it; where something already is must be listed but refused
@@ -610,6 +611,15 @@ Worth a second look, because these are where the bugs were.
   read but not edit answered 200 with the unmoved page. Nothing was ever moved
   that should not have been — the database refused it correctly — but the reply
   was untrue, and it is now the same 404 as every other refusal.
+- **The app works on a phone.** It had no viewport meta tag, so a phone laid the
+  page out at about 980px and scaled it down: every screen was a desktop layout
+  shrunk to illegibility, and none of the responsive rules ever applied. With
+  that fixed, the header wraps instead of running off the side, wide tables and
+  code blocks scroll inside themselves rather than dragging the page sideways,
+  and the tree's Share, Rename, Move and Delete buttons are visible without a
+  hover — a touchscreen has none, so they were unreachable. Worth a real device:
+  the automated check only proves no screen scrolls sideways at 360px, which is
+  the difference between usable and not, but says nothing about how it looks.
 - **A member of a team can see the team.** Who else is on it, and what being on
   it lets them read. Previously the owner could see all of that and the people
   on the team could see none of it. See [Teams](#teams).
@@ -649,6 +659,7 @@ behaviour differs from what is written here.
 | No email when you share with somebody who already has an account | Known. They are told in **Shared with you**; email needs a mail sender this product does not have |
 | An administrator cannot read anybody's content, only count it | Deliberate. It is the one exception this product does not make |
 | Staging is hosted in San Francisco, its database in Singapore | Known; staging is slower than production for this reason alone |
+| Dragging to move does nothing on a phone or tablet | Correct. Browser drag-and-drop is mouse-only; use the Move button |
 | Attachments and uploads | Will not be built. Images are referenced from elsewhere; diagrams are Mermaid |
 
 ---

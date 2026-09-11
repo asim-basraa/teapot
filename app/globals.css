@@ -1147,3 +1147,85 @@ a.shared-what:hover { text-decoration: underline; }
 .move-list button:disabled { color: var(--muted); cursor: default; }
 
 .move-here { color: var(--muted); font-size: 0.82rem; }
+
+/* --- Phones ---------------------------------------------------------------- */
+
+/* The app had no viewport meta at all until now, so it was never really laid out
+   for a phone: it was laid out for about 980px and scaled down. With the meta in
+   place the existing breakpoints started applying for the first time, and these
+   are the things that then turned out to be wrong.
+
+   Written mobile-last on purpose — the desktop layout is the one that works and
+   these narrow the gap, rather than a rewrite that risks both. */
+
+/* Nothing may push the page sideways. Anything genuinely wide scrolls inside its
+   own box, which the rules below arrange one case at a time. */
+html, body { max-width: 100%; overflow-x: hidden; }
+
+/* Addresses, slugs and wiki paths are the long unbroken strings in this product,
+   and a phone is narrower than several of them. */
+.prose, .space-slug, .shared-why, .team-reach-role, .my-team-addr,
+.person-email, .member-email {
+  overflow-wrap: break-word;
+}
+
+/* Never declared, so a wide image widened the page. */
+.prose img, .prose svg, .prose video { max-width: 100%; height: auto; }
+
+@media (max-width: 40rem) {
+  /* The header was one unwrapping row: brand, then an address up to 16rem wide,
+     then People, then Sign out. On a phone that is wider than the phone. */
+  .shell-header, .space-header {
+    flex-wrap: wrap;
+    row-gap: 0.6rem;
+  }
+  .shell-actions { margin-left: 0; flex-wrap: wrap; row-gap: 0.5rem; }
+  .shell-account { max-width: 100%; }
+
+  /* A table cannot be made narrow, so it is given somewhere to scroll. Only
+     here: at desktop widths the real table layout is the better one, and
+     display:block costs it. */
+  .prose table { display: block; overflow-x: auto; }
+
+  .shell { padding: 1.5rem 1rem 2.5rem; }
+  .space-shell { padding: 1.5rem 1rem 2.5rem; }
+
+  .prose h1 { font-size: 1.55rem; }
+  .prose h2 { font-size: 1.2rem; }
+
+  /* iOS zooms the whole page in when a focused field is under 16px, which then
+     leaves the layout scrolled sideways. Cheaper to meet the threshold. */
+  .input, .note-box { font-size: 16px; }
+
+  .site-footer { padding: 1rem; text-align: center; }
+}
+
+/* A touchscreen has no hover, so anything revealed by hovering does not exist.
+   The tree hid Share, Rename, Move and Delete behind :hover, which on a phone
+   meant a tree you could read and not act on: the buttons were there, invisible,
+   and no gesture would show them. */
+@media (hover: none) {
+  .tree-actions { opacity: 1; }
+  .space-rename { opacity: 1; }
+
+  /* Given the room to be hit, now that they are always on screen. */
+  .tree-actions button, .tree-header .tree-actions button {
+    padding: 0.35rem 0.5rem;
+  }
+  .tree-row { min-height: 2.2rem; }
+}
+
+@media (max-width: 48rem) {
+  /* The sidebar moves below the content when the two columns stack, and a
+     sticky box pinned 2rem from the top of the window fights the page it is
+     now underneath. */
+  .tree { position: static; }
+}
+
+/* The tree row is a name and up to four buttons. Below this width the buttons
+   win and the name is the only part anybody reads, so they go underneath it. */
+@media (max-width: 30rem) {
+  .tree-row { flex-wrap: wrap; row-gap: 0.15rem; }
+  .tree-name { flex: 1 1 100%; }
+  .tree-actions { flex: 0 0 auto; }
+}

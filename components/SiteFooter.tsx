@@ -20,7 +20,7 @@ export function SiteFooter() {
       </span>
       <span aria-hidden="true">·</span>
       <button type="button" className="linkish" onClick={() => setOpen(true)}>
-        Tell me something
+        Tell me a joke
       </button>
 
       {open ? <Note onClose={() => setOpen(false)} /> : null}
@@ -65,11 +65,11 @@ function Note({ onClose }: { onClose: () => void }) {
     <dialog
       className="share-dialog note-dialog"
       ref={dialog}
-      aria-label="Tell me something"
+      aria-label="Tell me a joke"
       onClose={onClose}
     >
       <div className="share-head">
-        <h2>Tell me something</h2>
+        <h2>Tell me a joke</h2>
         <button
           className="btn btn-secondary btn-small"
           type="button"

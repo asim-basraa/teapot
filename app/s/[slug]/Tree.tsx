@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import type { TreeNode } from "@/lib/nodes";
 import { ShareDialog } from "./Share";
+import { MoveDialog } from "./Move";
 import { Pending } from "@/components/NavLink";
 
 type Props = {
@@ -39,6 +40,10 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [moving, setMoving] = useState<TreeNode | null>(null);
+  const [dragging, setDragging] = useState<TreeNode | null>(null);
+  /** The id being hovered, or "" for the top level. Null when nothing is. */
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
   // One dialog for the whole tree rather than one per row: a sidebar with a
   // hundred pages should not mount a hundred dialogs to show none of them.
   const [sharing, setSharing] = useState<TreeNode | null>(null);
@@ -114,6 +119,53 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
     );
   };
 
+  /**
+   * Moves a node under a new parent, or to the top level with null.
+   *
+   * The whole thing was already here except the way to ask for it: the endpoint,
+   * the database function that rewrites every descendant's path, and the refusal
+   * to make a folder its own ancestor. The tree offered Rename and Delete and no
+   * way to move anything, while this file's own settle() had a comment about
+   * carrying the reader to a moved node's new path. QA found it before anybody
+   * else did.
+   */
+  const move = (node: TreeNode, parentId: string | null) => {
+    setMoving(null);
+    if (node.parent_id === parentId) return;
+
+    const oldPath = node.path;
+    void run(
+      api(`/api/v1/nodes/${node.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ parent_id: parentId }),
+      }),
+      (result) => settle(oldPath, result.node?.path ?? null),
+    );
+  };
+
+  /**
+   * Whether a node may be dropped on a destination.
+   *
+   * Only folders hold things, nothing is dropped on itself or on the parent it
+   * already has, and a folder may not be dropped inside itself — the last one is
+   * the only interesting case, and the database refuses it too.
+   */
+  const canDrop = (node: TreeNode, target: TreeNode | null) => {
+    if (!canEdit) return false;
+    if (target === null) return node.parent_id !== null;
+    if (target.kind !== "folder") return false;
+    if (target.id === node.id) return false;
+    if (target.id === node.parent_id) return false;
+    return !contains(node, target.id);
+  };
+
+  const drop = (target: TreeNode | null) => {
+    const node = dragging;
+    setDragging(null);
+    setDropTarget(null);
+    if (node && canDrop(node, target)) move(node, target?.id ?? null);
+  };
+
   const rename = (node: TreeNode) => {
     const name = window.prompt("New name", node.name)?.trim();
     if (!name || name === node.name) return;
@@ -141,8 +193,24 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
 
   return (
     <nav className="tree" aria-label="Files">
-      <div className="tree-header">
-        <span>Files</span>
+      <div
+        className={
+          dropTarget === "" ? "tree-header is-drop-target" : "tree-header"
+        }
+        onDragOver={(e) => {
+          if (!dragging || !canDrop(dragging, null)) return;
+          e.preventDefault();
+          setDropTarget("");
+        }}
+        onDragLeave={() => setDropTarget(null)}
+        onDrop={(e) => {
+          e.preventDefault();
+          drop(null);
+        }}
+      >
+        {/* The header doubles as the way out of a folder: with nothing else at
+            the top level there would be nothing to drop onto. */}
+        <span>{dropTarget === "" ? "Move to the top level" : "Files"}</span>
         {canEdit ? (
           <span className="tree-actions">
             <button
@@ -189,10 +257,30 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
           onRename={rename}
           onDelete={remove}
           onShare={setSharing}
+          onMoveRequest={setMoving}
+          dragging={dragging}
+          dropTarget={dropTarget}
+          canDrop={canDrop}
+          onDragStart={setDragging}
+          onDragEnd={() => {
+            setDragging(null);
+            setDropTarget(null);
+          }}
+          onDragEnterNode={setDropTarget}
+          onDropNode={drop}
         />
       )}
 
       {pending ? <p className="tree-pending">Updating…</p> : null}
+
+      {moving ? (
+        <MoveDialog
+          node={moving}
+          tree={tree}
+          onMove={move}
+          onClose={() => setMoving(null)}
+        />
+      ) : null}
 
       {sharing ? (
         <ShareDialog
@@ -216,6 +304,14 @@ function TreeLevel({
   onRename,
   onDelete,
   onShare,
+  onMoveRequest,
+  dragging,
+  dropTarget,
+  canDrop,
+  onDragStart,
+  onDragEnd,
+  onDragEnterNode,
+  onDropNode,
 }: {
   nodes: TreeNode[];
   spaceSlug: string;
@@ -226,6 +322,14 @@ function TreeLevel({
   onRename: (node: TreeNode) => void;
   onDelete: (node: TreeNode) => void;
   onShare: (node: TreeNode) => void;
+  onMoveRequest: (node: TreeNode) => void;
+  dragging: TreeNode | null;
+  dropTarget: string | null;
+  canDrop: (node: TreeNode, target: TreeNode | null) => boolean;
+  onDragStart: (node: TreeNode) => void;
+  onDragEnd: () => void;
+  onDragEnterNode: (id: string) => void;
+  onDropNode: (target: TreeNode) => void;
 }) {
   return (
     <ul
@@ -236,15 +340,49 @@ function TreeLevel({
         const href = `/s/${spaceSlug}/${node.path}`;
         const current = pathname === href;
 
+        const receiving = dropTarget === node.id && dragging !== null;
+        const lifted = dragging?.id === node.id;
+
         return (
           <li key={node.id} className={`tree-item tree-${node.kind}`}>
-            <div className="tree-row">
+            <div
+              className={
+                "tree-row" +
+                (receiving ? " is-drop-target" : "") +
+                (lifted ? " is-dragging" : "") +
+                (canEdit ? " is-draggable" : "")
+              }
+              draggable={canEdit}
+              onDragStart={(e) => {
+                // Carried so a drop outside the tree does something sensible
+                // rather than nothing: the state below is what this tree reads.
+                e.dataTransfer.setData("text/plain", node.name);
+                e.dataTransfer.effectAllowed = "move";
+                onDragStart(node);
+              }}
+              onDragEnd={onDragEnd}
+              onDragOver={(e) => {
+                if (!dragging || !canDrop(dragging, node)) return;
+                // preventDefault is what makes this a drop target at all, so
+                // refusing it is how an illegal destination declines the drop.
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                onDragEnterNode(node.id);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                onDropNode(node);
+              }}
+            >
               {/* A folder is a link like anything else. It was a bare label,
                   which meant a folder was the one thing in the tree you could
                   not open, and therefore the one thing you could not share:
                   the sharing controls live on the page you are looking at. */}
               <Link
                 href={href}
+                // Otherwise the browser drags the URL and the row never gets a
+                // chance: a link is draggable by default.
+                draggable={false}
                 className={
                   node.kind === "folder"
                     ? "tree-name tree-folder-name"
@@ -289,6 +427,13 @@ function TreeLevel({
                       </button>
                       <button
                         type="button"
+                        onClick={() => onMoveRequest(node)}
+                        aria-label={`Move ${node.name}`}
+                      >
+                        Move
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => onDelete(node)}
                         aria-label={`Delete ${node.name}`}
                       >
@@ -311,6 +456,14 @@ function TreeLevel({
                 onRename={onRename}
                 onDelete={onDelete}
                 onShare={onShare}
+                onMoveRequest={onMoveRequest}
+                dragging={dragging}
+                dropTarget={dropTarget}
+                canDrop={canDrop}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+                onDragEnterNode={onDragEnterNode}
+                onDropNode={onDropNode}
               />
             ) : null}
           </li>
@@ -318,4 +471,9 @@ function TreeLevel({
       })}
     </ul>
   );
+}
+
+/** Whether `id` is anywhere beneath `node`. Stops a folder becoming its own parent. */
+function contains(node: TreeNode, id: string): boolean {
+  return node.children.some((child) => child.id === id || contains(child, id));
 }

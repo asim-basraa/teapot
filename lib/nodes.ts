@@ -237,8 +237,26 @@ async function callMoveNode(
 ): Promise<NodeResult> {
   const supabase = await createClient();
 
-  const { error } = await supabase.rpc("move_node", args);
+  const { data: moved, error } = await supabase.rpc("move_node", args);
   if (error) return translate(error);
+
+  // move_node is SECURITY INVOKER, so a caller who may read a node but not edit
+  // it does not trip a check inside the function: they trip RLS on the UPDATE,
+  // which changes no rows, raises nothing, and leaves the function returning a
+  // row of nulls. Ignoring that return meant the read-back below found the node
+  // — readable, and unmoved — and the endpoint answered 200, which a client
+  // could not tell from a move that worked. The data was never at risk; the
+  // answer was simply untrue.
+  //
+  // Shape-tolerant on purpose, for the reason in the comment above: how
+  // PostgREST renders a single composite is not something to depend on.
+  const row = (Array.isArray(moved) ? moved[0] : moved) as
+    | { id: string | null }
+    | null
+    | undefined;
+  if (!row || row.id === null) {
+    return { ok: false, error: "Not found.", status: 404 };
+  }
 
   const { data, error: readError } = await supabase
     .from("nodes")

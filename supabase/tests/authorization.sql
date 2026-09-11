@@ -621,6 +621,64 @@ delete from public.teams where id = 'c0000000-0000-0000-0000-00000000000b';
 select pg_temp.check('and the fixture leaves no team grant behind',
   (select count(*)::text from public.grants where grantee_type = 'team'), '0');
 
+-- Moving a node --------------------------------------------------------------
+--
+-- move_node is SECURITY INVOKER, so a viewer does not trip a check inside it:
+-- they trip RLS on the UPDATE, which changes nothing and raises nothing. The
+-- node stays where it is, which is the part that matters, and the function hands
+-- back a row of nulls, which is how the caller is supposed to tell. The endpoint
+-- used to ignore that and answer 200 with the unmoved node.
+
+set local role authenticated;
+
+-- Alice holds viewer on the deep file and nothing else by now.
+select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+
+select pg_temp.check('a viewer moving a node changes nothing and says so',
+  (public.move_node('b0000000-0000-0000-0000-000000000003', null, null, true)).id::text,
+  null);
+
+reset role;
+
+select pg_temp.check('and the node is exactly where it was',
+  (select path from public.nodes where id = 'b0000000-0000-0000-0000-000000000003'),
+  'projects/deep/note');
+
+-- The owner may, and everything beneath comes with it.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+
+select pg_temp.check('the owner moves a folder to the top level',
+  (public.move_node('b0000000-0000-0000-0000-000000000002', null, null, true)).path,
+  'deep');
+
+select pg_temp.check('and its descendants follow, with new addresses',
+  (select path from public.nodes where id = 'b0000000-0000-0000-0000-000000000003'),
+  'deep/note');
+
+-- A folder cannot become its own ancestor: without this the subtree is orphaned
+-- from the root and unreachable by anybody, owner included.
+do $$
+begin
+  begin
+    perform public.move_node(
+      'b0000000-0000-0000-0000-000000000002',
+      'b0000000-0000-0000-0000-000000000003', null, true);
+    raise exception 'FAIL: a folder was moved inside its own subtree';
+  exception when sqlstate 'P0001' then
+    if sqlerrm like 'FAIL:%' then raise; end if;  -- refused, as it must be
+  end;
+end $$;
+
+-- Put it back, so the sections below find the tree they expect.
+select public.move_node('b0000000-0000-0000-0000-000000000002',
+  'b0000000-0000-0000-0000-000000000001', null, true);
+reset role;
+
+select pg_temp.check('and moving it back restores every address',
+  (select path from public.nodes where id = 'b0000000-0000-0000-0000-000000000003'),
+  'projects/deep/note');
+
 -- Search ---------------------------------------------------------------------
 --
 -- Search is the easiest place in a product like this to leak: an index built

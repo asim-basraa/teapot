@@ -861,8 +861,15 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 
 /* The account link in the header. The address is the label, because "which of
    my accounts is this?" is a question this product invites constantly. */
+/* Underlined, because it did not look like a link and so nobody clicked it.
+   It was styled as a label — muted, undecorated — which is what it reads as,
+   and the way to your own account was therefore invisible. The truncation stays:
+   a long address must not push the sign-out button off the row. */
 .shell-account {
-  color: var(--muted); font-size: 0.82rem; text-decoration: none;
+  color: var(--accent); font-size: 0.82rem;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
   max-width: 16rem; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -923,7 +930,14 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 
 /* People ------------------------------------------------------------------ */
 
-.shell-admin { color: var(--muted); text-decoration: none; font-size: 0.88rem; }
+/* Same treatment as .shell-account, and for the same reason: it sits in the same
+   row and was equally invisible as a link. */
+.shell-admin {
+  color: var(--accent); font-size: 0.88rem;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
 .shell-admin:hover { color: var(--text); }
 
 /* A table is the right shape for this and the wrong shape for a phone, so it
@@ -1094,3 +1108,42 @@ a.shared-what:hover { text-decoration: underline; }
 .my-team-addr { color: var(--muted); font-size: 0.82rem; margin-left: 0.5rem; }
 
 .back { margin-top: 2.5rem; font-size: 0.92rem; }
+
+/* --- Moving things about --------------------------------------------------- */
+
+/* The tree had no way to move anything, so none of this existed. The grab cursor
+   is the only hint that a row can be dragged at all, which is why the Move
+   button exists beside it rather than instead of it. */
+.tree-row.is-draggable { cursor: grab; }
+.tree-row.is-draggable:active { cursor: grabbing; }
+
+/* Half-faded, so it is clear which row is in the air. */
+.tree-row.is-dragging { opacity: 0.4; }
+
+/* The destination, outlined rather than filled: a fill on a row this small
+   swallows the name, and the name is the part being aimed at. */
+.tree-row.is-drop-target,
+.tree-header.is-drop-target {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+.move-dialog { width: min(28rem, calc(100vw - 2rem)); }
+
+.move-list {
+  list-style: none; margin: 1rem 0 0; padding: 0;
+  max-height: 22rem; overflow-y: auto;
+}
+
+.move-list button {
+  display: block; width: 100%; text-align: left;
+  background: none; border: 0; border-top: 1px solid var(--border);
+  padding: 0.6rem 0.25rem; font: inherit; color: var(--text);
+  cursor: pointer;
+}
+.move-list li:last-child button { border-bottom: 1px solid var(--border); }
+.move-list button:hover:not(:disabled) { color: var(--accent); }
+.move-list button:disabled { color: var(--muted); cursor: default; }
+
+.move-here { color: var(--muted); font-size: 0.82rem; }

@@ -206,7 +206,28 @@ old password must then be refused at sign-in and the new one accepted.
 ### Spaces and pages
 
 Create a space, and it comes with a welcome page. Inside, build folders and
-pages, rename them, drag them about, delete them.
+pages, rename them, move them about, delete them.
+
+**Moving, new this round, and QA was right about it.** The last document said you
+could drag things about and you could not: moving was fully built underneath —
+the endpoint, the rewriting of every descendant's address, the refusal to make a
+folder its own ancestor — and nothing in the tree ever asked for it. That was a
+documentation bug on my side, not a misreading on yours.
+
+There are now two ways, and they do the same thing:
+
+- **Drag a row** onto a folder. The row you are dragging fades, the destination
+  is outlined, and illegal destinations refuse the drop rather than accepting it
+  and failing. To take something back out to the top level, drop it on the
+  **Files** header, which says "Move to the top level" while you are over it.
+- **The Move button** on the row, which opens a list of destinations. This exists
+  because a drag cannot be done from a keyboard and is miserable on a
+  touchscreen, so it is not a lesser path — it is the one that always works.
+
+Worth trying to break: a folder must not be offered as a destination for itself
+or for anything inside it; where something already is must be listed but refused
+rather than being a move that silently does nothing; and everything inside a
+moved folder must come with it, with its address changed to match.
 
 The space's own front page is not one of the files: it has its own link above
 the tree, and it is renamed by renaming the space. Renaming the space changes
@@ -581,6 +602,14 @@ Worth a second look, because these are where the bugs were.
 - **The MCP endpoint stopped throttling clients that were doing nothing
   wrong.** Its failure budget counted every request rather than every refusal,
   so a Claude filing a folder of documents ran into a 429 after twenty calls.
+- **You can move pages and folders.** The tree offered Rename and Delete and no
+  way to move anything, while the last handover claimed you could drag things
+  about. Both a drag and a Move button now exist. See
+  [Spaces and pages](#spaces-and-pages).
+- **A refused move used to report success.** Asking to move something you may
+  read but not edit answered 200 with the unmoved page. Nothing was ever moved
+  that should not have been — the database refused it correctly — but the reply
+  was untrue, and it is now the same 404 as every other refusal.
 - **A member of a team can see the team.** Who else is on it, and what being on
   it lets them read. Previously the owner could see all of that and the people
   on the team could see none of it. See [Teams](#teams).
@@ -612,6 +641,7 @@ behaviour differs from what is written here.
 | No standalone invite screen; you are invited by being shared something | Deliberate for now. Sharing with an unknown address invites it |
 | The Claude apps need the token in the URL | Stopgap. OAuth on the MCP endpoint is the replacement and is not built |
 | A restore puts back content and type, never the name or the position | Deliberate. A name is part of the address; moving is the tree's job |
+| A viewer cannot move anything | Correct. Moving needs edit, and the refusal is a 404 like every other |
 | Production is behind staging | Deliberate. Staging is where this round is tested, and this round's team changes are not on production |
 | A member cannot leave a team themselves | Known. Only the space owner can remove somebody. Report it as a gap, not a bug |
 | `/teams` shows team-mates' email addresses | Deliberate. You are on a named team together and knowing who else can read what you write is the point |

@@ -37,6 +37,8 @@ test.describe("Reading a page", () => {
   let ctx: BrowserContext;
   let page: Page;
   let href: string;
+  /** Read once in setup: a test must not depend on where the last one left off. */
+  let spaceId: string;
 
   test.beforeAll(async ({ browser }) => {
     ctx = await browser.newContext();
@@ -44,7 +46,7 @@ test.describe("Reading a page", () => {
     await registerAndConfirm(page, READER, PASSWORD);
     await createSpace(page, "Reading Space", SPACE);
 
-    const spaceId = (await page
+    spaceId = (await page
       .locator(".space-shell")
       .getAttribute("data-space-id")) as string;
 
@@ -130,10 +132,6 @@ test.describe("Reading a page", () => {
   });
 
   test("offers no contents for a page with nothing to list", async () => {
-    const spaceId = (await page
-      .locator(".space-shell")
-      .getAttribute("data-space-id")) as string;
-
     const created = await page.request.post("/api/v1/nodes", {
       data: { space_id: spaceId, kind: "file", name: "Short Note" },
     });

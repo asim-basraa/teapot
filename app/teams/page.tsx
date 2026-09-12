@@ -43,16 +43,16 @@ export default async function MyTeamsPage() {
 
       <h1>Your teams</h1>
       <p className="lede">
-        Teams somebody has put you on, and what each one lets you reach. Being on
-        a team is not access in itself: it is a name that pages can be shared
-        with, so that sharing once reaches everybody on it at once. You can
-        share your own pages with any team you are on.
+        Teams you made or somebody put you on, and what each one lets you reach.
+        Being on a team is not access in itself: it is a name that pages can be
+        shared with, so that sharing once reaches everybody on it at once. You
+        can share your own pages with any team you are on.
       </p>
 
       {teams.length === 0 ? (
         <p className="empty">
           You are not on any teams. Nothing is missing: most sharing is done
-          person by person, and only the owner of a space can put you on a team.
+          person by person. Make one in a space you own, and you will be on it.
         </p>
       ) : (
         <ul className="my-teams">
@@ -69,7 +69,11 @@ export default async function MyTeamsPage() {
                   {team.member_count === 1
                     ? "You are the only person on it"
                     : `${team.member_count} people on it`}
-                  {team.added_by ? ` · added by ${team.added_by}` : null}
+                  {/* "added by you" answers nothing. The line exists to tell
+                      somebody who put them on a team they did not join. */}
+                  {team.added_by && team.added_by !== user.email
+                    ? ` · added by ${team.added_by}`
+                    : null}
                 </p>
 
                 {items.length === 0 ? (

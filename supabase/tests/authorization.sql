@@ -345,8 +345,13 @@ select pg_temp.check('the owner adds a member by email',
 select pg_temp.check('adding again changes the team role rather than failing',
   (public.add_team_member('c0000000-0000-0000-0000-000000000001','carol@test.local','manager')).role::text,
   'manager');
+-- Three: bob, carol, and the owner, who is on it because they made it.
 select pg_temp.check('the owner sees the whole roster',
-  (select count(*)::text from public.team_roster('c0000000-0000-0000-0000-000000000001')), '2');
+  (select count(*)::text from public.team_roster('c0000000-0000-0000-0000-000000000001')), '3');
+select pg_temp.check('and is on their own team without having added themselves',
+  (select role::text from public.team_roster('c0000000-0000-0000-0000-000000000001')
+    where user_id = '11111111-1111-1111-1111-111111111111'),
+  'manager');
 
 -- A team you have nothing to do with may not be named. The rule is no longer
 -- "a team from this space" but "a team you can see", and the owner is neither
@@ -423,7 +428,7 @@ select pg_temp.check('and the grant row is gone, not orphaned',
 -- the team, and it does not reach anybody else.
 
 insert into public.nodes (id, space_id, parent_id, kind, name, content) values
-  ('b0000000-0000-0000-0000-000000000006','a0000000-0000-0000-0000-000000000001',
+  ('b0000000-0000-0000-0000-0000000000c7','a0000000-0000-0000-0000-000000000001',
    null,'file','Cross','# cross');
 
 set local role authenticated;
@@ -432,7 +437,7 @@ select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-11111111
 select pg_temp.check('a team you are not on and do not administer is not grantable',
   public.can_grant_to_team('c0000000-0000-0000-0000-000000000002')::text, 'false');
 select pg_temp.check('so the picker does not offer it',
-  (select count(*)::text from public.grantable_teams('b0000000-0000-0000-0000-000000000006')),
+  (select count(*)::text from public.grantable_teams('b0000000-0000-0000-0000-0000000000c7')),
   '0');
 
 -- Carol owns the space Outsiders lives in, so the roster is hers to change.
@@ -444,12 +449,12 @@ select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-11111111
 select pg_temp.check('being on a team makes it grantable',
   public.can_grant_to_team('c0000000-0000-0000-0000-000000000002')::text, 'true');
 select pg_temp.check('and the picker offers it, marked as living elsewhere',
-  (select same_space::text from public.grantable_teams('b0000000-0000-0000-0000-000000000006')
+  (select same_space::text from public.grantable_teams('b0000000-0000-0000-0000-0000000000c7')
     where team_id = 'c0000000-0000-0000-0000-000000000002'),
   'false');
 select pg_temp.check('a page can be shared with a team from another space',
   (public.grant_to_team(
-     'b0000000-0000-0000-0000-000000000006',
+     'b0000000-0000-0000-0000-0000000000c7',
      'c0000000-0000-0000-0000-000000000002',
      'viewer')).role::text,
   'viewer');
@@ -460,7 +465,7 @@ do $$
 begin
   begin
     perform public.grant_to_team(
-      'b0000000-0000-0000-0000-000000000006', gen_random_uuid(), 'viewer');
+      'b0000000-0000-0000-0000-0000000000c7', gen_random_uuid(), 'viewer');
     raise exception 'FAIL: a grant was written naming a team that does not exist';
   exception when sqlstate 'P0001' then raise;
        when others then null;  -- refused, as it must be
@@ -470,22 +475,38 @@ end $$;
 reset role;
 
 select pg_temp.check('somebody on no relevant team still cannot read it',
-  public.can_read('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-000000000006')::text,
+  public.can_read('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-0000000000c7')::text,
   'false');
--- The one that matters most. Carol decides who is on Outsiders, and that is a
--- real thing to accept when sharing with it, but administering the team is not
--- the same as being on it and does not by itself let her read this.
-select pg_temp.check('and administering the team is not being on it',
-  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000006')::text,
+-- Carol made Outsiders, so she is on it, and a page shared with the team
+-- reaches her exactly as it reaches anybody else on it. That is the real thing
+-- being accepted when you share with somebody else's team: she decides who is
+-- on it, and she is one of them.
+select pg_temp.check('the team''s creator reads it, being on the team',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-0000000000c7')::text,
+  'true');
+
+-- And the property underneath it: membership is what reaches, not
+-- administration. Carol still runs the team after taking herself off it, and
+-- the reading goes with the membership.
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+select public.remove_team_member(
+  'c0000000-0000-0000-0000-000000000002','44444444-4444-4444-4444-444444444444');
+select pg_temp.check('but she still administers it after leaving',
+  public.can_grant_to_team('c0000000-0000-0000-0000-000000000002')::text, 'true');
+reset role;
+
+select pg_temp.check('and leaving her own team takes the reading with it',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-0000000000c7')::text,
   'false');
 
 insert into public.team_members (team_id, user_id) values
   ('c0000000-0000-0000-0000-000000000002','33333333-3333-3333-3333-333333333333');
 select pg_temp.check('a member of it reads across the space boundary',
-  public.can_read('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-000000000006')::text,
+  public.can_read('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-0000000000c7')::text,
   'true');
 select pg_temp.check('with the role the grant carried and no more',
-  public.can_edit('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-000000000006')::text,
+  public.can_edit('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-0000000000c7')::text,
   'false');
 
 -- Torn down so later sections see the access they expect. Two of them assert
@@ -494,7 +515,7 @@ select pg_temp.check('with the role the grant carried and no more',
 -- take it away.
 delete from public.teams where id = 'c0000000-0000-0000-0000-000000000002';
 select pg_temp.check('deleting the borrowed team takes its reach with it',
-  public.can_read('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-000000000006')::text,
+  public.can_read('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-0000000000c7')::text,
   'false');
 
 -- Publishing -----------------------------------------------------------------
@@ -610,10 +631,11 @@ select pg_temp.check('a member sees only their own membership row',
 -- anywhere in the product. Being put on a named team together is the consent. It
 -- stops at the team: a stranger still gets nothing, asserted below.
 select pg_temp.check('a member reads the roster of a team they are on',
-  (select count(*)::text from public.team_roster('c0000000-0000-0000-0000-00000000000a')), '1');
-select pg_temp.check('and it is themselves they find on it',
-  (select email from public.team_roster('c0000000-0000-0000-0000-00000000000a')),
-  'bob@test.local');
+  (select count(*)::text from public.team_roster('c0000000-0000-0000-0000-00000000000a')), '2');
+select pg_temp.check('and finds themselves on it, next to whoever made it',
+  (select string_agg(email, ', ' order by email)
+   from public.team_roster('c0000000-0000-0000-0000-00000000000a')),
+  'bob@test.local, owner@test.local');
 
 -- Alice owns nothing and is on nothing, so she is the honest stranger here.
 select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
@@ -654,10 +676,11 @@ select pg_temp.check('a member sees every team they are on',
 -- real, have people on it, and grant nothing. That is not a fault.
 select pg_temp.check('a team nothing has been shared with reaches nothing',
   (select reach_count::text from public.my_teams() where team_name = 'Reach Check'), '0');
+-- Two: bob, and the owner, who is on it by virtue of having made it.
 select pg_temp.check('and says how many people are on it regardless',
-  (select member_count::text from public.my_teams() where team_name = 'Reach Check'), '1');
+  (select member_count::text from public.my_teams() where team_name = 'Reach Check'), '2');
 
--- Now share something with it, as the owner, who is the only one who can.
+-- Now share something with it, as the owner.
 reset role;
 set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
@@ -693,8 +716,9 @@ begin
        when others then null;  -- refused, as it must be
   end;
 end $$;
+-- Still two, so the attempt above changed nothing: bob and the owner.
 select pg_temp.check('a member cannot add anybody to their own team',
-  (select count(*)::text from public.team_roster('c0000000-0000-0000-0000-00000000000b')), '1');
+  (select count(*)::text from public.team_roster('c0000000-0000-0000-0000-00000000000b')), '2');
 
 -- Alice is on neither team and owns nothing.
 select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);

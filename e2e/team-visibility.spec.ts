@@ -223,12 +223,16 @@ test.describe("Seeing the team you are on", () => {
     await expect(card.locator(".team-reach-list")).toContainText("Handover");
   });
 
-  test("but reaches nobody else, and the team's own owner least of all", async () => {
-    // The step the widening must not have taken. Sharing with a team reaches
-    // the people on it. The person who administers the roster decides who those
-    // people are, which is the real thing being accepted, but that is not the
-    // same as being one of them.
-    expect((await owner.goto(`/s/${MEMBER_SPACE}/handover`))?.status()).toBe(404);
+  test("including whoever made the team, who is on it", async () => {
+    // Making a team puts you on it, so a page shared with the team reaches you
+    // like anybody else on it. That is the real thing being accepted when you
+    // share with somebody else's team: they decide who is on it, and they are
+    // one of them. They can take themselves off, and the reading goes too.
+    await owner.goto(`/s/${MEMBER_SPACE}/handover`);
+    await expect(owner.locator("h1")).toContainText("Handover");
+  });
+
+  test("but reaches nobody else at all", async () => {
     expect(
       (await stranger.goto(`/s/${MEMBER_SPACE}/handover`))?.status(),
     ).toBe(404);

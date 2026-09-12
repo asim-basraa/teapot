@@ -237,4 +237,54 @@ test.describe("Being in a space", () => {
       owner.locator(".tree").getByRole("link", { name: "Member Started This" }),
     ).toBeVisible();
   });
+
+  test("and the owner can send their work home rather than destroy it", async () => {
+    // The other half of deleting belonging to the author. The owner could not
+    // remove a member's page from their own space at all, which is the gap this
+    // closes: not by letting them delete it, but by sending it back.
+    await owner.goto(`/s/${SPACE}`);
+
+    const theirs = owner.locator(".tree-row", {
+      hasText: "Member Started This",
+    });
+    await theirs
+      .getByRole("button", { name: "More for Member Started This" })
+      .click();
+    await theirs
+      .getByRole("menuitem", {
+        name: "Remove Member Started This from this space",
+      })
+      .click();
+
+    const confirming = owner.getByRole("dialog", {
+      name: "Remove Member Started This from this space?",
+    });
+    // The word reads like deleting, so the dialog says plainly that it is not.
+    await expect(confirming).toContainText("Nothing is deleted");
+    await confirming.getByRole("button", { name: "Remove from space" }).click();
+
+    await expect(
+      owner.locator(".tree").getByRole("link", { name: "Member Started This" }),
+    ).toHaveCount(0);
+    expect(
+      (await owner.goto(`/s/${SPACE}/member-started-this`))?.status(),
+    ).toBe(404);
+  });
+
+  test("and the author has it back, in a space of their own", async () => {
+    // They owned no space, so one was made for them. Being sent home is only
+    // meaningful if there is a home.
+    await member.goto("/spaces");
+    await expect(
+      member.getByRole("link", { name: "Member Started This" }),
+    ).toHaveCount(0);
+
+    const space = member.locator(".space-list a").first();
+    await expect(space).toBeVisible();
+    await space.click();
+
+    await expect(
+      member.locator(".tree").getByRole("link", { name: "Member Started This" }),
+    ).toBeVisible();
+  });
 });

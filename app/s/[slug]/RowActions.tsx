@@ -27,10 +27,12 @@ export function RowActions({
   canEdit,
   canDelete,
   canShare,
+  canEvict,
   onShare,
   onRename,
   onMove,
   onDelete,
+  onEvict,
 }: {
   node: TreeNode;
   canEdit: boolean;
@@ -40,15 +42,18 @@ export function RowActions({
    */
   canDelete: boolean;
   canShare: boolean;
+  /** Whether this is somebody else's work in a space you own. */
+  canEvict: boolean;
   onShare: (node: TreeNode) => void;
   onRename: (node: TreeNode) => void;
   onMove: (node: TreeNode) => void;
   onDelete: (node: TreeNode) => void;
+  onEvict: (node: TreeNode) => void;
 }) {
   const menu = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
 
-  if (!canShare && !canEdit && !canDelete) return null;
+  if (!canShare && !canEdit && !canDelete && !canEvict) return null;
 
   const menuId = `row-menu-${node.id}`;
 
@@ -96,7 +101,7 @@ export function RowActions({
         </button>
       ) : null}
 
-      {canEdit ? (
+      {canEdit || canEvict ? (
         <>
           <button
             ref={trigger}
@@ -124,22 +129,40 @@ export function RowActions({
               }
             }}
           >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => choose(onRename)}
-              aria-label={`Rename ${node.name}`}
-            >
-              Rename
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => choose(onMove)}
-              aria-label={`Move ${node.name}`}
-            >
-              Move
-            </button>
+            {canEdit ? (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => choose(onRename)}
+                  aria-label={`Rename ${node.name}`}
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => choose(onMove)}
+                  aria-label={`Move ${node.name}`}
+                >
+                  Move
+                </button>
+              </>
+            ) : null}
+
+            {/* Not destructive, and not styled as though it were: the page
+                survives somewhere else. It is only ever offered on work that
+                is somebody else's, in a space you own. */}
+            {canEvict ? (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => choose(onEvict)}
+                aria-label={`Remove ${node.name} from this space`}
+              >
+                Remove from space
+              </button>
+            ) : null}
             {canDelete ? (
               <button
                 type="button"

@@ -20,6 +20,8 @@ export type NodeRights = {
   may_edit: boolean;
   may_delete: boolean;
   may_share: boolean;
+  /** Whether this could be sent back to its author's own space. */
+  may_evict: boolean;
 };
 
 export type NodeResult =
@@ -81,6 +83,7 @@ export async function listNodeRights(
       may_edit: row.may_edit,
       may_delete: row.may_delete,
       may_share: row.may_share,
+      may_evict: row.may_evict,
     });
   }
   return rights;
@@ -466,6 +469,43 @@ export async function deleteNode(
     return { ok: false, error: "Not found.", status: 404 };
   }
   return { ok: true };
+}
+
+/**
+ * Sends a node back to its author's own space.
+ *
+ * Not a deletion, and the difference is the whole point: the work survives with
+ * its author and its history, and what it loses is this space and everybody who
+ * was reaching it through this space.
+ */
+export async function evictNode(
+  nodeId: string,
+): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("evict_node", { p_node_id: nodeId });
+
+  if (!error) return { ok: true };
+
+  // The one refusal worth explaining. An account being gone takes its
+  // authorship with it, and there is then nowhere to send the page back to.
+  if (/nobody to send it back to/i.test(error.message)) {
+    return {
+      ok: false,
+      error:
+        "Whoever wrote this no longer has an account, so there is nowhere to send it back to. You can delete it instead.",
+      status: 409,
+    };
+  }
+
+  if (/your own work/i.test(error.message)) {
+    return {
+      ok: false,
+      error: "This is your own work, in your own space.",
+      status: 409,
+    };
+  }
+
+  return { ok: false, error: "Not found.", status: 404 };
 }
 
 /**

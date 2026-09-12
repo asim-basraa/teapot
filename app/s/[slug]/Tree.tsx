@@ -57,6 +57,7 @@ export function Tree({ spaceSlug, spaceId, tree, rights, canStart }: Props) {
     | { kind: "create"; nodeKind: "folder" | "file"; contentType?: "article" | "skill"; parentId: string | null }
     | { kind: "rename"; node: TreeNode }
     | { kind: "delete"; node: TreeNode }
+    | { kind: "evict"; node: TreeNode }
     | null
   >(null);
   const [dragging, setDragging] = useState<TreeNode | null>(null);
@@ -110,6 +111,20 @@ export function Tree({ spaceSlug, spaceId, tree, rights, canStart }: Props) {
     else refresh();
   }
 
+  /**
+   * Sends somebody else's work back to their own space.
+   *
+   * Offered only where the database already says it is possible, which is work
+   * that is not yours, in a space that is.
+   */
+  const evict = (node: TreeNode) => {
+    setAsking(null);
+    void run(
+      api(`/api/v1/nodes/${node.id}/evict`, { method: "POST" }),
+      () => settle(node.path, null),
+    );
+  };
+
   const create = (name: string) => {
     if (asking?.kind !== "create") return;
     const { parentId, nodeKind, contentType } = asking;
@@ -160,7 +175,12 @@ export function Tree({ spaceSlug, spaceId, tree, rights, canStart }: Props) {
    * the only interesting case, and the database refuses it too.
    */
   const may = (node: TreeNode) =>
-    rights.get(node.id) ?? { may_edit: false, may_delete: false, may_share: false };
+    rights.get(node.id) ?? {
+      may_edit: false,
+      may_delete: false,
+      may_share: false,
+      may_evict: false,
+    };
 
   const canDrop = (node: TreeNode, target: TreeNode | null) => {
     // Moving is a write on the thing moved and on where it lands. The top
@@ -272,6 +292,7 @@ export function Tree({ spaceSlug, spaceId, tree, rights, canStart }: Props) {
           depth={0}
           onRename={(node) => setAsking({ kind: "rename", node })}
           onDelete={(node) => setAsking({ kind: "delete", node })}
+          onEvict={(node) => setAsking({ kind: "evict", node })}
           onShare={setSharing}
           onMoveRequest={setMoving}
           dragging={dragging}
@@ -336,6 +357,23 @@ export function Tree({ spaceSlug, spaceId, tree, rights, canStart }: Props) {
         />
       ) : null}
 
+      {asking?.kind === "evict" ? (
+        <ConfirmDialog
+          title={`Remove ${asking.node.name} from this space?`}
+          /* Said in full because the word "remove" reads like deleting, and
+             this is the opposite: the work survives and goes home. What is
+             lost is this space's reach, which is the thing being chosen. */
+          body={
+            asking.node.kind === "folder"
+              ? `It goes back to its author's own space, with everything inside it. Nothing is deleted, and they keep it. What changes is that nobody reaches it through this space any more.`
+              : `It goes back to its author's own space. Nothing is deleted, and they keep it. What changes is that nobody reaches it through this space any more.`
+          }
+          confirmLabel="Remove from space"
+          onConfirm={() => evict(asking.node)}
+          onClose={() => setAsking(null)}
+        />
+      ) : null}
+
       {moving ? (
         <MoveDialog
           node={moving}
@@ -364,6 +402,7 @@ function TreeLevel({
   depth,
   onRename,
   onDelete,
+  onEvict,
   onShare,
   onMoveRequest,
   dragging,
@@ -381,6 +420,7 @@ function TreeLevel({
   depth: number;
   onRename: (node: TreeNode) => void;
   onDelete: (node: TreeNode) => void;
+  onEvict: (node: TreeNode) => void;
   onShare: (node: TreeNode) => void;
   onMoveRequest: (node: TreeNode) => void;
   dragging: TreeNode | null;
@@ -406,6 +446,7 @@ function TreeLevel({
           may_edit: false,
           may_delete: false,
           may_share: false,
+          may_evict: false,
         };
 
         return (
@@ -473,10 +514,12 @@ function TreeLevel({
                 canEdit={may.may_edit}
                 canDelete={may.may_delete}
                 canShare={may.may_share}
+                canEvict={may.may_evict}
                 onShare={onShare}
                 onRename={onRename}
                 onMove={onMoveRequest}
                 onDelete={onDelete}
+                onEvict={onEvict}
               />
             </div>
 
@@ -489,6 +532,7 @@ function TreeLevel({
                 depth={depth + 1}
                 onRename={onRename}
                 onDelete={onDelete}
+                onEvict={onEvict}
                 onShare={onShare}
                 onMoveRequest={onMoveRequest}
                 dragging={dragging}

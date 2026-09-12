@@ -2079,4 +2079,118 @@ select pg_temp.check('and taking them out takes the reading with it',
   public.can_read('44444444-4444-4444-4444-444444444444',
     'b0000000-0000-0000-0000-0000000000d6')::text, 'false');
 
+-- Taking a page out of a space -------------------------------------------------
+--
+-- Deleting belongs to the author, which left a space's owner unable to clear
+-- anything out of their own space. Sending it home is the answer: not a
+-- deletion, a move. The work survives, keeps its author and its history, and
+-- stops being reachable through the space it left.
+--
+-- Alice is a member of the members-test space and owns no space of her own,
+-- which is the ordinary case for somebody who has only ever been invited into
+-- other people's.
+
+reset role;
+
+select pg_temp.check('the author owns no space to begin with',
+  (select count(*)::text from public.spaces
+    where owner_id = '22222222-2222-2222-2222-222222222222'), '0');
+
+-- A page of alice's with something under it, so the subtree can be watched.
+insert into public.nodes (id, space_id, parent_id, kind, name, created_by) values
+  ('b0000000-0000-0000-0000-0000000000e7','a0000000-0000-0000-0000-000000000003',
+   'b0000000-0000-0000-0000-0000000000d4','file','Under Hers',
+   '22222222-2222-2222-2222-222222222222');
+
+set local role authenticated;
+
+-- A member cannot send anything home: it is not their space to clear.
+select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+select pg_temp.check('a member cannot send somebody else''s work home',
+  public.can_evict_node('b0000000-0000-0000-0000-0000000000d6')::text, 'false');
+do $$
+begin
+  begin
+    perform public.evict_node('b0000000-0000-0000-0000-0000000000d6');
+    raise exception 'FAIL: a member sent somebody else''s work out of a space';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+
+-- Nor the owner their own work: that is deleting, and they can already do it.
+select pg_temp.check('and the owner does not send their own work home',
+  public.can_evict_node('b0000000-0000-0000-0000-0000000000d6')::text, 'false');
+
+-- Nor the home page, which is the space's address.
+select pg_temp.check('nor the page a space resolves to',
+  public.can_evict_node(
+    (select id from public.nodes
+      where space_id = 'a0000000-0000-0000-0000-000000000003' and slug = 'index'))::text,
+  'false');
+
+select pg_temp.check('but a member''s folder is theirs to send back',
+  public.can_evict_node('b0000000-0000-0000-0000-0000000000d4')::text, 'true');
+select pg_temp.check('and it lands at the top of a space of the author''s',
+  coalesce((public.evict_node('b0000000-0000-0000-0000-0000000000d4')).parent_id::text,
+           'top level'),
+  'top level');
+
+reset role;
+
+select pg_temp.check('a space was made for the author, since they had none',
+  (select count(*)::text from public.spaces
+    where owner_id = '22222222-2222-2222-2222-222222222222'), '1');
+select pg_temp.check('the folder is in it now',
+  (select s.owner_id::text from public.nodes n
+    join public.spaces s on s.id = n.space_id
+    where n.id = 'b0000000-0000-0000-0000-0000000000d4'),
+  '22222222-2222-2222-2222-222222222222');
+select pg_temp.check('and what was under it came too',
+  (select s.owner_id::text from public.nodes n
+    join public.spaces s on s.id = n.space_id
+    where n.id = 'b0000000-0000-0000-0000-0000000000e7'),
+  '22222222-2222-2222-2222-222222222222');
+select pg_temp.check('with its path rewritten under the new one',
+  (select n.path from public.nodes n where n.id = 'b0000000-0000-0000-0000-0000000000e7'),
+  'alice-folder/under-hers');
+
+-- Nothing was destroyed, and it is hers now rather than merely visible to her.
+select pg_temp.check('the author still has it, and administers it',
+  public.can_admin('22222222-2222-2222-2222-222222222222',
+    'b0000000-0000-0000-0000-0000000000d4')::text, 'true');
+-- And the space it left no longer reaches it, which is the point of sending it.
+select pg_temp.check('and the space it left cannot reach it any more',
+  public.can_read('11111111-1111-1111-1111-111111111111',
+    'b0000000-0000-0000-0000-0000000000d4')::text, 'false');
+
+-- Work that is nobody's ---------------------------------------------------------
+--
+-- An account going takes its authorship with it, leaving a page that nobody may
+-- delete and that cannot be sent home either, because there is no home. The
+-- owner of the space holding it is the last judgement available.
+
+update public.nodes set created_by = null
+ where id = 'b0000000-0000-0000-0000-0000000000d2';
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select pg_temp.check('work that is nobody''s cannot be sent home',
+  public.can_evict_node('b0000000-0000-0000-0000-0000000000d2')::text, 'false');
+select pg_temp.check('so the owner of the space holding it may remove it',
+  public.can_delete_node('b0000000-0000-0000-0000-0000000000d2')::text, 'true');
+
+-- And that exception is exactly as wide as it says: somebody else's work in the
+-- same space is still not theirs to delete.
+insert into public.nodes (id, space_id, parent_id, kind, name, created_by) values
+  ('b0000000-0000-0000-0000-0000000000e8','a0000000-0000-0000-0000-000000000003',
+   null,'file','Still Somebody''s','33333333-3333-3333-3333-333333333333');
+select pg_temp.check('and no wider than that',
+  public.can_delete_node('b0000000-0000-0000-0000-0000000000e8')::text, 'false');
+
+reset role;
+
+
 rollback;

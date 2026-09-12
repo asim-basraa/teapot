@@ -207,7 +207,9 @@ test.describe("The front page", () => {
     // keep looking at, and opening each one to be rid of it is the slow way.
     await owner.goto("/inbox");
 
-    const row = owner.locator(".threads li", { hasText: SIGNED_JOKE });
+    // Found by who sent it, not by the joke: a row previews the *latest*
+    // message, and by now that is the owner's own reply.
+    const row = owner.locator(".threads li", { hasText: NOSY });
     await expect(row).toBeVisible();
 
     await row.getByRole("button", { name: /^Delete the note/ }).click();
@@ -218,15 +220,16 @@ test.describe("The front page", () => {
     await expect(confirming).toContainText(NOSY);
     await confirming.getByRole("button", { name: "Delete" }).click();
 
-    await expect(
-      owner.locator(".threads li", { hasText: SIGNED_JOKE }),
-    ).toHaveCount(0);
+    await expect(owner.locator(".threads li", { hasText: NOSY })).toHaveCount(0);
 
     // Gone, not hidden: it is not there on a fresh load either, and it went for
     // both sides rather than only the one that pressed the button.
     await owner.goto("/inbox");
     await expect(owner.locator("main")).not.toContainText(SIGNED_JOKE);
+    await expect(owner.locator("main")).not.toContainText(REPLY);
+
     await nosy.goto("/inbox");
+    await expect(nosy.locator(".threads li")).toHaveCount(0);
     await expect(nosy.locator("main")).not.toContainText(SIGNED_JOKE);
   });
 });

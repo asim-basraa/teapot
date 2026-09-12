@@ -3,7 +3,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { currentUser } from "@/lib/supabase/server";
 import { getSpaceBySlug, INDEX_PATH } from "@/lib/spaces";
-import { listNodes, buildTree } from "@/lib/nodes";
+import {
+  listNodes,
+  buildTree,
+  listNodeRights,
+  canStartInSpace,
+  type NodeRights,
+} from "@/lib/nodes";
 import { Tree } from "./Tree";
 import { Search } from "./Search";
 import { SpaceName } from "./SpaceName";
@@ -38,17 +44,26 @@ export default async function SpaceLayout({
   );
   const tree = buildTree(nodes.filter((node) => node.id !== home?.id));
 
-  // Editing affordances are hidden from people who cannot edit. This is
-  // presentation only; the database refuses the write regardless.
-  const canEdit = !!user && space.owner_id === user.id;
+  // What the sidebar offers used to come from one question — do you own this
+  // space — which meant somebody with editor on half of it saw no controls at
+  // all, including on the folders that were theirs to work in. Rights are per
+  // item now, as the policies are.
+  //
+  // Presentation only, still: every one of these is asked again by the database
+  // when the write arrives, and that is the answer that counts.
+  const [rights, canStart] = user
+    ? await Promise.all([listNodeRights(space.id), canStartInSpace(space.id)])
+    : [new Map<string, NodeRights>(), false];
+
+  const owner = !!user && space.owner_id === user.id;
 
   return (
     // The space id is in the markup because the tree's client actions need it
     // to create nodes, and tests read it rather than guessing at a UUID.
     <div className="space-shell" data-space-id={space.id}>
       <AppHeader email={user?.email} className="space-header">
-        <SpaceName spaceId={space.id} name={space.name} canRename={canEdit} />
-        {canEdit ? (
+        <SpaceName spaceId={space.id} name={space.name} canRename={owner} />
+        {owner ? (
           <Link
             href={`/spaces/${space.slug}/teams`}
             className="btn btn-secondary btn-small"
@@ -70,8 +85,8 @@ export default async function SpaceLayout({
             spaceSlug={space.slug}
             spaceId={space.id}
             tree={tree}
-            canEdit={canEdit}
-            canShare={canEdit}
+            rights={rights}
+            canStart={owner || canStart}
           />
         </aside>
         <div className="space-content">{children}</div>

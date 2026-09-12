@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import type { TreeNode } from "@/lib/nodes";
+import type { TreeNode, NodeRights } from "@/lib/nodes";
 import { ShareDialog } from "./Share";
 import { MoveDialog } from "./Move";
 import { AskDialog, ConfirmDialog } from "@/components/Ask";
@@ -14,12 +14,15 @@ type Props = {
   spaceSlug: string;
   spaceId: string;
   tree: TreeNode[];
-  canEdit: boolean;
   /**
-   * Whether to offer sharing here. Separate from canEdit because they are
-   * different powers: an editor writes, an administrator decides who else can.
+   * What the reader may do to each node, by id. Per item rather than per space,
+   * because that is how the policies decide it: writing, deciding who else may
+   * read, and throwing away are three different powers and somebody can hold
+   * any one of them on one page and none on the next.
    */
-  canShare: boolean;
+  rights: Map<string, NodeRights>;
+  /** Whether to offer starting something at the top of the space. */
+  canStart: boolean;
 };
 
 type ApiResult = { error: string | null; node?: { path: string } };
@@ -37,7 +40,7 @@ async function api(url: string, init: RequestInit): Promise<ApiResult> {
   return { error: body.error ?? `Request failed (${res.status})` };
 }
 
-export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
+export function Tree({ spaceSlug, spaceId, tree, rights, canStart }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
@@ -156,9 +159,15 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
    * already has, and a folder may not be dropped inside itself — the last one is
    * the only interesting case, and the database refuses it too.
    */
+  const may = (node: TreeNode) =>
+    rights.get(node.id) ?? { may_edit: false, may_delete: false, may_share: false };
+
   const canDrop = (node: TreeNode, target: TreeNode | null) => {
-    if (!canEdit) return false;
-    if (target === null) return node.parent_id !== null;
+    // Moving is a write on the thing moved and on where it lands. The top
+    // level is not a node, so the space's own permission stands in for it.
+    if (!may(node).may_edit) return false;
+    if (target === null) return canStart && node.parent_id !== null;
+    if (!may(target).may_edit) return false;
     if (target.kind !== "folder") return false;
     if (target.id === node.id) return false;
     if (target.id === node.parent_id) return false;
@@ -213,7 +222,7 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
         {/* The header doubles as the way out of a folder: with nothing else at
             the top level there would be nothing to drop onto. */}
         <span>{dropTarget === "" ? "Move to the top level" : "Files"}</span>
-        {canEdit ? (
+        {canStart ? (
           <span className="tree-actions">
             <button
               type="button"
@@ -259,8 +268,7 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
           nodes={tree}
           spaceSlug={spaceSlug}
           pathname={pathname}
-          canEdit={canEdit}
-          canShare={canShare}
+          rights={rights}
           depth={0}
           onRename={(node) => setAsking({ kind: "rename", node })}
           onDelete={(node) => setAsking({ kind: "delete", node })}
@@ -352,8 +360,7 @@ function TreeLevel({
   nodes,
   spaceSlug,
   pathname,
-  canEdit,
-  canShare,
+  rights,
   depth,
   onRename,
   onDelete,
@@ -370,8 +377,7 @@ function TreeLevel({
   nodes: TreeNode[];
   spaceSlug: string;
   pathname: string;
-  canEdit: boolean;
-  canShare: boolean;
+  rights: Map<string, NodeRights>;
   depth: number;
   onRename: (node: TreeNode) => void;
   onDelete: (node: TreeNode) => void;
@@ -396,6 +402,11 @@ function TreeLevel({
 
         const receiving = dropTarget === node.id && dragging !== null;
         const lifted = dragging?.id === node.id;
+        const may = rights.get(node.id) ?? {
+          may_edit: false,
+          may_delete: false,
+          may_share: false,
+        };
 
         return (
           <li key={node.id} className={`tree-item tree-${node.kind}`}>
@@ -404,9 +415,9 @@ function TreeLevel({
                 "tree-row" +
                 (receiving ? " is-drop-target" : "") +
                 (lifted ? " is-dragging" : "") +
-                (canEdit ? " is-draggable" : "")
+                (may.may_edit ? " is-draggable" : "")
               }
-              draggable={canEdit}
+              draggable={may.may_edit}
               onDragStart={(e) => {
                 // Carried so a drop outside the tree does something sensible
                 // rather than nothing: the state below is what this tree reads.
@@ -459,8 +470,9 @@ function TreeLevel({
                   the name did, which is the one part anybody reads. */}
               <RowActions
                 node={node}
-                canEdit={canEdit}
-                canShare={canShare}
+                canEdit={may.may_edit}
+                canDelete={may.may_delete}
+                canShare={may.may_share}
                 onShare={onShare}
                 onRename={onRename}
                 onMove={onMoveRequest}
@@ -473,8 +485,7 @@ function TreeLevel({
                 nodes={node.children}
                 spaceSlug={spaceSlug}
                 pathname={pathname}
-                canEdit={canEdit}
-                canShare={canShare}
+                rights={rights}
                 depth={depth + 1}
                 onRename={onRename}
                 onDelete={onDelete}

@@ -25,6 +25,7 @@ import type { TreeNode } from "@/lib/nodes";
 export function RowActions({
   node,
   canEdit,
+  canDelete,
   canShare,
   onShare,
   onRename,
@@ -33,6 +34,11 @@ export function RowActions({
 }: {
   node: TreeNode;
   canEdit: boolean;
+  /**
+   * Separate from canEdit on purpose: you may write in something you did not
+   * make, and throwing it away is somebody else's decision.
+   */
+  canDelete: boolean;
   canShare: boolean;
   onShare: (node: TreeNode) => void;
   onRename: (node: TreeNode) => void;
@@ -42,7 +48,7 @@ export function RowActions({
   const menu = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
 
-  if (!canShare && !canEdit) return null;
+  if (!canShare && !canEdit && !canDelete) return null;
 
   const menuId = `row-menu-${node.id}`;
 
@@ -134,15 +140,17 @@ export function RowActions({
             >
               Move
             </button>
-            <button
-              type="button"
-              role="menuitem"
-              className="row-menu-danger"
-              onClick={() => choose(onDelete)}
-              aria-label={`Delete ${node.name}`}
-            >
-              Delete
-            </button>
+            {canDelete ? (
+              <button
+                type="button"
+                role="menuitem"
+                className="row-menu-danger"
+                onClick={() => choose(onDelete)}
+                aria-label={`Delete ${node.name}`}
+              >
+                Delete
+              </button>
+            ) : null}
           </div>
         </>
       ) : null}

@@ -35,12 +35,23 @@ test.describe("Your account", () => {
   test("the header says who you are, everywhere", async () => {
     // Including inside a space, which is where somebody with two accounts is
     // most likely to be wondering.
+    //
+    // By the part before the @, since everybody here shares a domain and it was
+    // taking the room the half that distinguishes you needs. The whole address
+    // is still there, on the link, because the question this answers is which
+    // account you are signed in as and half an answer is not one.
+    const handle = OWNER.split("@")[0];
+
     for (const url of [`/s/${SPACE}`, "/spaces", "/settings/mcp"]) {
       await page.goto(url);
-      await expect(
-        page.getByRole("link", { name: OWNER }),
-        `${url} should name the account`,
-      ).toBeVisible();
+
+      const account = page.locator(".shell-account");
+      await expect(account, `${url} should name the account`).toBeVisible();
+      await expect(account, `${url} should name the account`).toContainText(
+        handle,
+      );
+      await expect(account).not.toContainText("@");
+      await expect(account).toHaveAttribute("title", new RegExp(OWNER));
     }
   });
 

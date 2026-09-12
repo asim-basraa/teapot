@@ -10,6 +10,18 @@ export function isContentType(value: unknown): value is ContentType {
   return value === "article" || value === "skill";
 }
 
+/**
+ * What the sidebar may offer for one node.
+ *
+ * Presentation only: every one of these is asked again by the database when the
+ * write arrives, and that answer is the one that counts.
+ */
+export type NodeRights = {
+  may_edit: boolean;
+  may_delete: boolean;
+  may_share: boolean;
+};
+
 export type NodeResult =
   | { ok: true; node: Node }
   | { ok: false; error: string; status: number };
@@ -42,6 +54,49 @@ export async function listNodes(
     .order("name", { ascending: true });
 
   return data ?? [];
+}
+
+/**
+ * What the caller may do to each node in a space, keyed by node id.
+ *
+ * One round trip for the whole tree. A node missing from the map is one the
+ * caller may only read.
+ */
+export async function listNodeRights(
+  spaceId: string,
+): Promise<Map<string, NodeRights>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("space_node_rights", {
+    p_space_id: spaceId,
+  });
+
+  if (error) {
+    console.error("space_node_rights failed: %s", error.message);
+    return new Map();
+  }
+
+  const rights = new Map<string, NodeRights>();
+  for (const row of (data as (NodeRights & { node_id: string })[] | null) ?? []) {
+    rights.set(row.node_id, {
+      may_edit: row.may_edit,
+      may_delete: row.may_delete,
+      may_share: row.may_share,
+    });
+  }
+  return rights;
+}
+
+/** Whether the caller may start something at the top of this space. */
+export async function canStartInSpace(spaceId: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("writes_in_space", {
+    p_space_id: spaceId,
+  });
+  if (error) {
+    console.error("writes_in_space failed: %s", error.message);
+    return false;
+  }
+  return data === true;
 }
 
 /**
@@ -389,8 +444,22 @@ export async function deleteNode(
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const supabase = await createClient();
   // Descendants go with it through ON DELETE CASCADE on parent_id.
-  const { error } = await supabase.from("nodes").delete().eq("id", nodeId);
+  //
+  // The rows are read back, and not for information. A delete the policy
+  // refuses removes nothing and raises nothing, so without this it answered
+  // "done" and the item stayed exactly where it was. That mattered little while
+  // deleting was the same as editing; now that you may edit something you may
+  // not delete, it is the ordinary case rather than a corner of one.
+  const { data, error } = await supabase
+    .from("nodes")
+    .delete()
+    .eq("id", nodeId)
+    .select("id");
+
   if (error) return translate(error);
+  if (!data || data.length === 0) {
+    return { ok: false, error: "Not found.", status: 404 };
+  }
   return { ok: true };
 }
 

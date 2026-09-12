@@ -31,7 +31,7 @@ export default async function AdminPage() {
   const users = await listUsers();
 
   return (
-    <main className="shell">
+    <main className="shell shell-wide">
       <AppHeader email={user.email} admin />
 
       <h1>People</h1>

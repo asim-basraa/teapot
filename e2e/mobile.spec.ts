@@ -124,6 +124,19 @@ test.describe("At phone width", () => {
     ).toBeVisible();
   });
 
+  test("the space view still stacks to one column", async () => {
+    // The desktop layout became full width with the tree pinned hard left. At
+    // this width the two columns must still become one, with the tree below the
+    // page rather than a 16rem rail eating half a phone.
+    await page.goto(`/s/${SPACE}`);
+
+    const columns = await page.evaluate(() => {
+      const body = document.querySelector(".space-body");
+      return body ? getComputedStyle(body).gridTemplateColumns.split(" ").length : 0;
+    });
+    expect(columns).toBe(1);
+  });
+
   test("and the footer is still there and still works", async () => {
     await page.goto("/spaces");
     await page.getByRole("button", { name: "Tell me a joke" }).click();

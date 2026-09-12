@@ -276,6 +276,10 @@ footer {
 /* App shell */
 .shell { max-width: 46rem; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
 
+/* For the screens that are tables rather than reading: a column sized for prose
+   made the People table scroll sideways on a desk with room going spare. */
+.shell-wide { max-width: 78rem; }
+
 .shell-header {
   display: flex;
   align-items: center;
@@ -378,7 +382,11 @@ footer {
 .soon-signin a:hover { color: var(--text); }
 
 /* Space shell with sidebar */
-.space-shell { max-width: 68rem; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
+/* Full width, because a space is a workspace rather than a document: the tree
+   belongs hard against the left edge and the page belongs in all the room that
+   is left. It was a 68rem column centred in the window, which on a wide screen
+   put the sidebar somewhere in the middle of the desk. */
+.space-shell { max-width: none; margin: 0; padding: 1.25rem 2rem 3rem; }
 
 .space-header { display: flex; align-items: center; gap: 1rem; }
 .space-title {
@@ -403,16 +411,35 @@ footer {
 }
 .space-home:hover { color: var(--accent); }
 
-.space-body { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 2.5rem; }
+.space-body { display: grid; grid-template-columns: 16rem minmax(0, 1fr); gap: 3rem; }
+
+/* The one cap left, and it only bites past about 1900px. Prose with no measure
+   at all is a line the eye loses its place on halfway across; this keeps the
+   pane full width on every ordinary screen and stops it running to the horizon
+   on a very large one. */
+.space-content { min-width: 0; max-width: 110rem; }
+
+@media (min-width: 48rem) {
+  /* A rail: it stays put while the page scrolls, and scrolls within itself when
+     the tree is longer than the window. The tree used to be the sticky thing,
+     which meant its own overflow had nowhere to go. */
+  .space-sidebar {
+    align-self: start;
+    position: sticky;
+    top: 1.25rem;
+    max-height: calc(100dvh - 3rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
 
 @media (max-width: 48rem) {
   .space-body { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
   .space-sidebar { order: 2; border-top: 1px solid var(--border); padding-top: 1.5rem; }
 }
 
-.space-content { min-width: 0; }
 
-.tree { font-size: 0.88rem; position: sticky; top: 2rem; }
+.tree { font-size: 0.88rem; }
 
 .tree-header {
   display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
@@ -1188,7 +1215,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .prose table { display: block; overflow-x: auto; }
 
   .shell { padding: 1.5rem 1rem 2.5rem; }
-  .space-shell { padding: 1.5rem 1rem 2.5rem; }
+  .space-shell { padding: 1.25rem 1rem 2.5rem; }
 
   .prose h1 { font-size: 1.55rem; }
   .prose h2 { font-size: 1.2rem; }
@@ -1213,13 +1240,6 @@ html, body { max-width: 100%; overflow-x: hidden; }
     padding: 0.35rem 0.5rem;
   }
   .tree-row { min-height: 2.2rem; }
-}
-
-@media (max-width: 48rem) {
-  /* The sidebar moves below the content when the two columns stack, and a
-     sticky box pinned 2rem from the top of the window fights the page it is
-     now underneath. */
-  .tree { position: static; }
 }
 
 /* The tree row is a name and up to four buttons. Below this width the buttons

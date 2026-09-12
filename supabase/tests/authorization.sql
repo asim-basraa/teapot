@@ -2193,4 +2193,62 @@ select pg_temp.check('and no wider than that',
 reset role;
 
 
+-- An author never loses their own work ----------------------------------------
+--
+-- The base rule, and the one that was missing. Access came from grants, from
+-- membership and from owning a space, none of which is authorship, so somebody
+-- taken out of a space lost the pages they had written in it: work only they
+-- could delete and none of them could open.
+
+-- Bob is not in the members-test space and holds one viewer grant on one folder
+-- in it. He wrote 'Still Somebody''s', which nothing has been shared with him.
+select pg_temp.check('having written it is a reason to reach it',
+  public.can_read('33333333-3333-3333-3333-333333333333',
+    'b0000000-0000-0000-0000-0000000000e8')::text, 'true');
+select pg_temp.check('and to change it',
+  public.can_edit('33333333-3333-3333-3333-333333333333',
+    'b0000000-0000-0000-0000-0000000000e8')::text, 'true');
+-- Editor and not more: who else may read a page inside somebody's space is
+-- still that somebody's decision.
+select pg_temp.check('but not to decide who else reads it',
+  public.can_admin('33333333-3333-3333-3333-333333333333',
+    'b0000000-0000-0000-0000-0000000000e8')::text, 'false');
+-- And it is about your work, not about the space it happens to be in.
+select pg_temp.check('and it says nothing about the rest of the space',
+  public.can_read('33333333-3333-3333-3333-333333333333',
+    'b0000000-0000-0000-0000-0000000000d6')::text, 'false');
+
+-- The case this rule exists for: being taken out of a space.
+insert into public.nodes (id, space_id, parent_id, kind, name, created_by) values
+  ('b0000000-0000-0000-0000-0000000000e9','a0000000-0000-0000-0000-000000000003',
+   null,'file','Alice Wrote This','22222222-2222-2222-2222-222222222222');
+
+select pg_temp.check('a member reads what they wrote in a space',
+  public.can_read('22222222-2222-2222-2222-222222222222',
+    'b0000000-0000-0000-0000-0000000000e9')::text, 'true');
+
+delete from public.space_members
+ where space_id = 'a0000000-0000-0000-0000-000000000003'
+   and member_type = 'user'
+   and member_id = '22222222-2222-2222-2222-222222222222';
+
+select pg_temp.check('and still reads it after being taken out of the space',
+  public.can_read('22222222-2222-2222-2222-222222222222',
+    'b0000000-0000-0000-0000-0000000000e9')::text, 'true');
+select pg_temp.check('and may still change it',
+  public.can_edit('22222222-2222-2222-2222-222222222222',
+    'b0000000-0000-0000-0000-0000000000e9')::text, 'true');
+select pg_temp.check('and it is still theirs to delete',
+  (select public.can_delete_node('b0000000-0000-0000-0000-0000000000e9')
+     from (select set_config('request.jwt.claims',
+       '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true)) _)::text,
+  'true');
+-- What they did lose is the space: everything in it that is not theirs.
+select pg_temp.check('but the rest of the space went with the membership',
+  public.can_read('22222222-2222-2222-2222-222222222222',
+    'b0000000-0000-0000-0000-0000000000d6')::text, 'false');
+
+select set_config('request.jwt.claims', '', true);
+
+
 rollback;

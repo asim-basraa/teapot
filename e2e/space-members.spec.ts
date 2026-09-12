@@ -229,9 +229,22 @@ test.describe("Being in a space", () => {
     await expect(owner.locator(".member-list")).toHaveCount(0);
 
     expect((await member.goto(`/s/${SPACE}/owner-only`))?.status()).toBe(404);
+  });
 
-    // Their own page is still there, and still theirs. Losing the space is not
-    // losing what you wrote in it.
+  test("but never what they wrote, which is the base rule", async () => {
+    // The hole this closes. Access came from grants, from membership and from
+    // owning a space, none of which is authorship, so somebody taken out of a
+    // space lost the pages they had written in it: work only they could delete
+    // and none of them could open.
+    await member.goto(`/s/${SPACE}/member-started-this`);
+    await expect(
+      member.getByRole("heading", { level: 1, name: "Member Started This" }),
+    ).toBeVisible();
+
+    // And to change, since it is theirs.
+    await expect(member.getByRole("link", { name: "Edit" })).toBeVisible();
+
+    // It is still in the owner's space, and still visible to them too.
     await owner.goto(`/s/${SPACE}`);
     await expect(
       owner.locator(".tree").getByRole("link", { name: "Member Started This" }),

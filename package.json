@@ -11,6 +11,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:db": "./scripts/db-test.sh",
     "test:e2e": "playwright test"
   },
   "dependencies": {

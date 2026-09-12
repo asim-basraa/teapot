@@ -292,9 +292,13 @@ test.describe("Being in a space", () => {
       member.getByRole("link", { name: "Member Started This" }),
     ).toHaveCount(0);
 
-    const space = member.locator(".space-list a").first();
-    await expect(space).toBeVisible();
-    await space.click();
+    // Named rather than positional: the list is ordered by name, so "first"
+    // was whichever space sorted earliest rather than the one made for them.
+    const mine = member
+      .locator(`.space-list a:not([href="/s/${SPACE}"])`)
+      .first();
+    await expect(mine).toBeVisible();
+    await mine.click();
 
     await expect(
       member.locator(".tree").getByRole("link", { name: "Member Started This" }),

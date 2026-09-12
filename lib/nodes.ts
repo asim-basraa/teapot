@@ -553,5 +553,16 @@ export function translate(error: {
       status: 400,
     };
   }
+  // A write the policy refused. Not-found, like every read in this product:
+  // a caller must not be able to tell a space they may not write in from one
+  // that does not exist. It also stops the raw message, which names the table
+  // and the fact that a policy exists, from reaching anybody.
+  //
+  // This became the ordinary case rather than a corner of one when creating at
+  // the top of a space started depending on being in it.
+  if (error.code === "42501" || /row-level security/i.test(error.message)) {
+    return { ok: false, error: "Not found.", status: 404 };
+  }
+
   return { ok: false, error: error.message, status: 400 };
 }

@@ -8,6 +8,7 @@ import { ShareDialog } from "./Share";
 import { MoveDialog } from "./Move";
 import { AskDialog, ConfirmDialog } from "@/components/Ask";
 import { Pending } from "@/components/NavLink";
+import { RowActions } from "./RowActions";
 
 type Props = {
   spaceSlug: string;
@@ -453,49 +454,18 @@ function TreeLevel({
                 <Pending />
               </Link>
 
-              {/* Three at most. Creating things inside a folder used to be
-                  here too, which put five buttons on a folder row and left
-                  the name — the only part anybody reads — with no room. It
-                  lives on the folder's own page now, which is somewhere you
-                  can stand and see what is already in it. */}
-              {canShare || canEdit ? (
-                <span className="tree-actions">
-                  {canShare ? (
-                    <button
-                      type="button"
-                      onClick={() => onShare(node)}
-                      aria-label={`Share ${node.name}`}
-                    >
-                      Share
-                    </button>
-                  ) : null}
-                  {canEdit ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => onRename(node)}
-                        aria-label={`Rename ${node.name}`}
-                      >
-                        Rename
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onMoveRequest(node)}
-                        aria-label={`Move ${node.name}`}
-                      >
-                        Move
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(node)}
-                        aria-label={`Delete ${node.name}`}
-                      >
-                        Delete
-                      </button>
-                    </>
-                  ) : null}
-                </span>
-              ) : null}
+              {/* Sharing on its own, the rest behind the dots. Four labelled
+                  buttons used to sit here and they took more of the row than
+                  the name did, which is the one part anybody reads. */}
+              <RowActions
+                node={node}
+                canEdit={canEdit}
+                canShare={canShare}
+                onShare={onShare}
+                onRename={onRename}
+                onMove={onMoveRequest}
+                onDelete={onDelete}
+              />
             </div>
 
             {node.children.length > 0 ? (

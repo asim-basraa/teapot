@@ -41,3 +41,24 @@ export async function createSpace(
   await page.getByRole("button", { name: "Create space" }).click();
   await page.waitForURL(new RegExp(`/s/${slug}`));
 }
+
+/**
+ * Picks an action out of a tree row's three-dot menu.
+ *
+ * Renaming, moving and deleting used to be labelled buttons sitting on the row.
+ * They are behind the dots now, so a test that clicks one has to open the menu
+ * first, exactly as a person does.
+ *
+ * Scoped to whatever is passed in, so a caller that has already narrowed to one
+ * row keeps that narrowing: two nodes can share a name in different folders.
+ */
+export async function rowAction(
+  scope: Pick<Page, "getByRole">,
+  nodeName: string,
+  action: "Rename" | "Move" | "Delete",
+): Promise<void> {
+  await scope.getByRole("button", { name: `More for ${nodeName}` }).click();
+  await scope
+    .getByRole("menuitem", { name: `${action} ${nodeName}` })
+    .click();
+}

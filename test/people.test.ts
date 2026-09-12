@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { person } from "@/lib/people";
+import { handle, person } from "@/lib/people";
 
 describe("person", () => {
   it("shortens a two-part address to the two initials", () => {
@@ -44,5 +44,20 @@ describe("person", () => {
     const p = person("12345@example.com");
     expect(p.initials).toBeNull();
     expect(p.label).toBe("12345@example.com");
+  });
+});
+
+describe("handle", () => {
+  it("keeps the part that distinguishes you and drops the part that does not", () => {
+    expect(handle("asim@maqsoodlabs.com")).toBe("asim");
+    expect(handle("faryal.awais@maqsoodlabs.com")).toBe("faryal.awais");
+  });
+
+  it("leaves something that is not an address alone", () => {
+    expect(handle("asim")).toBe("asim");
+  });
+
+  it("does not eat an address that begins with an @", () => {
+    expect(handle("@handle")).toBe("@handle");
   });
 });

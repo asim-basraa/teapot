@@ -489,6 +489,65 @@ a.tree-name[aria-current="page"] { color: var(--accent); font-weight: 600; }
 
 .tree-actions button:hover { color: var(--text); border-color: var(--muted); }
 
+/* Icon buttons: square, so two of them take less of the row than one word did.
+   The header's create buttons keep their labels, since "+ Folder" has to say
+   which of three things it makes. */
+.tree-icon-btn {
+  display: inline-grid; place-items: center;
+  width: 1.55rem; height: 1.55rem;
+  padding: 0;
+  border-radius: 6px;
+}
+
+.tree-icon-btn svg { fill: currentColor; stroke: currentColor; }
+
+/* The menu behind the three dots.
+   In the top layer, so the sidebar's own scrolling cannot clip it; position
+   comes from the button and is set when it opens. */
+.row-menu {
+  position: fixed;
+  margin: 0;
+  padding: 0.25rem;
+  min-width: 8.5rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
+  /* Undoes the popover default, which is a centred box with a black border. */
+  inset: auto;
+  overflow: visible;
+}
+
+.row-menu::backdrop { background: transparent; }
+
+.row-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.1;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+  cursor: pointer;
+}
+
+.row-menu button:hover,
+.row-menu button:focus-visible {
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+}
+
+/* Named as destructive where it is chosen, not only in the dialog that
+   follows. */
+.row-menu-danger { color: #b4453a; }
+.row-menu-danger:hover,
+.row-menu-danger:focus-visible {
+  background: color-mix(in oklab, #b4453a 12%, transparent) !important;
+}
+
 /* Editing */
 .page-actions { display: flex; justify-content: flex-end; margin-bottom: 1rem; }
 
@@ -1236,19 +1295,15 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .space-rename { opacity: 1; }
 
   /* Given the room to be hit, now that they are always on screen. */
-  .tree-actions button, .tree-header .tree-actions button {
-    padding: 0.35rem 0.5rem;
-  }
+  .tree-header .tree-actions button { padding: 0.35rem 0.5rem; }
+  .tree-icon-btn { width: 1.9rem; height: 1.9rem; }
+  .row-menu button { padding: 0.6rem 0.75rem; font-size: 0.88rem; }
   .tree-row { min-height: 2.2rem; }
 }
 
-/* The tree row is a name and up to four buttons. Below this width the buttons
-   win and the name is the only part anybody reads, so they go underneath it. */
-@media (max-width: 30rem) {
-  .tree-row { flex-wrap: wrap; row-gap: 0.15rem; }
-  .tree-name { flex: 1 1 100%; }
-  .tree-actions { flex: 0 0 auto; }
-}
+/* The row used to wrap here, because a name and four labelled buttons could
+   not share a narrow screen. Two icons fit beside the name, so it does not
+   need to any more, and a tree that does not reflow is easier to scan. */
 
 /* --- Dialogs that replaced window.prompt and window.confirm ---------------- */
 

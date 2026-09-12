@@ -23,6 +23,21 @@ export type Person = {
 /** Deliberately strict: "Post-it" and "Anonymous" are labels, not addresses. */
 const ADDRESS = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+/**
+ * The part of an address before the @.
+ *
+ * For your own address in the header, where the domain is the same for
+ * everybody who works here and so distinguishes nothing, while taking the room
+ * that the part which does distinguish you needs. The whole address stays on
+ * the link's tooltip, because "which account am I signed in as" is a question
+ * this product's users ask constantly and it must stay answerable.
+ */
+export function handle(who: string): string {
+  const trimmed = who.trim();
+  const at = trimmed.indexOf("@");
+  return at > 0 ? trimmed.slice(0, at) : trimmed;
+}
+
 export function person(who: string): Person {
   const trimmed = who.trim();
 

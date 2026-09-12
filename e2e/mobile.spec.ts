@@ -113,15 +113,35 @@ test.describe("At phone width", () => {
     // The failure this guards: they were hidden behind :hover, which does not
     // exist on a touchscreen, so the tree could be read and not acted on and no
     // gesture would ever reveal the buttons.
+    //
+    // Most of them are behind a menu now, which changes where they are and not
+    // whether a finger can get to them: the two buttons that open the way in
+    // have to be on screen without hovering, and what they open has to be
+    // reachable by tapping.
     await page.goto(`/s/${SPACE}/wide-things`);
 
     const row = page.locator(".tree-row", { hasText: "Wide Things" });
     await expect(
-      row.getByRole("button", { name: "Rename Wide Things" }),
+      row.getByRole("button", { name: "Share Wide Things" }),
+    ).toBeVisible();
+
+    const more = row.getByRole("button", { name: "More for Wide Things" });
+    await expect(more).toBeVisible();
+    await more.click();
+
+    await expect(
+      row.getByRole("menuitem", { name: "Rename Wide Things" }),
     ).toBeVisible();
     await expect(
-      row.getByRole("button", { name: "Move Wide Things" }),
+      row.getByRole("menuitem", { name: "Move Wide Things" }),
     ).toBeVisible();
+
+    // Escape closes it, so a menu opened by accident is not a trap on a device
+    // with no obvious elsewhere to click.
+    await page.keyboard.press("Escape");
+    await expect(
+      row.getByRole("menuitem", { name: "Rename Wide Things" }),
+    ).toBeHidden();
   });
 
   test("the space view still stacks to one column", async () => {

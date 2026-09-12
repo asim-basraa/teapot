@@ -4,7 +4,7 @@ import {
   type Page,
   type BrowserContext,
 } from "@playwright/test";
-import { registerAndConfirm, createSpace } from "./auth";
+import { registerAndConfirm, createSpace, rowAction } from "./auth";
 
 const RUN = Date.now().toString(36);
 const EMAIL = `tree-${RUN}@maqsoodlabs.com`;
@@ -68,11 +68,23 @@ test.describe("Slice 2: file tree and node CRUD", () => {
       (r) =>
         r.url().includes("/api/v1/nodes") && r.request().method() === method,
     );
-    // Exact, because the tree header offers "New page at the top level" and a
-    // folder's own page offers "New page", and the two mean different places.
-    await page
-      .getByRole("button", { name: buttonName, exact: true })
-      .click();
+    // Renaming, moving and deleting live behind a row's three-dot menu now,
+    // so those have to be opened before they can be clicked. Creating does
+    // not: those buttons are on the tree header and the folder's own page.
+    const rowMenu = /^(Rename|Move|Delete) (.+)$/.exec(buttonName);
+    if (rowMenu) {
+      await rowAction(
+        page,
+        rowMenu[2],
+        rowMenu[1] as "Rename" | "Move" | "Delete",
+      );
+    } else {
+      // Exact, because the tree header offers "New page at the top level" and a
+      // folder's own page offers "New page", and the two mean different places.
+      await page
+        .getByRole("button", { name: buttonName, exact: true })
+        .click();
+    }
     await answer(promptValue);
     return waitForApi;
   }
@@ -127,6 +139,27 @@ test.describe("Slice 2: file tree and node CRUD", () => {
     ).toBeVisible();
   });
 
+  test("a row carries two buttons, not four", async () => {
+    // The point of the change: four labelled buttons took more of a narrow
+    // sidebar than the name did, and the name is the part anybody reads.
+    // Sharing keeps its own button because it is reached for often enough;
+    // the rest are one tap further away.
+    const row = page.locator(".tree-row", { hasText: "Road Map" });
+    await expect(row.getByRole("button")).toHaveCount(2);
+
+    // Present in the DOM, but a menu that has not been opened offers nothing.
+    await expect(
+      row.getByRole("menuitem", { name: "Rename Road Map" }),
+    ).toBeHidden();
+
+    await row.getByRole("button", { name: "More for Road Map" }).click();
+    await expect(row.getByRole("menuitem")).toHaveCount(3);
+
+    // Closed again, so the next test starts where this one found things.
+    await page.keyboard.press("Escape");
+    await expect(row.getByRole("menuitem")).toHaveCount(0);
+  });
+
   test("renaming a folder moves its descendants and breaks the old URL", async () => {
     const response = await actAndAwait(
       "Rename Projects",
@@ -174,9 +207,7 @@ test.describe("Slice 2: file tree and node CRUD", () => {
     await page.goto(`/s/${SPACE_SLUG}`);
 
     answer(); // accept the confirm
-    await page
-      .getByRole("button", { name: "Delete Active Projects" })
-      .click();
+    await rowAction(page, "Active Projects", "Delete");
 
     await expect(page.getByRole("link", { name: "Road Map" })).toHaveCount(0);
     await expect(page.locator(".tree-folder-name")).toHaveCount(0);

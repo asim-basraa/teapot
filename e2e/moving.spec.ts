@@ -1,5 +1,5 @@
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
-import { registerAndConfirm, createSpace } from "./auth";
+import { registerAndConfirm, createSpace, rowAction } from "./auth";
 
 /**
  * Moving a page or folder somewhere else.
@@ -104,10 +104,11 @@ test.describe("Moving things about", () => {
     await page.goto(`/s/${SPACE}`);
     const tree = page.locator(".tree");
 
-    await tree
-      .locator(".tree-row", { hasText: "Stray Note" })
-      .getByRole("button", { name: "Move Stray Note" })
-      .click();
+    await rowAction(
+      tree.locator(".tree-row", { hasText: "Stray Note" }),
+      "Stray Note",
+      "Move",
+    );
 
     const dialog = page.getByRole("dialog", { name: "Move Stray Note" });
     await expect(dialog).toBeVisible();
@@ -132,11 +133,11 @@ test.describe("Moving things about", () => {
 
     // Drafts now holds the note. Offering Drafts as a destination for Drafts, or
     // anything beneath it, would be offering a move the database refuses.
-    await page
-      .locator(".tree")
-      .locator(".tree-row", { hasText: "Drafts" })
-      .getByRole("button", { name: "Move Drafts" })
-      .click();
+    await rowAction(
+      page.locator(".tree").locator(".tree-row", { hasText: "Drafts" }),
+      "Drafts",
+      "Move",
+    );
 
     const dialog = page.getByRole("dialog", { name: "Move Drafts" });
     await expect(dialog).toBeVisible();

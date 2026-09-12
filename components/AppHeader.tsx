@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { signOut } from "@/app/(auth)/actions";
 import { Mark } from "@/components/Mark";
 import { Pending } from "@/components/NavLink";
+import { handle } from "@/lib/people";
 
 /**
  * The bar across the top of every signed-in page.
@@ -15,6 +16,10 @@ import { Pending } from "@/components/NavLink";
  * The address is the label on purpose. In a product whose whole subject is who
  * can see what, "which of my accounts is this?" is a question people ask
  * constantly, and a page that answers it only after a click has not answered it.
+ *
+ * Shortened to the part before the @, though. Everybody here shares a domain,
+ * so it is the half that answers nothing while taking the room the half that
+ * does answer needs. The whole address is on the tooltip.
  */
 export function AppHeader({
   email,
@@ -48,8 +53,12 @@ export function AppHeader({
                 <Pending />
               </Link>
             ) : null}
-            <Link href="/account" className="shell-account" title="Your account">
-              {email}
+            <Link
+              href="/account"
+              className="shell-account"
+              title={`${email} · your account`}
+            >
+              {handle(email)}
               <Pending />
             </Link>
             <form action={signOut}>

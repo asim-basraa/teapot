@@ -6,6 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import type { TreeNode } from "@/lib/nodes";
 import { ShareDialog } from "./Share";
 import { MoveDialog } from "./Move";
+import { AskDialog, ConfirmDialog } from "@/components/Ask";
 import { Pending } from "@/components/NavLink";
 
 type Props = {
@@ -41,6 +42,19 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [moving, setMoving] = useState<TreeNode | null>(null);
+  /**
+   * Whatever the tree is currently asking about, or null.
+   *
+   * One piece of state rather than three booleans: only one of these dialogs
+   * can be open at a time, and a shape that cannot represent two of them open
+   * together is a shape that cannot get into that state.
+   */
+  const [asking, setAsking] = useState<
+    | { kind: "create"; nodeKind: "folder" | "file"; contentType?: "article" | "skill"; parentId: string | null }
+    | { kind: "rename"; node: TreeNode }
+    | { kind: "delete"; node: TreeNode }
+    | null
+  >(null);
   const [dragging, setDragging] = useState<TreeNode | null>(null);
   /** The id being hovered, or "" for the top level. Null when nothing is. */
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -92,26 +106,17 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
     else refresh();
   }
 
-  const create = (
-    parentId: string | null,
-    kind: "folder" | "file",
-    contentType?: "article" | "skill",
-  ) => {
-    const name = window.prompt(
-      kind === "folder"
-        ? "Folder name"
-        : contentType === "skill"
-          ? "Skill name"
-          : "Page name",
-    )?.trim();
-    if (!name) return;
+  const create = (name: string) => {
+    if (asking?.kind !== "create") return;
+    const { parentId, nodeKind, contentType } = asking;
+    setAsking(null);
     void run(
       api("/api/v1/nodes", {
         method: "POST",
         body: JSON.stringify({
           space_id: spaceId,
           parent_id: parentId,
-          kind,
+          kind: nodeKind,
           name,
           content_type: contentType,
         }),
@@ -166,9 +171,9 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
     if (node && canDrop(node, target)) move(node, target?.id ?? null);
   };
 
-  const rename = (node: TreeNode) => {
-    const name = window.prompt("New name", node.name)?.trim();
-    if (!name || name === node.name) return;
+  const rename = (node: TreeNode, name: string) => {
+    setAsking(null);
+    if (name === node.name) return;
     const oldPath = node.path;
     void run(
       api(`/api/v1/nodes/${node.id}`, {
@@ -180,11 +185,7 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
   };
 
   const remove = (node: TreeNode) => {
-    const warning =
-      node.kind === "folder"
-        ? `Delete "${node.name}" and everything inside it?`
-        : `Delete "${node.name}"?`;
-    if (!window.confirm(warning)) return;
+    setAsking(null);
     const oldPath = node.path;
     void run(api(`/api/v1/nodes/${node.id}`, { method: "DELETE" }), () =>
       settle(oldPath, null),
@@ -215,21 +216,27 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
           <span className="tree-actions">
             <button
               type="button"
-              onClick={() => create(null, "folder")}
+              onClick={() =>
+                setAsking({ kind: "create", nodeKind: "folder", parentId: null })
+              }
               aria-label="New folder at the top level"
             >
               + Folder
             </button>
             <button
               type="button"
-              onClick={() => create(null, "file")}
+              onClick={() =>
+                setAsking({ kind: "create", nodeKind: "file", parentId: null })
+              }
               aria-label="New page at the top level"
             >
               + Page
             </button>
             <button
               type="button"
-              onClick={() => create(null, "file", "skill")}
+              onClick={() =>
+                setAsking({ kind: "create", nodeKind: "file", contentType: "skill", parentId: null })
+              }
               aria-label="New skill at the top level"
             >
               + Skill
@@ -254,8 +261,8 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
           canEdit={canEdit}
           canShare={canShare}
           depth={0}
-          onRename={rename}
-          onDelete={remove}
+          onRename={(node) => setAsking({ kind: "rename", node })}
+          onDelete={(node) => setAsking({ kind: "delete", node })}
           onShare={setSharing}
           onMoveRequest={setMoving}
           dragging={dragging}
@@ -272,6 +279,53 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
       )}
 
       {pending ? <p className="tree-pending">Updating…</p> : null}
+
+      {asking?.kind === "create" ? (
+        <AskDialog
+          title={
+            asking.nodeKind === "folder"
+              ? "New folder"
+              : asking.contentType === "skill"
+                ? "New skill"
+                : "New page"
+          }
+          label="Name"
+          submitLabel="Create"
+          hint={
+            asking.contentType === "skill"
+              ? "A skill is a page Claude reads to learn how you want a job done."
+              : undefined
+          }
+          onSubmit={create}
+          onClose={() => setAsking(null)}
+        />
+      ) : null}
+
+      {asking?.kind === "rename" ? (
+        <AskDialog
+          title={`Rename ${asking.node.name}`}
+          label="New name"
+          value={asking.node.name}
+          hint="The address changes to match, so existing links to it will break."
+          onSubmit={(name) => rename(asking.node, name)}
+          onClose={() => setAsking(null)}
+        />
+      ) : null}
+
+      {asking?.kind === "delete" ? (
+        <ConfirmDialog
+          title={`Delete ${asking.node.name}?`}
+          body={
+            asking.node.kind === "folder"
+              ? `Everything inside "${asking.node.name}" goes with it, and none of it can be brought back.`
+              : `"${asking.node.name}" and its whole history go, and cannot be brought back.`
+          }
+          confirmLabel="Delete"
+          danger
+          onConfirm={() => remove(asking.node)}
+          onClose={() => setAsking(null)}
+        />
+      ) : null}
 
       {moving ? (
         <MoveDialog

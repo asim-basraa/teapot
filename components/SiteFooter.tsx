@@ -34,6 +34,8 @@ function Note({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  /** Whether the note was attributed, and so whether a reply can reach them. */
+  const [threaded, setThreaded] = useState(false);
 
   useEffect(() => {
     const el = dialog.current;
@@ -58,6 +60,7 @@ function Note({ onClose }: { onClose: () => void }) {
       return;
     }
 
+    setThreaded(Boolean(body.threaded));
     setSent(true);
   }
 
@@ -84,9 +87,18 @@ function Note({ onClose }: { onClose: () => void }) {
           <p className="msg msg-notice" role="status">
             Got it. Thank you.
           </p>
-          <p className="hint">
-            It went straight to a page only I can read.
-          </p>
+          {threaded ? (
+            <p className="hint">
+              Only I can read it. If I reply you will find it in your{" "}
+              <a href="/inbox">inbox</a>.
+            </p>
+          ) : (
+            <p className="hint">
+              Only I can read it. You sent it without signing in, so it is
+              anonymous and I have no way to reply. Sign in first if you would
+              like one.
+            </p>
+          )}
         </>
       ) : (
         <form onSubmit={send}>
@@ -110,8 +122,9 @@ function Note({ onClose }: { onClose: () => void }) {
           </label>
 
           <p className="hint">
-            No account, no address, nothing kept but the words. It lands on a
-            page only I can read.
+            No account, no address, nothing kept but the words, and only I can
+            read it. Signed in, it becomes a conversation I can answer; signed
+            out, it stays anonymous and I cannot.
           </p>
 
           <button className="btn" type="submit" disabled={busy || !message.trim()}>

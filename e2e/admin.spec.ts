@@ -111,10 +111,13 @@ test.describe("People", () => {
 
   test("an account that still owns spaces cannot be deleted", async () => {
     await boss.goto("/admin");
-    boss.once("dialog", (d) => void d.accept());
     await boss
       .locator("tr", { hasText: STAFF })
       .getByRole("button", { name: "Delete" })
+      .click();
+    await boss
+      .getByRole("dialog", { name: `Delete ${STAFF}?` })
+      .getByRole("button", { name: "Delete account" })
       .click();
 
     await expect(boss.locator(".msg-error")).toContainText("still owns");
@@ -169,10 +172,13 @@ test.describe("People", () => {
   });
 
   test("and then the account can go", async () => {
-    boss.once("dialog", (d) => void d.accept());
     await boss
       .locator("tr", { hasText: STAFF })
       .getByRole("button", { name: "Delete" })
+      .click();
+    await boss
+      .getByRole("dialog", { name: `Delete ${STAFF}?` })
+      .getByRole("button", { name: "Delete account" })
       .click();
 
     await expect(boss.locator("tr", { hasText: STAFF })).toHaveCount(0);

@@ -144,8 +144,10 @@ test.describe("Names, the space's own page, and sharing from the tree", () => {
   test("renaming the space renames it everywhere it is named", async () => {
     await owner.goto(`/s/${SLUG}`);
 
-    owner.once("dialog", (dialog) => void dialog.accept("Second Name"));
     await owner.getByRole("button", { name: "Rename First Name" }).click();
+    const renaming = owner.getByRole("dialog", { name: "Rename First Name" });
+    await renaming.getByRole("textbox").fill("Second Name");
+    await renaming.getByRole("button", { name: "Save" }).click();
 
     await expect(owner.locator(".space-title")).toContainText("Second Name");
     // Its front page carries the space's name, so that moves too.

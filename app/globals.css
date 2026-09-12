@@ -1229,3 +1229,112 @@ html, body { max-width: 100%; overflow-x: hidden; }
   .tree-name { flex: 1 1 100%; }
   .tree-actions { flex: 0 0 auto; }
 }
+
+/* --- Dialogs that replaced window.prompt and window.confirm ---------------- */
+
+.ask-dialog { width: min(26rem, calc(100vw - 2rem)); }
+.ask-dialog .field { margin-top: 1rem; }
+.ask-dialog .hint { margin: 0.6rem 0 0; }
+
+.confirm-body { margin: 1rem 0 0; }
+
+/* Cancel sits first and the destructive action last, so the button nearest the
+   reader's thumb is the one that does nothing. */
+.dialog-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
+/* --- Inbox ---------------------------------------------------------------- */
+
+.threads { list-style: none; margin: 1.5rem 0 0; padding: 0; }
+.threads li + li { border-top: 1px solid var(--border); }
+
+.threads a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.2rem 1rem;
+  padding: 0.9rem 0;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.thread-who {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.threads a:hover .thread-who { color: var(--accent); }
+
+/* A dot rather than the word "new": the list is scanned, and a row either has
+   one or it does not. */
+.thread-dot {
+  width: 0.45rem; height: 0.45rem; border-radius: 50%;
+  background: var(--accent); flex: none;
+}
+
+.thread-tag {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+}
+
+.thread-preview {
+  grid-column: 1;
+  color: var(--muted);
+  font-size: 0.88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-when {
+  grid-column: 2; grid-row: 1;
+  color: var(--muted); font-size: 0.82rem; white-space: nowrap;
+}
+
+.conversation { margin-top: 1.5rem; }
+
+.conversation-who {
+  font-size: 1rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.messages { list-style: none; margin: 0 0 2rem; padding: 0; display: grid; gap: 0.9rem; }
+
+.message {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  background: var(--panel);
+  max-width: 90%;
+}
+
+/* Yours sit to the right and carry the accent edge, so a conversation reads as
+   two sides without needing a name on every line. */
+.message.is-mine {
+  margin-left: auto;
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--border));
+}
+
+.message-body { margin: 0; white-space: pre-wrap; overflow-wrap: break-word; }
+.message-when { margin: 0.5rem 0 0; font-size: 0.78rem; color: var(--muted); }
+
+.reply-form { display: flex; flex-direction: column; gap: 1rem; align-items: flex-start; }
+.conversation-closed { border-top: 1px solid var(--border); padding-top: 1rem; }

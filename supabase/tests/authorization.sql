@@ -679,6 +679,103 @@ select pg_temp.check('and moving it back restores every address',
   (select path from public.nodes where id = 'b0000000-0000-0000-0000-000000000003'),
   'projects/deep/note');
 
+-- Notes and replies -----------------------------------------------------------
+--
+-- A conversation started from the front page belongs to exactly two people: the
+-- inbox owner and whoever sent it. Anybody else, signed in or not, gets the same
+-- nothing they would get for a conversation that does not exist.
+--
+-- The anonymous case is the one worth being explicit about. A note sent without
+-- an account has one participant, so it can be read by the owner and answered by
+-- nobody, and the refusal is deliberate rather than an oversight: a reply there
+-- would be a message its recipient could never read.
+--
+-- The owner here is whoever owns the space with slug 'postit'. This suite's
+-- space is not that, so inbox_owner() is null for these fixtures, which makes
+-- every assertion below about the sender's side alone. That is the side with the
+-- privacy rule on it.
+
+set local role service_role;
+select public.send_note('A joke from alice', '22222222-2222-2222-2222-222222222222');
+select public.send_note('A joke from bob', '33333333-3333-3333-3333-333333333333');
+select public.send_note('A joke from nobody', null);
+reset role;
+
+set local role authenticated;
+
+select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+
+select pg_temp.check('a sender sees the conversation they started',
+  (select count(*)::text from public.note_threads()), '1');
+select pg_temp.check('and reads what they said in it',
+  (select body from public.note_conversation(
+     (select note_id from public.note_threads()))), 'A joke from alice');
+select pg_temp.check('and never somebody else''s, through the table itself',
+  (select count(*)::text from public.notes), '1');
+select pg_temp.check('nor anybody else''s words',
+  (select count(*)::text from public.note_messages), '1');
+
+-- Bob's conversation, named directly. Knowing the id is not being in it.
+select pg_temp.check('naming another conversation reveals nothing',
+  (select count(*)::text from public.note_conversation(
+     (select id from public.notes where sender_id = '33333333-3333-3333-3333-333333333333'))),
+  '0');
+
+do $$
+declare v_other uuid;
+begin
+  select id into v_other from public.notes
+   where sender_id = '33333333-3333-3333-3333-333333333333';
+  begin
+    perform public.reply_to_note(v_other, 'Butting in');
+    raise exception 'FAIL: a stranger replied to somebody else''s conversation';
+  exception when sqlstate 'P0002' then null;  -- refused as not-found, as it must be
+       when sqlstate 'P0001' then
+         if sqlerrm like 'FAIL:%' then raise; end if;
+  end;
+end $$;
+
+-- Replying to your own is the whole point, and it must still work.
+select pg_temp.check('but a sender may answer their own',
+  (public.reply_to_note(
+     (select note_id from public.note_threads()), 'And another thing') is not null)::text,
+  'true');
+select pg_temp.check('and the conversation grows by exactly that',
+  (select count(*)::text from public.note_conversation(
+     (select note_id from public.note_threads()))), '2');
+
+-- An anonymous conversation has nobody in it but the owner, so a sender who is
+-- not the owner cannot reach it at all.
+select pg_temp.check('an anonymous note belongs to no sender',
+  (select count(*)::text from public.note_conversation(
+     (select id from public.notes where sender_id is null))), '0');
+
+-- Somebody who has sent nothing is in no conversation.
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+select pg_temp.check('somebody who sent nothing has no conversations',
+  (select count(*)::text from public.note_threads()), '0');
+select pg_temp.check('and sees no notes at all',
+  (select count(*)::text from public.notes), '0');
+
+-- Writing straight at the table, around the function that carries the rules.
+do $$
+begin
+  begin
+    insert into public.note_messages (note_id, author_id, body)
+    values ((select id from public.notes limit 1),
+            '44444444-4444-4444-4444-444444444444', 'Straight in');
+    raise exception 'FAIL: a message was inserted around reply_to_note';
+  exception when sqlstate '42501' then null;  -- no insert policy exists, as intended
+       when sqlstate 'P0001' then
+         if sqlerrm like 'FAIL:%' then raise; end if;
+  end;
+end $$;
+
+reset role;
+
+select pg_temp.check('and nothing was written by anybody who was refused',
+  (select count(*)::text from public.note_messages where body = 'Butting in'), '0');
+
 -- Search ---------------------------------------------------------------------
 --
 -- Search is the easiest place in a product like this to leak: an index built

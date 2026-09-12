@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { allow, callerAddress } from "@/lib/mcp/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -19,9 +19,13 @@ const PER_WINDOW = 5;
  *
  * Which is why everything here is about bounding it. A length cap, a throttle
  * per address, and a database function that only the service role may call, so
- * this endpoint is the only door rather than one of two. The note is quoted
- * line by line when it lands, and the renderer sanitises HTML on the way out,
- * so nothing sent here can rearrange the page it arrives on.
+ * this endpoint is the only door rather than one of two.
+ *
+ * The one thing it now does beyond sending: if somebody is signed in, the note
+ * is attributed to them, which is what makes a reply possible. Sending stays
+ * exactly as open as it was — nobody is asked to sign in — but the two outcomes
+ * are genuinely different, so the response says which one happened rather than
+ * letting the page guess.
  */
 export async function POST(request: NextRequest) {
   if (!allow(`inbox:${callerAddress(request)}`, PER_WINDOW)) {
@@ -49,6 +53,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Read on this request's own cookies, so the sender is whoever the session
+  // actually belongs to. The admin client below cannot be asked: to it, every
+  // caller is the service role and nobody in particular.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   let admin;
   try {
     admin = createAdminClient();
@@ -57,14 +69,18 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "That did not send." }, { status: 500 });
   }
 
-  const { error } = await admin.rpc("append_to_inbox", {
+  const { error } = await admin.rpc("send_note", {
     p_message: message,
+    p_sender_id: user?.id ?? null,
   });
 
   if (error) {
-    console.error("append_to_inbox failed: %s", error.message);
+    console.error("send_note failed: %s", error.message);
     return Response.json({ error: "That did not send." }, { status: 500 });
   }
 
-  return Response.json({ ok: true });
+  // `threaded` is the honest difference: an attributed note can be answered and
+  // an anonymous one cannot, and somebody who just sent one deserves to know
+  // which they did before they wait for a reply that is never coming.
+  return Response.json({ ok: true, threaded: Boolean(user) });
 }

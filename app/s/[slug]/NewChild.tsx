@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { AskDialog } from "@/components/Ask";
 
 /**
  * Making something inside a folder, from the folder.
@@ -22,22 +23,14 @@ export function NewChild({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [asking, setAsking] = useState<
+    { kind: "folder" | "file"; contentType?: "article" | "skill" } | null
+  >(null);
 
-  async function create(
-    kind: "folder" | "file",
-    contentType?: "article" | "skill",
-  ) {
-    const name = window
-      .prompt(
-        kind === "folder"
-          ? "Folder name"
-          : contentType === "skill"
-            ? "Skill name"
-            : "Page name",
-      )
-      ?.trim();
-    if (!name) return;
-
+  async function create(name: string) {
+    if (!asking) return;
+    const { kind, contentType } = asking;
+    setAsking(null);
     setError(null);
     const res = await fetch("/api/v1/nodes", {
       method: "POST",
@@ -73,7 +66,7 @@ export function NewChild({
         className="btn btn-secondary btn-small"
         type="button"
         disabled={pending}
-        onClick={() => void create("file")}
+        onClick={() => setAsking({ kind: "file" })}
       >
         New page
       </button>
@@ -81,7 +74,7 @@ export function NewChild({
         className="btn btn-secondary btn-small"
         type="button"
         disabled={pending}
-        onClick={() => void create("file", "skill")}
+        onClick={() => setAsking({ kind: "file", contentType: "skill" })}
       >
         New skill
       </button>
@@ -89,10 +82,31 @@ export function NewChild({
         className="btn btn-secondary btn-small"
         type="button"
         disabled={pending}
-        onClick={() => void create("folder")}
+        onClick={() => setAsking({ kind: "folder" })}
       >
         New folder
       </button>
+
+      {asking ? (
+        <AskDialog
+          title={
+            asking.kind === "folder"
+              ? "New folder"
+              : asking.contentType === "skill"
+                ? "New skill"
+                : "New page"
+          }
+          label="Name"
+          submitLabel="Create"
+          hint={
+            asking.contentType === "skill"
+              ? "A skill is a page Claude reads to learn how you want a job done."
+              : undefined
+          }
+          onSubmit={(name) => void create(name)}
+          onClose={() => setAsking(null)}
+        />
+      ) : null}
 
       {error ? (
         <p className="msg msg-error" role="alert">

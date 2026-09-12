@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ConfirmDialog } from "@/components/Ask";
 import type { AdminUser, OwnedSpace } from "@/lib/admin";
 
 /**
@@ -13,6 +14,7 @@ import type { AdminUser, OwnedSpace } from "@/lib/admin";
  */
 export function Users({ initial, me }: { initial: AdminUser[]; me: string }) {
   const [users, setUsers] = useState(initial);
+  const [deleting, setDeleting] = useState<AdminUser | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [handing, setHanding] = useState<AdminUser | null>(null);
@@ -127,16 +129,7 @@ export function Users({ initial, me }: { initial: AdminUser[]; me: string }) {
                       className="btn btn-danger btn-small"
                       type="button"
                       disabled={busy === user.id}
-                      onClick={() => {
-                        if (
-                          !confirm(
-                            `Delete ${user.email}? Their account goes for good. This cannot be undone.`,
-                          )
-                        ) {
-                          return;
-                        }
-                        void act(user.id, { method: "DELETE" });
-                      }}
+                      onClick={() => setDeleting(user)}
                     >
                       Delete
                     </button>
@@ -157,6 +150,21 @@ export function Users({ initial, me }: { initial: AdminUser[]; me: string }) {
             setHanding(null);
             await refresh();
           }}
+        />
+      ) : null}
+
+      {deleting ? (
+        <ConfirmDialog
+          title={`Delete ${deleting.email}?`}
+          body={`Their account goes for good, along with everything only they could read. This cannot be undone.`}
+          confirmLabel="Delete account"
+          danger
+          onConfirm={() => {
+            const id = deleting.id;
+            setDeleting(null);
+            void act(id, { method: "DELETE" });
+          }}
+          onClose={() => setDeleting(null)}
         />
       ) : null}
     </>

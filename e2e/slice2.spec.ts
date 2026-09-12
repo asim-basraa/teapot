@@ -22,9 +22,9 @@ test.describe("Slice 2: file tree and node CRUD", () => {
     context = await browser.newContext();
     page = await context.newPage();
 
-    // window.prompt and window.confirm drive the tree's actions. Playwright
-    // dismisses dialogs by default, so every action would silently no-op
-    // without a handler. Each test sets the answer it needs.
+    // The tree's actions open the product's own dialogs now, not the browser's,
+    // so these are ordinary elements to be filled in and submitted rather than
+    // native dialogs needing a page-level handler.
     await registerAndConfirm(page, EMAIL, PASSWORD);
     await createSpace(page, SPACE_NAME, SPACE_SLUG);
   });
@@ -33,11 +33,23 @@ test.describe("Slice 2: file tree and node CRUD", () => {
     await context.close();
   });
 
-  /** Answers the next prompt with `value`, or accepts a confirm. */
-  function answer(value?: string) {
-    page.once("dialog", (dialog) => {
-      void dialog.accept(value);
-    });
+  /**
+   * Fills in whichever dialog the last click opened and submits it.
+   *
+   * A name means the asking dialog; no name means the confirming one, whose
+   * only answer is the button.
+   */
+  async function answer(value?: string) {
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    if (value === undefined) {
+      await dialog.getByRole("button", { name: /^(Delete|Confirm)/ }).click();
+      return;
+    }
+
+    await dialog.getByRole("textbox").fill(value);
+    await dialog.getByRole("button", { name: /^(Create|Save)$/ }).click();
   }
 
   /**
@@ -56,12 +68,12 @@ test.describe("Slice 2: file tree and node CRUD", () => {
       (r) =>
         r.url().includes("/api/v1/nodes") && r.request().method() === method,
     );
-    answer(promptValue);
     // Exact, because the tree header offers "New page at the top level" and a
     // folder's own page offers "New page", and the two mean different places.
     await page
       .getByRole("button", { name: buttonName, exact: true })
       .click();
+    await answer(promptValue);
     return waitForApi;
   }
 

@@ -7,6 +7,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { isPlatformAdmin } from "@/lib/admin";
 import { listShares } from "@/lib/shares";
 import { myTeams } from "@/lib/teams";
+import { listNoteThreads } from "@/lib/notes";
 import { Shared } from "./Shared";
 import { NavLink } from "@/components/NavLink";
 
@@ -25,6 +26,7 @@ export default async function SpacesPage() {
   const admin = await isPlatformAdmin();
   const shares = await listShares();
   const teams = await myTeams();
+  const threads = await listNoteThreads();
 
   return (
     <main className="shell">
@@ -54,6 +56,19 @@ export default async function SpacesPage() {
         </ul>
       )}
 
+      {threads.length > 0 ? (
+        <p className="teams-link">
+          <NavLink href="/inbox">
+            {unread(threads) > 0
+              ? `${unread(threads)} unread in your inbox`
+              : "Your inbox"}
+          </NavLink>{" "}
+          <span className="hint">
+            Notes sent from the front page, and the replies to them.
+          </span>
+        </p>
+      ) : null}
+
       {teams.length > 0 ? (
         <p className="teams-link">
           <NavLink href="/teams">
@@ -73,4 +88,9 @@ export default async function SpacesPage() {
       </section>
     </main>
   );
+}
+
+/** Conversations with something in them the reader has not seen. */
+function unread(threads: { unread: boolean }[]): number {
+  return threads.filter((t) => t.unread).length;
 }

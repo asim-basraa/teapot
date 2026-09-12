@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { AskDialog } from "@/components/Ask";
 import { renameSpaceAction } from "@/app/spaces/actions";
 
 /**
@@ -25,10 +26,11 @@ export function SpaceName({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
 
-  function rename() {
-    const next = window.prompt("Space name", name)?.trim();
-    if (!next || next === name) return;
+  function rename(next: string) {
+    setAsking(false);
+    if (next === name) return;
 
     startTransition(async () => {
       const result = await renameSpaceAction(spaceId, next);
@@ -44,7 +46,7 @@ export function SpaceName({
         <button
           type="button"
           className="space-rename"
-          onClick={rename}
+          onClick={() => setAsking(true)}
           disabled={pending}
           aria-label={`Rename ${name}`}
         >
@@ -55,6 +57,17 @@ export function SpaceName({
         <span className="msg msg-error" role="alert">
           {error}
         </span>
+      ) : null}
+
+      {asking ? (
+        <AskDialog
+          title={`Rename ${name}`}
+          label="Space name"
+          value={name}
+          hint="Only the name changes. The address stays as it is, so nothing anybody has linked breaks."
+          onSubmit={rename}
+          onClose={() => setAsking(false)}
+        />
       ) : null}
     </span>
   );

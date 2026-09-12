@@ -57,7 +57,8 @@ test.describe("Your account", () => {
 
   test("and it leads to the account page", async () => {
     await page.goto("/spaces");
-    await page.getByRole("link", { name: OWNER }).click();
+    // By class rather than by name: the header shows the part before the @ now.
+    await page.locator(".shell-account").click();
 
     await expect(page).toHaveURL(/\/account/);
     await expect(

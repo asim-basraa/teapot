@@ -114,9 +114,20 @@ test.describe("Being in a space", () => {
     await asking.getByRole("textbox").fill("Member Started This");
     await asking.getByRole("button", { name: "Create" }).click();
 
+    // Creating from the tree header refreshes the tree rather than opening the
+    // page; making one from inside a folder is the path that carries you in.
+    const made = member
+      .locator(".tree")
+      .getByRole("link", { name: "Member Started This" });
+    await expect(made).toBeVisible();
+
+    await made.click();
     await expect(member).toHaveURL(
       new RegExp(`/s/${SPACE}/member-started-this`),
     );
+    await expect(
+      member.getByRole("heading", { level: 1, name: "Member Started This" }),
+    ).toBeVisible();
   });
 
   test("but deleting belongs to whoever wrote it", async () => {

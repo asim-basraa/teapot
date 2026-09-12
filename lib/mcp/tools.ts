@@ -1,5 +1,6 @@
 import { readSkillMetadata, parseFrontmatter } from "@postit/renderer";
 import { startingContent, translate } from "@/lib/nodes";
+import { COMMENT_LIMIT } from "@/lib/comments";
 import type { McpSession } from "./session";
 
 export type ToolResult = { text: string } | { error: string };
@@ -546,6 +547,133 @@ const listBacklinks: ToolDefinition = {
   },
 };
 
+/**
+ * The two comment tools.
+ *
+ * Reading a page is enough to comment on it, which is the rule the table
+ * already carries: a reader who spots a mistake can say so without being given
+ * the power to edit. Nothing here restates that. The insert is an ordinary one
+ * and the policy decides.
+ *
+ * There is no way to reply, and that is the design rather than an omission. An
+ * agent's job here is to leave one considered review as one comment; the
+ * conversation underneath it belongs to the people on the page, who can see
+ * each other and answer in their own words. An agent that could also reply
+ * would end up talking in a thread meant for them, and a comment box filling
+ * with machine answers stops being somewhere anybody wants to write.
+ *
+ * Reading still shows replies, because a review written without reading the
+ * discussion is a review of the wrong thing.
+ */
+const listComments: ToolDefinition = {
+  name: "list_comments",
+  description:
+    "The comments on a page, oldest first, with who wrote each one. Replies appear under the comment they answer.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      space_id: { type: "string" },
+      path: { type: "string", description: "For example 'projects/roadmap'." },
+      id: { type: "string", description: "Alternative to space_id and path." },
+    },
+    additionalProperties: false,
+  },
+  async run(session, args) {
+    const node = await findNode(session, args);
+    if ("error" in node) return node;
+
+    const { data, error } = await session.supabase.rpc("node_comments", {
+      p_node_id: node.id,
+    });
+
+    if (error) return { error: "Not found." };
+
+    const rows = (data ?? []) as {
+      id: string;
+      parent_id: string | null;
+      author_email: string;
+      body: string;
+      created_at: string;
+      deleted: boolean;
+    }[];
+
+    if (rows.length === 0) return text(`No comments on ${node.name} yet.`);
+
+    const repliesTo = new Map<string, typeof rows>();
+    for (const row of rows) {
+      if (!row.parent_id) continue;
+      const kept = repliesTo.get(row.parent_id);
+      if (kept) kept.push(row);
+      else repliesTo.set(row.parent_id, [row]);
+    }
+
+    const render = (row: (typeof rows)[number], indent: string) =>
+      [
+        `${indent}${row.author_email} · ${row.created_at}`,
+        `${indent}${row.deleted ? "(withdrawn)" : row.body.replace(/\n/g, `\n${indent}`)}`,
+      ].join("\n");
+
+    const lines: string[] = [`# Comments on ${node.name}`, ""];
+    for (const row of rows) {
+      if (row.parent_id) continue;
+      lines.push(render(row, ""));
+      for (const reply of repliesTo.get(row.id) ?? []) {
+        lines.push(render(reply, "    "));
+      }
+      lines.push("");
+    }
+
+    return text(lines.join("\n").trimEnd());
+  },
+};
+
+const addComment: ToolDefinition = {
+  name: "add_comment",
+  description:
+    "Add a comment to a page. Top level only: leave a whole review as a single comment, and let the people on the page reply to it themselves. Being able to read the page is enough; it does not require permission to edit.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      space_id: { type: "string" },
+      path: { type: "string", description: "For example 'projects/roadmap'." },
+      id: { type: "string", description: "Alternative to space_id and path." },
+      body: {
+        type: "string",
+        description:
+          "The comment, as Markdown. One comment, however long: do not split a review across several.",
+      },
+    },
+    required: ["body"],
+    additionalProperties: false,
+  },
+  async run(session, args) {
+    const node = await findNode(session, args);
+    if ("error" in node) return node;
+
+    const body = String(args.body ?? "").trim();
+    if (!body) return { error: "A comment cannot be empty." };
+    if (body.length > COMMENT_LIMIT) {
+      return { error: `Keep a comment under ${COMMENT_LIMIT} characters.` };
+    }
+
+    // author_id is the token's owner, and the insert policy independently
+    // requires it to match the session. A token cannot post as somebody else
+    // even if this line were wrong.
+    const { error } = await session.supabase.from("comments").insert({
+      node_id: node.id,
+      author_id: session.userId,
+      parent_id: null,
+      body,
+    });
+
+    // Not-found rather than forbidden, like everything else here: a refusal
+    // must not tell a token which pages exist.
+    if (error) return { error: "Not found." };
+
+    return text(`Commented on ${node.name}.`);
+  },
+};
+
 export const TOOLS: ToolDefinition[] = [
   listSpaces,
   search,
@@ -557,6 +685,8 @@ export const TOOLS: ToolDefinition[] = [
   createPage,
   updatePage,
   listBacklinks,
+  listComments,
+  addComment,
 ];
 
 type FoundNode = {

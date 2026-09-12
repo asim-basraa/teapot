@@ -185,6 +185,20 @@ test.describe("MCP server", () => {
     // only add is a far smaller problem than one that can remove.
     expect(names).not.toContain("delete_page");
     expect(names).not.toContain("move_page");
+
+    // Commenting is offered; replying is not, and that is the design. One
+    // considered review goes up as one comment, and the conversation under it
+    // belongs to the people on the page.
+    expect(names).toContain("add_comment");
+    expect(names).toContain("list_comments");
+    expect(names).not.toContain("reply_to_comment");
+
+    const commenting = listed.body.result.tools.find(
+      (t: { name: string }) => t.name === "add_comment",
+    );
+    expect(Object.keys(commenting.inputSchema.properties)).not.toContain(
+      "parent_id",
+    );
   });
 
   test("it reads the owner's own content", async () => {
@@ -373,6 +387,56 @@ test.describe("MCP server", () => {
     const listed = await owner.request.get(`/api/v1/nodes?space_id=${spaceId}`);
     const names = (await listed.json()).nodes.map((n: { name: string }) => n.name);
     expect(names).not.toContain("Intruder");
+  });
+
+  test("it leaves a review as one comment, and the browser shows it", async () => {
+    const REVIEW = [
+      "Three things on this:",
+      "",
+      "1. The second paragraph contradicts the first.",
+      "2. No owner is named for the migration step.",
+      "3. The date in the header is last quarter's.",
+    ].join("\n");
+
+    const added = await call("add_comment", {
+      space_id: spaceId,
+      path: "roadmap",
+      body: REVIEW,
+    });
+    expect(added.isError).toBeFalsy();
+    expect(added.text).toContain("Roadmap");
+
+    // Read back through the tool, with the author named.
+    const listed = await call("list_comments", {
+      space_id: spaceId,
+      path: "roadmap",
+    });
+    expect(listed.text).toContain("contradicts the first");
+    expect(listed.text).toContain(OWNER);
+
+    // Multi-line survives as one comment rather than being split into three.
+    expect(listed.text).toContain("3. The date in the header");
+
+    // The same conversation the browser shows, not a parallel one.
+    await owner.goto(`/s/${SPACE}/roadmap`);
+    await expect(owner.locator("main")).toContainText(
+      "The second paragraph contradicts the first",
+    );
+  });
+
+  test("but not on a page it cannot read", async () => {
+    const refused = await call(
+      "add_comment",
+      { space_id: spaceId, path: "roadmap", body: "Butting in" },
+      otherToken,
+    );
+    expect(refused.isError).toBe(true);
+
+    const listed = await call("list_comments", {
+      space_id: spaceId,
+      path: "roadmap",
+    });
+    expect(listed.text).not.toContain("Butting in");
   });
 
   test("revoking a token stops it on the very next request", async () => {

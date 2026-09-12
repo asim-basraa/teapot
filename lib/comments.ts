@@ -4,6 +4,15 @@ import type { Comment } from "@/lib/comment-threads";
 export type { Comment, CommentThread } from "@/lib/comment-threads";
 export { buildThreads } from "@/lib/comment-threads";
 
+/**
+ * The longest a comment may be.
+ *
+ * Named rather than inlined because the MCP server enforces the same bound on
+ * its own insert, and two copies of a number is how the two doors end up
+ * disagreeing about what fits.
+ */
+export const COMMENT_LIMIT = 10_000;
+
 export type CommentResult =
   | { ok: true }
   | { ok: false; error: string; status: number };
@@ -40,7 +49,7 @@ export async function addComment(
 ): Promise<CommentResult> {
   const trimmed = body.trim();
   if (!trimmed) return { ok: false, error: "Say something first.", status: 400 };
-  if (trimmed.length > 10_000) {
+  if (trimmed.length > COMMENT_LIMIT) {
     return { ok: false, error: "That comment is too long.", status: 400 };
   }
 

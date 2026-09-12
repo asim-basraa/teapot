@@ -292,13 +292,14 @@ test.describe("Being in a space", () => {
       member.getByRole("link", { name: "Member Started This" }),
     ).toHaveCount(0);
 
-    // Named rather than positional: the list is ordered by name, so "first"
-    // was whichever space sorted earliest rather than the one made for them.
-    const mine = member
-      .locator(`.space-list a:not([href="/s/${SPACE}"])`)
-      .first();
-    await expect(mine).toBeVisible();
-    await mine.click();
+    // Straight to it, rather than picking one out of the list. Every spec in
+    // this suite shares one database, and one of them shares a folder with
+    // everybody signed in, so this account's list also holds a space belonging
+    // to a test it has never heard of.
+    //
+    // The slug is the address part of their own, which is how a space made for
+    // somebody is named.
+    await member.goto(`/s/${MEMBER.split("@")[0]}`);
 
     await expect(
       member.locator(".tree").getByRole("link", { name: "Member Started This" }),

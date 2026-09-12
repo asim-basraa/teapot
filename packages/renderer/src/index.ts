@@ -15,11 +15,12 @@ import { remarkCallouts } from "./callouts";
 import { remarkStripTitle } from "./title";
 import { remarkHighlights } from "./highlights";
 import { rehypeMermaid } from "./mermaid";
+import { rehypeCollectHeadings } from "./headings";
 import { sanitizeSchema } from "./sanitize";
 import { parseFrontmatter } from "./frontmatter";
-import type { SpaceContext, RenderResult } from "./context";
+import type { SpaceContext, RenderResult, Heading } from "./context";
 
-export type { SpaceContext, RenderResult };
+export type { SpaceContext, RenderResult, Heading };
 export { extractWikilinkTargets };
 export { parseFrontmatter, readSkillMetadata } from "./frontmatter";
 export type { Frontmatter, SkillMetadata } from "./frontmatter";
@@ -46,6 +47,10 @@ export async function renderMarkdown(
   // a stray table of text at the top of the page.
   const { body } = parseFrontmatter(markdown);
 
+  // Filled by the collector below as the tree is walked. Local to the call, so
+  // the function stays pure: two renders never see each other's headings.
+  const headings: Heading[] = [];
+
   const file = await unified()
     .use(remarkParse)
     .use(remarkGfm)
@@ -62,6 +67,7 @@ export async function renderMarkdown(
     .use(rehypeRaw)
     .use(rehypeSanitize, sanitizeSchema)
     .use(rehypeSlug)
+    .use(rehypeCollectHeadings, headings)
     .use(rehypeKatex)
     // Before Shiki: a mermaid fence must reach the client as source, and the
     // highlighter would have turned it into coloured markup with no source left.
@@ -73,5 +79,6 @@ export async function renderMarkdown(
   return {
     html: String(file),
     linkTargets: extractWikilinkTargets(body),
+    headings,
   };
 }

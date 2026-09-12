@@ -24,6 +24,13 @@
 
 * { box-sizing: border-box; }
 
+/* Following a link to a heading glides rather than jumps, so it stays clear
+   that you moved within the page rather than to a new one. Off for anybody who
+   has asked their system for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -341,6 +348,23 @@ footer {
 
 /* Reading */
 .prose { font-size: 1.02rem; line-height: 1.75; }
+
+/* A measure, set on the blocks rather than on .prose itself.
+   A line of text has a comfortable length, somewhere around 70 characters, and
+   past it the eye loses its place on the way back to the left margin. A table
+   or a code block or a diagram has no such limit and is only hurt by one, so
+   capping the container would be the wrong cap: it is the paragraphs that need
+   it. This way the text reads at a measure while the wide things still have the
+   whole pane. */
+.prose > * { max-width: 46rem; }
+.prose > pre,
+.prose > table,
+.prose > figure,
+.prose > .table-wrap { max-width: 100%; }
+
+/* Where an anchor lands. Without it a heading jumped to from the contents sits
+   flush against the top edge of the window with its section out of sight. */
+.prose :is(h1, h2, h3, h4) { scroll-margin-top: 1.5rem; }
 .prose h1 { font-size: 1.9rem; letter-spacing: -0.02em; margin: 0 0 1rem; }
 .prose h2 { font-size: 1.35rem; margin: 2.25rem 0 0.75rem; letter-spacing: -0.01em; text-transform: none; color: var(--text); font-weight: 600; }
 .prose h3 { font-size: 1.1rem; margin: 1.75rem 0 0.5rem; }
@@ -355,6 +379,49 @@ footer {
 
 /* Wide content scrolls inside itself rather than the page */
 .prose .table-wrap, .prose pre, .prose table { max-width: 100%; }
+
+/* The page and its sections, side by side.
+   One column until there is genuinely room for two: a contents rail squeezed
+   in beside a narrow reading column costs the page more width than the rail is
+   worth. */
+.page-grid {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 3rem;
+  /* The reading column and the rail together. Past this there is nothing left
+     to gain from more width: the text is already at its measure, and a code
+     block three feet wide is not easier to read than one that is not. */
+  max-width: 81rem;
+}
+.page-col { min-width: 0; }
+
+.toc { display: none; }
+
+@media (min-width: 75rem) {
+  .page-grid { grid-template-columns: minmax(0, 1fr) 14rem; align-items: start; }
+
+  .toc {
+    display: block;
+    position: sticky;
+    top: 1.25rem;
+    max-height: calc(100dvh - 3rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-left: 1px solid var(--border);
+    padding-left: 1rem;
+  }
+}
+
+.toc h2 {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--muted); margin: 0 0 0.6rem; font-weight: 600;
+}
+.toc ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.toc a {
+  color: var(--muted); font-size: 0.85rem; line-height: 1.35;
+  text-decoration: none; display: block;
+}
+.toc a:hover { color: var(--accent); }
+.toc-sub { padding-left: 0.85rem; }
+.toc-sub a { font-size: 0.8rem; }
 
 .wikilink-unresolved {
   color: var(--muted);

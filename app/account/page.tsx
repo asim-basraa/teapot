@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/supabase/server";
-import { listSpaces } from "@/lib/spaces";
+import { listOpenSpaces } from "@/lib/spaces";
 import { listTokens } from "@/lib/mcp/tokens";
 import { AppHeader } from "@/components/AppHeader";
 import { isPlatformAdmin } from "@/lib/admin";
@@ -26,7 +26,8 @@ export default async function AccountPage() {
   // Sequential, not Promise.all: two Supabase calls dispatched together on one
   // request's client can each decide the session needs refreshing, and the one
   // that loses that race comes back empty rather than failing.
-  const spaces = await listSpaces();
+  // The same list /spaces shows, so the count here and the list there agree.
+  const spaces = await listOpenSpaces(user.id);
   const tokens = await listTokens();
   const admin = await isPlatformAdmin();
 

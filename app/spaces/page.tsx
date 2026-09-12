@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { listSpaces } from "@/lib/spaces";
+import { listOpenSpaces } from "@/lib/spaces";
 import { NewSpaceForm } from "./NewSpaceForm";
 import { AppHeader } from "@/components/AppHeader";
 import { isPlatformAdmin } from "@/lib/admin";
@@ -22,7 +22,7 @@ export default async function SpacesPage() {
 
   if (!user) redirect("/login");
 
-  const spaces = await listSpaces();
+  const spaces = await listOpenSpaces(user.id);
   const admin = await isPlatformAdmin();
   const shares = await listShares();
   const teams = await myTeams();
@@ -36,7 +36,9 @@ export default async function SpacesPage() {
 
       <h1>Your spaces</h1>
       <p className="lede">
-        Spaces you own, and spaces others have shared with you.
+        Spaces you own, and spaces you have been let into. A single page somebody
+        shared with you is above, under Shared with you, rather than here: the
+        page is yours to read, the space around it is not.
       </p>
 
       {spaces.length === 0 ? (

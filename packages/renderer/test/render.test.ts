@@ -186,6 +186,41 @@ describe("markdown flavours", () => {
   });
 });
 
+describe("headings", () => {
+  it("collects sections in reading order, with the ids the page carries", async () => {
+    const { headings } = await renderMarkdown(
+      "## First\n\nText.\n\n### Nested\n\n## Second",
+      space,
+    );
+    expect(headings).toEqual([
+      { depth: 2, id: "first", text: "First" },
+      { depth: 3, id: "nested", text: "Nested" },
+      { depth: 2, id: "second", text: "Second" },
+    ]);
+  });
+
+  it("flattens markup inside a heading to its text", async () => {
+    const { headings } = await renderMarkdown("## A `code` word", space);
+    expect(headings[0].text).toBe("A code word");
+  });
+
+  it("ignores the title, which the page supplies itself", async () => {
+    const { headings } = await renderMarkdown("# Title\n\n## Section", space);
+    expect(headings.map((h) => h.text)).toEqual(["Section"]);
+  });
+
+  it("has nothing to say about a document with no sections", async () => {
+    const { headings } = await renderMarkdown("Just a paragraph.", space);
+    expect(headings).toEqual([]);
+  });
+
+  it("does not carry headings between renders", async () => {
+    await renderMarkdown("## One", space);
+    const { headings } = await renderMarkdown("## Two", space);
+    expect(headings.map((h) => h.text)).toEqual(["Two"]);
+  });
+});
+
 describe("purity", () => {
   it("returns identical output for identical input", async () => {
     const a = await renderMarkdown("# Same\n\n[[readable]]", space);

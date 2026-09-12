@@ -10,6 +10,7 @@ import { Mermaid } from "../Mermaid";
 import { Comments } from "../Comments";
 import { History } from "../History";
 import { NewChild } from "../NewChild";
+import { Toc } from "../Toc";
 import {
   getSpaceBySlug,
   getNodeByPath,
@@ -136,7 +137,7 @@ export default async function NodePage({
   }
 
   const ctx = await buildSpaceContext(space.id, space.slug);
-  const { html } = await renderMarkdown(node.content ?? "", ctx);
+  const { html, headings } = await renderMarkdown(node.content ?? "", ctx);
   const backlinks = await listBacklinks(space.slug, node.id);
 
   // Comments require an account, even on a published page. An anonymous
@@ -145,53 +146,61 @@ export default async function NodePage({
   const comments = user ? await listComments(node.id) : [];
 
   return (
-    <>
-      {actions}
+    // Two columns on a wide screen: the page, and the sections of it. The
+    // reading column keeps a measure of its own rather than running the whole
+    // width of a workspace pane, because a line the eye loses its place on
+    // halfway across is the one thing that actually makes reading harder.
+    <div className="page-grid">
+      <div className="page-col">
+        {actions}
 
-      <article
-        className="prose"
-        // Safe: renderMarkdown sanitizes author HTML before KaTeX and Shiki
-        // add their own trusted markup. See packages/renderer/src/sanitize.ts.
-        // The title is prepended here rather than written into the document,
-        // so renaming a page renames what the page calls itself. It is escaped
-        // because a node name is not Markdown and has not been through the
-        // sanitizer.
-        dangerouslySetInnerHTML={{
-          __html: `<h1>${escapeHtml(node.name)}</h1>` + html,
-        }}
-      />
-
-      {/* Hydrates any ```mermaid blocks the document contains. Renders
-          nothing itself, and loads mermaid only if a diagram is present. */}
-      <Mermaid />
-
-      {backlinks.length > 0 ? (
-        // Only what this viewer can read reaches here: the policy on `links`
-        // requires both ends to be readable, so the panel cannot become the
-        // place that admits a restricted page exists. It is therefore absent
-        // rather than empty when nothing readable links here, which is the
-        // same thing a page with no backlinks at all shows.
-        <nav className="backlinks" aria-label="Pages that link here">
-          <h2>Linked from</h2>
-          <ul>
-            {backlinks.map((link) => (
-              <li key={link.id}>
-                <Link href={link.href}>{link.name}</Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      ) : null}
-
-      {user ? (
-        <Comments
-          nodeId={node.id}
-          viewerId={user.id}
-          canModerate={canAdmin}
-          initialComments={comments}
+        <article
+          className="prose"
+          // Safe: renderMarkdown sanitizes author HTML before KaTeX and Shiki
+          // add their own trusted markup. See packages/renderer/src/sanitize.ts.
+          // The title is prepended here rather than written into the document,
+          // so renaming a page renames what the page calls itself. It is escaped
+          // because a node name is not Markdown and has not been through the
+          // sanitizer.
+          dangerouslySetInnerHTML={{
+            __html: `<h1>${escapeHtml(node.name)}</h1>` + html,
+          }}
         />
-      ) : null}
-    </>
+
+        {/* Hydrates any ```mermaid blocks the document contains. Renders
+            nothing itself, and loads mermaid only if a diagram is present. */}
+        <Mermaid />
+
+        {backlinks.length > 0 ? (
+          // Only what this viewer can read reaches here: the policy on `links`
+          // requires both ends to be readable, so the panel cannot become the
+          // place that admits a restricted page exists. It is therefore absent
+          // rather than empty when nothing readable links here, which is the
+          // same thing a page with no backlinks at all shows.
+          <nav className="backlinks" aria-label="Pages that link here">
+            <h2>Linked from</h2>
+            <ul>
+              {backlinks.map((link) => (
+                <li key={link.id}>
+                  <Link href={link.href}>{link.name}</Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ) : null}
+
+        {user ? (
+          <Comments
+            nodeId={node.id}
+            viewerId={user.id}
+            canModerate={canAdmin}
+            initialComments={comments}
+          />
+        ) : null}
+      </div>
+
+      <Toc headings={headings} />
+    </div>
   );
 }
 

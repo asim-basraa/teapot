@@ -39,6 +39,43 @@ export async function listSpaces(): Promise<Space[]> {
 }
 
 /**
+ * The spaces whose front door actually opens for the caller.
+ *
+ * Being able to see a space is not the same as being able to stand in it. A
+ * single page shared out of somebody else's space makes that space visible —
+ * one node in it is readable, which is what the policy asks — but its front
+ * page is not, so /s/<slug> is a 404. Listing it anyway offers a link that can
+ * only disappoint, and a 404 is not a useful thing to learn about a place you
+ * were invited into: the page you were given is in "Shared with you", which is
+ * where it belongs.
+ *
+ * A space you own is always listed, even if its index has been deleted, because
+ * that list is the only way back to its members and teams.
+ */
+export async function listOpenSpaces(userId: string): Promise<Space[]> {
+  const spaces = await listSpaces();
+  if (spaces.length === 0) return spaces;
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("nodes")
+    .select("space_id")
+    .is("parent_id", null)
+    .eq("path", INDEX_PATH)
+    .in(
+      "space_id",
+      spaces.map((space) => space.id),
+    );
+
+  // RLS did the deciding: a row comes back only for a space whose index this
+  // caller may read.
+  const open = new Set((data ?? []).map((row) => row.space_id as string));
+  return spaces.filter(
+    (space) => space.owner_id === userId || open.has(space.id),
+  );
+}
+
+/**
  * Creates a space and its index page.
  *
  * The index node is created eagerly so a new space is immediately viewable

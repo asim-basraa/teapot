@@ -103,3 +103,32 @@ export async function countUnreadNotes(): Promise<number> {
   }
   return (data as number | null) ?? 0;
 }
+
+/** Whether the caller is the person notes are sent to. */
+export async function isInboxOwner(): Promise<boolean> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("is_inbox_owner");
+  if (error) {
+    console.error("is_inbox_owner failed: %s", error.message);
+    return false;
+  }
+  return data === true;
+}
+
+/**
+ * Throws a conversation away, for both sides.
+ *
+ * Only the inbox owner may, which the database decides; anybody else gets the
+ * same not-found a conversation that does not exist would give.
+ */
+export async function deleteNote(noteId: string): Promise<NoteResult> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("delete_note", {
+    p_note_id: noteId,
+  });
+
+  if (error) return { ok: false, error: "Not found.", status: 404 };
+  // False means there was nothing there, which is the same answer.
+  if (data !== true) return { ok: false, error: "Not found.", status: 404 };
+  return { ok: true };
+}

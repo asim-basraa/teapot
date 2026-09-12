@@ -165,6 +165,49 @@ test.describe("The front page", () => {
     await expect(messages.locator(".message.is-mine")).not.toContainText(REPLY);
   });
 
+  test("the owner can throw a conversation away", async () => {
+    // The reason this exists: an inbox fills with things you do not want to
+    // keep looking at, and opening each one to be rid of it is the slow way.
+    await owner.goto("/inbox");
+
+    const row = owner.locator(".threads li", { hasText: JOKE });
+    await expect(row).toBeVisible();
+
+    await row.getByRole("button", { name: /^Delete the note/ }).click();
+    const confirming = owner.getByRole("dialog", {
+      name: "Delete this conversation?",
+    });
+    await expect(confirming).toContainText("nobody else holding a copy");
+    await confirming.getByRole("button", { name: "Delete" }).click();
+
+    await expect(owner.locator(".threads li", { hasText: JOKE })).toHaveCount(0);
+
+    // Gone, not hidden: it is not there on a fresh load either.
+    await owner.goto("/inbox");
+    await expect(owner.locator("main")).not.toContainText(JOKE);
+  });
+
+  test("but the person who sent one cannot delete it from somebody's inbox", async () => {
+    await nosy.goto("/inbox");
+
+    // No delete offered on their side at all.
+    await expect(
+      nosy.locator(".threads").getByRole("button", { name: /^Delete/ }),
+    ).toHaveCount(0);
+
+    // And not merely absent from the screen: the endpoint refuses it too.
+    const href = await nosy
+      .locator(".threads a", { hasText: REPLY })
+      .getAttribute("href");
+    const noteId = new URL(href!, "http://localhost").searchParams.get("note");
+
+    const refused = await nosy.request.delete(`/api/v1/notes/${noteId}`);
+    expect(refused.status()).toBe(404);
+
+    await nosy.goto("/inbox");
+    await expect(nosy.locator(".threads li")).toHaveCount(1);
+  });
+
   test("and a third person with an account sees none of it", async () => {
     const outsiderCtx = await visitor.context().browser()!.newContext();
     const outsider = await outsiderCtx.newPage();

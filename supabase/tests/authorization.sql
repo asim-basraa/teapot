@@ -771,10 +771,43 @@ begin
   end;
 end $$;
 
+-- Deleting. Only the inbox owner may, and it takes both sides with it: hiding a
+-- conversation from one party while the other goes on writing into it produces
+-- messages nobody reads and nobody is told about.
+--
+-- These fixtures have no inbox owner, since this suite's space is not the one
+-- notes are sent to, so what they establish is the refusal: alice sent one of
+-- these and still cannot delete it.
+do $$
+begin
+  begin
+    perform public.delete_note((select id from public.notes limit 1));
+    raise exception 'FAIL: somebody who is not the inbox owner deleted a note';
+  exception when sqlstate 'P0002' then null;  -- refused as not-found, as it must be
+       when sqlstate 'P0001' then
+         if sqlerrm like 'FAIL:%' then raise; end if;
+  end;
+end $$;
+
+select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+do $$
+begin
+  begin
+    perform public.delete_note(
+      (select id from public.notes where sender_id = '22222222-2222-2222-2222-222222222222'));
+    raise exception 'FAIL: a sender deleted their own note from somebody else''s inbox';
+  exception when sqlstate 'P0002' then null;  -- a note you sent is not yours to retract
+       when sqlstate 'P0001' then
+         if sqlerrm like 'FAIL:%' then raise; end if;
+  end;
+end $$;
+
 reset role;
 
 select pg_temp.check('and nothing was written by anybody who was refused',
   (select count(*)::text from public.note_messages where body = 'Butting in'), '0');
+select pg_temp.check('and nothing was deleted by anybody who was refused',
+  (select count(*)::text from public.notes), '3');
 
 -- Search ---------------------------------------------------------------------
 --

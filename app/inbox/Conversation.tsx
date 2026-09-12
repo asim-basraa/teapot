@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { NoteMessage } from "@/lib/notes";
+import { ConfirmDialog } from "@/components/Ask";
 
 /**
  * One conversation, and the box to answer it.
@@ -14,14 +16,19 @@ export function Conversation({
   noteId,
   who,
   anonymous,
+  canDelete,
   initial,
 }: {
   noteId: string;
   who: string;
   anonymous: boolean;
+  /** Whether this is the reader's inbox, and so theirs to clear. */
+  canDelete: boolean;
   initial: NoteMessage[];
 }) {
+  const router = useRouter();
   const [messages, setMessages] = useState(initial);
+  const [binning, setBinning] = useState(false);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,11 +68,31 @@ export function Conversation({
     setBusy(false);
   }
 
+  async function remove() {
+    setBinning(false);
+    const res = await fetch(`/api/v1/notes/${noteId}`, { method: "DELETE" });
+    if (!res.ok) {
+      setError("Could not delete that.");
+      return;
+    }
+    router.push("/inbox");
+    router.refresh();
+  }
+
   return (
     <section className="conversation">
       <h2 className="conversation-who">
         {who}
         {anonymous ? <span className="thread-tag">no account</span> : null}
+        {canDelete ? (
+          <button
+            className="btn btn-secondary btn-small conversation-bin"
+            type="button"
+            onClick={() => setBinning(true)}
+          >
+            Delete
+          </button>
+        ) : null}
       </h2>
 
       <ol className="messages">
@@ -115,6 +142,20 @@ export function Conversation({
           </button>
         </form>
       )}
+      {binning ? (
+        <ConfirmDialog
+          title="Delete this conversation?"
+          body={
+            anonymous
+              ? "It goes for good, and there is nobody else holding a copy of it."
+              : `It goes for good, for you and for ${who}. Neither of you will be able to read it again.`
+          }
+          confirmLabel="Delete"
+          danger
+          onConfirm={() => void remove()}
+          onClose={() => setBinning(false)}
+        />
+      ) : null}
     </section>
   );
 }

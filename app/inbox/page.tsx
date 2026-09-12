@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { listNoteThreads, readNote } from "@/lib/notes";
+import { listNoteThreads, readNote, isInboxOwner } from "@/lib/notes";
 import { isPlatformAdmin } from "@/lib/admin";
 import { AppHeader } from "@/components/AppHeader";
 import { Conversation } from "./Conversation";
+import { Threads } from "./Threads";
 
 export const metadata = { title: "Inbox" };
 export const dynamic = "force-dynamic";
@@ -34,9 +35,10 @@ export default async function InboxPage({
 
   const { note: selected } = await searchParams;
 
-  const [threads, admin] = await Promise.all([
+  const [threads, admin, canDelete] = await Promise.all([
     listNoteThreads(),
     isPlatformAdmin(),
+    isInboxOwner(),
   ]);
 
   const open = selected
@@ -54,40 +56,16 @@ export default async function InboxPage({
         conversation is between two people and nobody else can read it.
       </p>
 
-      {threads.length === 0 ? (
-        <p className="empty">
-          Nothing here yet. Notes sent from the{" "}
-          <strong>Tell me a joke</strong> box at the bottom of any page land
-          here.
-        </p>
-      ) : open ? (
+      {open ? (
         <Conversation
           noteId={open.note_id}
           who={open.who}
           anonymous={open.anonymous}
+          canDelete={canDelete}
           initial={messages}
         />
       ) : (
-        <ul className="threads">
-          {threads.map((thread) => (
-            <li key={thread.note_id} className={thread.unread ? "is-unread" : ""}>
-              <Link href={`/inbox?note=${thread.note_id}`}>
-                <span className="thread-who">
-                  {thread.unread ? <span className="thread-dot" aria-label="Unread" /> : null}
-                  {thread.who}
-                  {thread.anonymous ? (
-                    <span className="thread-tag">no account</span>
-                  ) : null}
-                </span>
-                <span className="thread-preview">{thread.preview}</span>
-                <span className="thread-when">
-                  {when(thread.last_message_at)}
-                  {thread.messages > 1 ? ` · ${thread.messages} messages` : null}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <Threads threads={threads} canDelete={canDelete} />
       )}
 
       <p className="back">
@@ -99,12 +77,4 @@ export default async function InboxPage({
       </p>
     </main>
   );
-}
-
-function when(iso: string): string {
-  const days = Math.floor((Date.now() - Date.parse(iso)) / 86_400_000);
-  if (days === 0) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 30) return `${days} days ago`;
-  return new Date(iso).toLocaleDateString();
 }

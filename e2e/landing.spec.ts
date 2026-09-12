@@ -124,7 +124,17 @@ test.describe("The front page", () => {
     // The owner sees it, named rather than anonymous, and replies.
     await owner.goto("/inbox");
     const row = owner.locator(".threads a", { hasText: SIGNED_JOKE });
-    await expect(row).toContainText(NOSY);
+
+    // Named by initials, not by address: a list of full addresses is a wall of
+    // the same domain with the part that differs buried in the middle of it.
+    // The address is still there to be had, on the badge rather than in the row.
+    await expect(row).not.toContainText(NOSY);
+    await expect(row.locator(".who-badge")).toHaveText(/^[A-Z]{2}$/);
+    await expect(row.locator(".who-badge")).toHaveAttribute(
+      "title",
+      new RegExp(NOSY),
+    );
+
     await row.click();
 
     await owner.getByLabel("Reply").fill(REPLY);
@@ -208,19 +218,21 @@ test.describe("The front page", () => {
     await owner.goto("/inbox");
 
     // Found by who sent it, not by the joke: a row previews the *latest*
-    // message, and by now that is the owner's own reply.
-    const row = owner.locator(".threads li", { hasText: NOSY });
-    await expect(row).toBeVisible();
+    // message, and by now that is the owner's own reply. The address lives on
+    // the badge now, so that is where it is looked for.
+    const sender = owner.locator(`.threads li:has(.who-badge[title*="${NOSY}"])`);
+    await expect(sender).toBeVisible();
 
-    await row.getByRole("button", { name: /^Delete the note/ }).click();
+    await sender.getByRole("button", { name: /^Delete the note/ }).click();
     const confirming = owner.getByRole("dialog", {
       name: "Delete this conversation?",
     });
-    // It names who else loses their copy, because somebody does.
-    await expect(confirming).toContainText(NOSY);
+    // It names who else loses their copy, because somebody does — by name, the
+    // one read off the address rather than the address itself.
+    await expect(confirming).toContainText("Inbox Nosy");
     await confirming.getByRole("button", { name: "Delete" }).click();
 
-    await expect(owner.locator(".threads li", { hasText: NOSY })).toHaveCount(0);
+    await expect(sender).toHaveCount(0);
 
     // Gone, not hidden: it is not there on a fresh load either, and it went for
     // both sides rather than only the one that pressed the button.

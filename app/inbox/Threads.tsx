@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { NoteThread } from "@/lib/notes";
 import { ConfirmDialog } from "@/components/Ask";
+import { person } from "@/lib/people";
+import { Who } from "./Who";
 
 /**
  * The list of conversations, with a way to clear the ones you are done with.
@@ -69,7 +71,9 @@ export function Threads({
                 {thread.unread ? (
                   <span className="thread-dot" aria-label="Unread" />
                 ) : null}
-                {thread.who}
+                {/* Initials alone in the list. The row is scanned rather than
+                    read, and the name is a hover and a screen reader away. */}
+                <Who who={thread.who} />
                 {thread.anonymous ? (
                   <span className="thread-tag">no account</span>
                 ) : null}
@@ -86,7 +90,7 @@ export function Threads({
                 className="btn btn-secondary btn-small thread-bin"
                 type="button"
                 onClick={() => setBinning(thread)}
-                aria-label={`Delete the note from ${thread.who}`}
+                aria-label={`Delete the note from ${person(thread.who).label}`}
               >
                 Delete
               </button>
@@ -101,7 +105,7 @@ export function Threads({
           body={
             binning.anonymous
               ? "It goes for good, and there is nobody else holding a copy of it."
-              : `It goes for good, for you and for ${binning.who}. Neither of you will be able to read it again.`
+              : `It goes for good, for you and for ${person(binning.who).label}. Neither of you will be able to read it again.`
           }
           confirmLabel="Delete"
           danger

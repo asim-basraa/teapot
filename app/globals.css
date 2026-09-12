@@ -1317,6 +1317,35 @@ html, body { max-width: 100%; overflow-x: hidden; }
   background: var(--accent); flex: none;
 }
 
+/* Two letters where a full address used to be.
+   A circle, so a row reads as a person at a glance and keeps the same shape
+   whatever the name behind it is; a wall of @maqsoodlabs.com told you nothing
+   and pushed the part that differs into the middle of the line. */
+.who-badge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--accent) 14%, var(--panel));
+  border: 1px solid color-mix(in oklab, var(--accent) 30%, var(--border));
+  color: color-mix(in oklab, var(--accent) 72%, var(--text));
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  /* The browser dresses an abbr with a dotted underline and a help cursor.
+     Neither belongs on a badge, and the tooltip is what was wanted. */
+  text-decoration: none;
+  cursor: inherit;
+}
+
+/* The badge keeps its own colour when the row is hovered; only the name
+   follows the link. */
+.threads a:hover .who-badge { color: color-mix(in oklab, var(--accent) 72%, var(--text)); }
+
+.who-name { font-weight: 600; }
+
 .thread-tag {
   font-size: 0.7rem;
   font-weight: 500;

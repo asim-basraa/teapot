@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { NoteMessage } from "@/lib/notes";
 import { ConfirmDialog } from "@/components/Ask";
+import { person } from "@/lib/people";
+import { Who } from "./Who";
 
 /**
  * One conversation, and the box to answer it.
@@ -27,6 +29,9 @@ export function Conversation({
   initial: NoteMessage[];
 }) {
   const router = useRouter();
+  // Named in full here, unlike the list: this is the screen where you decide
+  // what to write back, and that is worth two more words.
+  const them = person(who).label;
   const [messages, setMessages] = useState(initial);
   const [binning, setBinning] = useState(false);
   const [draft, setDraft] = useState("");
@@ -82,7 +87,7 @@ export function Conversation({
   return (
     <section className="conversation">
       <h2 className="conversation-who">
-        {who}
+        <Who who={who} named />
         {anonymous ? <span className="thread-tag">no account</span> : null}
         {canDelete ? (
           <button
@@ -103,7 +108,7 @@ export function Conversation({
           >
             <p className="message-body">{message.body}</p>
             <p className="message-when">
-              {message.mine ? "You" : message.from_owner ? "Them" : who} ·{" "}
+              {message.mine ? "You" : message.from_owner ? "Them" : them} ·{" "}
               {new Date(message.created_at).toLocaleString()}
             </p>
           </li>
@@ -148,7 +153,7 @@ export function Conversation({
           body={
             anonymous
               ? "It goes for good, and there is nobody else holding a copy of it."
-              : `It goes for good, for you and for ${who}. Neither of you will be able to read it again.`
+              : `It goes for good, for you and for ${them}. Neither of you will be able to read it again.`
           }
           confirmLabel="Delete"
           danger

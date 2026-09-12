@@ -34,12 +34,29 @@ function Note({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
-  /** Whether the note was attributed, and so whether a reply can reach them. */
-  const [threaded, setThreaded] = useState(false);
+  /** Null until asked. False means they need to sign in before writing. */
+  const [canSend, setCanSend] = useState<boolean | null>(null);
 
   useEffect(() => {
     const el = dialog.current;
     if (el && !el.open) el.showModal();
+  }, []);
+
+  // Asked on open, so somebody who needs an account learns it before writing
+  // rather than after.
+  useEffect(() => {
+    let live = true;
+    void fetch("/api/v1/inbox")
+      .then((r) => (r.ok ? r.json() : { canSend: false }))
+      .then((body) => {
+        if (live) setCanSend(Boolean(body.canSend));
+      })
+      .catch(() => {
+        if (live) setCanSend(false);
+      });
+    return () => {
+      live = false;
+    };
   }, []);
 
   async function send(event: React.FormEvent) {
@@ -60,7 +77,6 @@ function Note({ onClose }: { onClose: () => void }) {
       return;
     }
 
-    setThreaded(Boolean(body.threaded));
     setSent(true);
   }
 
@@ -87,19 +103,25 @@ function Note({ onClose }: { onClose: () => void }) {
           <p className="msg msg-notice" role="status">
             Got it. Thank you.
           </p>
-          {threaded ? (
-            <p className="hint">
-              Only I can read it. If I reply you will find it in your{" "}
-              <a href="/inbox">inbox</a>.
-            </p>
-          ) : (
-            <p className="hint">
-              Only I can read it. You sent it without signing in, so it is
-              anonymous and I have no way to reply. Sign in first if you would
-              like one.
-            </p>
-          )}
+          <p className="hint">
+            Only I can read it. If I reply you will find it in your{" "}
+            <a href="/inbox">inbox</a>.
+          </p>
         </>
+      ) : canSend === false ? (
+        <>
+          <p className="hint">
+            Sending needs an account, so that I have somewhere to reply. It is
+            the same address you use for everything else here.
+          </p>
+          <p className="dialog-actions">
+            <a className="btn" href="/login">
+              Sign in
+            </a>
+          </p>
+        </>
+      ) : canSend === null ? (
+        <p className="hint">One moment…</p>
       ) : (
         <form onSubmit={send}>
           {error ? (
@@ -122,9 +144,8 @@ function Note({ onClose }: { onClose: () => void }) {
           </label>
 
           <p className="hint">
-            No account, no address, nothing kept but the words, and only I can
-            read it. Signed in, it becomes a conversation I can answer; signed
-            out, it stays anonymous and I cannot.
+            Nothing kept but the words, and only I can read them. If I answer, it
+            arrives in your inbox rather than your email.
           </p>
 
           <button className="btn" type="submit" disabled={busy || !message.trim()}>

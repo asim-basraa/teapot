@@ -75,52 +75,32 @@ test.describe("The front page", () => {
     }
   });
 
-  test("a stranger can send a note without an account", async () => {
+  test("a stranger is asked to sign in before writing, not after", async () => {
+    // Sending needs an account now, so that every note has somebody to reply
+    // to. The box says so when it opens rather than taking a joke and refusing
+    // it, which is the whole reason it asks on open.
+    await visitor.goto("/");
     await visitor.getByRole("button", { name: "Tell me a joke" }).click();
 
     const dialog = visitor.getByRole("dialog", { name: "Tell me a joke" });
     await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("Sending needs an account");
+    await expect(dialog.getByRole("link", { name: "Sign in" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Send" })).toHaveCount(0);
 
-    await dialog.getByLabel("A joke, a thought, anything").fill(JOKE);
-    await dialog.getByRole("button", { name: "Send" }).click();
-
-    await expect(dialog.getByText("Got it. Thank you.")).toBeVisible();
+    // And the endpoint refuses it too, not merely the screen.
+    const refused = await visitor.request.post("/api/v1/inbox", {
+      data: { message: JOKE },
+    });
+    expect(refused.status()).toBe(401);
   });
 
-  test("and it lands where only the owner can read it", async () => {
-    await owner.goto("/inbox");
-    await expect(owner.locator(".threads")).toContainText(JOKE);
-    // Sent signed out, so there is nobody attached to it.
-    await expect(owner.locator(".threads")).toContainText("no account");
-  });
-
-  test("not even for somebody else with an account", async () => {
+  test("somebody in no conversation has an empty inbox", async () => {
     // Not a question of the space being private: a conversation belongs to the
     // two people in it, and somebody who is in none sees none.
     await nosy.goto("/inbox");
     await expect(nosy.locator(".threads li")).toHaveCount(0);
     await expect(nosy.locator("main")).toContainText("Nothing here yet");
-  });
-
-  test("an anonymous note cannot be replied to, and says why", async () => {
-    // The honest limit of a box that asks for nothing: with no account behind
-    // it there is nobody to answer, and a reply box that quietly failed would
-    // be worse than not offering one.
-    await owner.goto("/inbox");
-    await owner.locator(".threads a", { hasText: JOKE }).click();
-
-    await expect(owner.locator(".conversation")).toContainText(JOKE);
-    await expect(owner.locator(".conversation-closed")).toContainText(
-      "there is nobody to reply to",
-    );
-    await expect(owner.getByRole("button", { name: "Send reply" })).toHaveCount(0);
-  });
-
-  test("and an empty note is refused", async () => {
-    const res = await visitor.request.post("/api/v1/inbox", {
-      data: { message: "   " },
-    });
-    expect(res.status()).toBe(400);
   });
 
   /**
@@ -163,28 +143,6 @@ test.describe("The front page", () => {
     // Their own words are theirs; the answer is not.
     await expect(messages.locator(".message.is-mine")).toContainText(SIGNED_JOKE);
     await expect(messages.locator(".message.is-mine")).not.toContainText(REPLY);
-  });
-
-  test("the owner can throw a conversation away", async () => {
-    // The reason this exists: an inbox fills with things you do not want to
-    // keep looking at, and opening each one to be rid of it is the slow way.
-    await owner.goto("/inbox");
-
-    const row = owner.locator(".threads li", { hasText: JOKE });
-    await expect(row).toBeVisible();
-
-    await row.getByRole("button", { name: /^Delete the note/ }).click();
-    const confirming = owner.getByRole("dialog", {
-      name: "Delete this conversation?",
-    });
-    await expect(confirming).toContainText("nobody else holding a copy");
-    await confirming.getByRole("button", { name: "Delete" }).click();
-
-    await expect(owner.locator(".threads li", { hasText: JOKE })).toHaveCount(0);
-
-    // Gone, not hidden: it is not there on a fresh load either.
-    await owner.goto("/inbox");
-    await expect(owner.locator("main")).not.toContainText(JOKE);
   });
 
   test("but the person who sent one cannot delete it from somebody's inbox", async () => {
@@ -242,5 +200,33 @@ test.describe("The front page", () => {
     await expect(owner.locator(".messages")).not.toContainText("Butting in");
 
     await outsiderCtx.close();
+  });
+
+  test("the owner can throw a conversation away", async () => {
+    // The reason this exists: an inbox fills with things you do not want to
+    // keep looking at, and opening each one to be rid of it is the slow way.
+    await owner.goto("/inbox");
+
+    const row = owner.locator(".threads li", { hasText: SIGNED_JOKE });
+    await expect(row).toBeVisible();
+
+    await row.getByRole("button", { name: /^Delete the note/ }).click();
+    const confirming = owner.getByRole("dialog", {
+      name: "Delete this conversation?",
+    });
+    // It names who else loses their copy, because somebody does.
+    await expect(confirming).toContainText(NOSY);
+    await confirming.getByRole("button", { name: "Delete" }).click();
+
+    await expect(
+      owner.locator(".threads li", { hasText: SIGNED_JOKE }),
+    ).toHaveCount(0);
+
+    // Gone, not hidden: it is not there on a fresh load either, and it went for
+    // both sides rather than only the one that pressed the button.
+    await owner.goto("/inbox");
+    await expect(owner.locator("main")).not.toContainText(SIGNED_JOKE);
+    await nosy.goto("/inbox");
+    await expect(nosy.locator("main")).not.toContainText(SIGNED_JOKE);
   });
 });

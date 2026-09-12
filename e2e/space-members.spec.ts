@@ -2,32 +2,34 @@ import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 import { registerAndConfirm, createSpace, rowAction } from "./auth";
 
 /**
- * Starting something at the top of a space you do not own.
+ * Being in a space, as distinct from being shared something in it.
  *
- * Inheritance runs downwards, so it had nothing to say about the top of a
- * space: a top-level item has no parent to inherit from, and the insert policy
- * fell back to ownership. Somebody with editor on half a space still had to ask
- * the owner to begin anything that was not already inside a folder they had
- * been given. The sidebar made it worse by deciding what to offer from one
- * question — do you own this space — so they saw no controls anywhere, not even
- * on the folder that was theirs to work in.
+ * These were the same mechanism and should not have been. Sharing answers
+ * "this page, this person". Membership answers "you work here": the whole
+ * space to read and to change, and the top of it to add to, which inheritance
+ * could never reach because a top-level item has no parent to inherit from.
  *
- * What did not change is who may remove things. That got narrower rather than
- * wider: an editor used to be able to delete anything they could edit.
+ * The rule that does not follow from membership is deleting. That belongs to
+ * whoever wrote the thing and to nobody else — not an administrator of it, and
+ * not the owner of the space it is sitting in. Owning a space is owning the
+ * room rather than the things people brought into it.
  */
 const RUN = Date.now().toString(36);
 const OWNER = `sm-owner-${RUN}@maqsoodlabs.com`;
 const MEMBER = `sm-member-${RUN}@maqsoodlabs.com`;
+const GUEST = `sm-guest-${RUN}@maqsoodlabs.com`;
 const PASSWORD = "correct-horse-battery";
 const SPACE = `handbook-${RUN}`;
 
 test.describe.configure({ mode: "serial" });
 
-test.describe("Writing in a space you do not own", () => {
+test.describe("Being in a space", () => {
   let ownerCtx: BrowserContext;
   let memberCtx: BrowserContext;
+  let guestCtx: BrowserContext;
   let owner: Page;
   let member: Page;
+  let guest: Page;
   let spaceId: string;
   let folderId: string;
 
@@ -35,6 +37,10 @@ test.describe("Writing in a space you do not own", () => {
     memberCtx = await browser.newContext();
     member = await memberCtx.newPage();
     await registerAndConfirm(member, MEMBER, PASSWORD);
+
+    guestCtx = await browser.newContext();
+    guest = await guestCtx.newPage();
+    await registerAndConfirm(guest, GUEST, PASSWORD);
 
     ownerCtx = await browser.newContext();
     owner = await ownerCtx.newPage();
@@ -51,15 +57,16 @@ test.describe("Writing in a space you do not own", () => {
     expect(folder.status(), await folder.text()).toBe(201);
     folderId = (await folder.json()).node.id;
 
-    // The owner's own, at the top level, shared with nobody.
+    // Shared with nobody, so reaching it can only be membership.
     const theirs = await owner.request.post("/api/v1/nodes", {
       data: { space_id: spaceId, kind: "file", name: "Owner Only" },
     });
     expect(theirs.status(), await theirs.text()).toBe(201);
 
+    // The guest is shared one folder and is not in the space.
     const shared = await owner.request.post(
       `/api/v1/nodes/${folderId}/grants`,
-      { data: { email: MEMBER, role: "editor" } },
+      { data: { email: GUEST, role: "viewer" } },
     );
     expect(shared.status(), await shared.text()).toBe(201);
   });
@@ -67,26 +74,38 @@ test.describe("Writing in a space you do not own", () => {
   test.afterAll(async () => {
     await ownerCtx.close();
     await memberCtx.close();
+    await guestCtx.close();
   });
 
-  test("an editor is offered the controls on the folder that is theirs to work in", async () => {
-    await member.goto(`/s/${SPACE}/team-notes`);
+  test("somebody outside the space sees nothing of it", async () => {
+    expect((await member.goto(`/s/${SPACE}`))?.status()).toBe(404);
+  });
 
-    const row = member.locator(".tree-row", { hasText: "Team Notes" });
+  test("the owner puts them in it", async () => {
+    await owner.goto(`/s/${SPACE}`);
+    await owner.getByRole("link", { name: "Members" }).click();
+    await expect(owner).toHaveURL(`/spaces/${SPACE}/members`);
+
+    await owner.getByLabel("Add a person").fill(MEMBER);
+    await owner.getByRole("button", { name: "Add" }).first().click();
+
+    await expect(owner.locator(".member-list")).toContainText("Sm Member");
+  });
+
+  test("and they can now read everything in it, shared or not", async () => {
+    await member.goto(`/s/${SPACE}/owner-only`);
     await expect(
-      row.getByRole("button", { name: "More for Team Notes" }),
+      member.getByRole("heading", { level: 1, name: "Owner Only" }),
     ).toBeVisible();
-
-    // Sharing is the owner's: an editor writes, an administrator decides who
-    // else may read.
-    await expect(
-      row.getByRole("button", { name: "Share Team Notes" }),
-    ).toHaveCount(0);
   });
 
-  test("and may start something at the top of the space", async () => {
-    await member.goto(`/s/${SPACE}/team-notes`);
+  test("and change it, which is what a shared space is for", async () => {
+    await member.goto(`/s/${SPACE}/owner-only`);
+    await expect(member.getByRole("link", { name: "Edit" })).toBeVisible();
+  });
 
+  test("and start something at the top, which inheritance never reached", async () => {
+    await member.goto(`/s/${SPACE}`);
     await member
       .getByRole("button", { name: "New page at the top level" })
       .click();
@@ -98,97 +117,113 @@ test.describe("Writing in a space you do not own", () => {
     await expect(member).toHaveURL(
       new RegExp(`/s/${SPACE}/member-started-this`),
     );
-    await expect(
-      member.getByRole("heading", { level: 1, name: "Member Started This" }),
-    ).toBeVisible();
   });
 
-  test("and it is theirs: they can share it and throw it away", async () => {
-    // Without a grant of their own they would have made a page and been unable
-    // to open it, since nothing above a top-level node carries one.
-    const row = member.locator(".tree-row", { hasText: "Member Started This" });
-    await expect(
-      row.getByRole("button", { name: "Share Member Started This" }),
-    ).toBeVisible();
-
-    await row
+  test("but deleting belongs to whoever wrote it", async () => {
+    // Theirs, so it is theirs to remove.
+    await member.goto(`/s/${SPACE}`);
+    const mine = member.locator(".tree-row", { hasText: "Member Started This" });
+    await mine
       .getByRole("button", { name: "More for Member Started This" })
       .click();
     await expect(
-      row.getByRole("menuitem", { name: "Delete Member Started This" }),
+      mine.getByRole("menuitem", { name: "Delete Member Started This" }),
     ).toBeVisible();
+    await member.keyboard.press("Escape");
+
+    // The owner's, so it is not — even though they may edit it.
+    const theirs = member.locator(".tree-row", { hasText: "Owner Only" });
+    await theirs.getByRole("button", { name: "More for Owner Only" }).click();
+    await expect(
+      theirs.getByRole("menuitem", { name: "Rename Owner Only" }),
+    ).toBeVisible();
+    await expect(
+      theirs.getByRole("menuitem", { name: "Delete Owner Only" }),
+    ).toHaveCount(0);
     await member.keyboard.press("Escape");
   });
 
-  test("but not the owner's work, even in a folder they may edit", async () => {
-    const row = member.locator(".tree-row", { hasText: "Team Notes" });
-    await row.getByRole("button", { name: "More for Team Notes" }).click();
-
-    // Renaming and moving are writing, which they may do. Deleting is not
-    // offered, because it is not theirs to delete.
+  test("and not to the owner of the space either", async () => {
+    // The reversal this whole model turns on. Owning the space is owning the
+    // room, not the things people brought into it.
+    await owner.goto(`/s/${SPACE}`);
+    const theirs = owner.locator(".tree-row", {
+      hasText: "Member Started This",
+    });
+    await theirs
+      .getByRole("button", { name: "More for Member Started This" })
+      .click();
     await expect(
-      row.getByRole("menuitem", { name: "Rename Team Notes" }),
-    ).toBeVisible();
-    await expect(
-      row.getByRole("menuitem", { name: "Delete Team Notes" }),
+      theirs.getByRole("menuitem", { name: "Delete Member Started This" }),
     ).toHaveCount(0);
-    await member.keyboard.press("Escape");
+    await owner.keyboard.press("Escape");
 
-    // And the refusal is the database's, not the screen's. This is the case
-    // that used to report success for a delete that never happened.
-    const refused = await member.request.delete(`/api/v1/nodes/${folderId}`);
+    // And the refusal is the database's rather than the screen's.
+    const nodes = await owner.request.get(`/api/v1/nodes?space_id=${spaceId}`);
+    const id = (await nodes.json()).nodes.find(
+      (n: { name: string }) => n.name === "Member Started This",
+    ).id;
+
+    const refused = await owner.request.delete(`/api/v1/nodes/${id}`);
     expect(refused.status()).toBe(404);
 
-    await owner.goto(`/s/${SPACE}/team-notes`);
+    expect(
+      (await member.goto(`/s/${SPACE}/member-started-this`))?.status(),
+    ).toBe(200);
+  });
+
+  test("being shared one folder is not being in the space", async () => {
+    await guest.goto(`/s/${SPACE}/team-notes`);
     await expect(
-      owner.getByRole("heading", { level: 1, name: "Team Notes" }),
+      guest.getByRole("heading", { level: 1, name: "Team Notes" }),
     ).toBeVisible();
-  });
 
-  test("and sharing is still the owner's alone", async () => {
-    const refused = await member.request.post(
-      `/api/v1/nodes/${folderId}/grants`,
-      { data: { email: OWNER, role: "editor" } },
-    );
-    expect(refused.status()).toBe(404);
-  });
+    // The rest of the space is not theirs, and neither is the top of it.
+    expect((await guest.goto(`/s/${SPACE}/owner-only`))?.status()).toBe(404);
 
-  test("what is still per item is what they can see", async () => {
-    // The honest limit of this. Writing in a space lets you start things in it;
-    // it does not hand you what is already there. The owner's own top-level
-    // page was shared with nobody and stays that way.
-    await member.goto(`/s/${SPACE}`);
+    await guest.goto(`/s/${SPACE}/team-notes`);
     await expect(
-      member.locator(".tree").getByRole("link", { name: "Owner Only" }),
+      guest.getByRole("button", { name: "New page at the top level" }),
     ).toHaveCount(0);
 
-    expect((await member.goto(`/s/${SPACE}/owner-only`))?.status()).toBe(404);
-  });
-
-  test("and somebody who only reads there cannot start anything", async ({
-    browser,
-  }) => {
-    const readerCtx = await browser.newContext();
-    const reader = await readerCtx.newPage();
-    const READER = `sm-reader-${RUN}@maqsoodlabs.com`;
-    await registerAndConfirm(reader, READER, PASSWORD);
-
-    const shared = await owner.request.post(
-      `/api/v1/nodes/${folderId}/grants`,
-      { data: { email: READER, role: "viewer" } },
-    );
-    expect(shared.status(), await shared.text()).toBe(201);
-
-    await reader.goto(`/s/${SPACE}/team-notes`);
-    await expect(
-      reader.getByRole("button", { name: "New page at the top level" }),
-    ).toHaveCount(0);
-
-    const refused = await reader.request.post("/api/v1/nodes", {
-      data: { space_id: spaceId, kind: "file", name: "Reader Should Not" },
+    const refused = await guest.request.post("/api/v1/nodes", {
+      data: { space_id: spaceId, kind: "file", name: "Guest Should Not" },
     });
     expect(refused.status()).toBe(404);
+  });
 
-    await readerCtx.close();
+  test("and the roster is the owner's to change", async () => {
+    expect(
+      (await member.goto(`/spaces/${SPACE}/members`))?.status(),
+    ).toBe(404);
+
+    const refused = await member.request.post(
+      `/api/v1/spaces/${spaceId}/members`,
+      { data: { email: GUEST } },
+    );
+    expect(refused.status()).toBe(404);
+  });
+
+  test("taking somebody out takes the space with them", async () => {
+    await owner.goto(`/spaces/${SPACE}/members`);
+    await owner.getByRole("button", { name: `Remove ${MEMBER}` }).click();
+
+    const confirming = owner.getByRole("dialog", {
+      name: "Take them out of this space?",
+    });
+    // Said plainly, because it is the question somebody hesitates over.
+    await expect(confirming).toContainText("Nothing they wrote is deleted");
+    await confirming.getByRole("button", { name: "Remove" }).click();
+
+    await expect(owner.locator(".member-list")).toHaveCount(0);
+
+    expect((await member.goto(`/s/${SPACE}/owner-only`))?.status()).toBe(404);
+
+    // Their own page is still there, and still theirs. Losing the space is not
+    // losing what you wrote in it.
+    await owner.goto(`/s/${SPACE}`);
+    await expect(
+      owner.locator(".tree").getByRole("link", { name: "Member Started This" }),
+    ).toBeVisible();
   });
 });

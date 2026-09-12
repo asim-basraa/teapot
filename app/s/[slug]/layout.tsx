@@ -64,12 +64,22 @@ export default async function SpaceLayout({
       <AppHeader email={user?.email} className="space-header">
         <SpaceName spaceId={space.id} name={space.name} canRename={owner} />
         {owner ? (
-          <Link
-            href={`/spaces/${space.slug}/teams`}
-            className="btn btn-secondary btn-small"
-          >
-            Teams
-          </Link>
+          <>
+            {/* Who is in the space comes first: it is the decision most people
+                are looking for, and teams are a way of making it in bulk. */}
+            <Link
+              href={`/spaces/${space.slug}/members`}
+              className="btn btn-secondary btn-small"
+            >
+              Members
+            </Link>
+            <Link
+              href={`/spaces/${space.slug}/teams`}
+              className="btn btn-secondary btn-small"
+            >
+              Teams
+            </Link>
+          </>
         ) : null}
       </AppHeader>
 

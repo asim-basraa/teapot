@@ -1322,6 +1322,33 @@ html, body { max-width: 100%; overflow-x: hidden; }
   flex-wrap: wrap;
 }
 
+/* --- Who is in a space ----------------------------------------------------- */
+
+.members { margin-top: 1.5rem; }
+.members h2 { font-size: 1rem; margin: 2rem 0 0.75rem; }
+
+.member-list { list-style: none; margin: 0; padding: 0; }
+.member-list li {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 0.7rem 0;
+}
+.member-list li + li { border-top: 1px solid var(--border); }
+
+.member-who {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; align-items: center; gap: 0.5rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Which kind of thing this row is, because a team and a person sit in the same
+   list and behave differently when somebody joins one. */
+.member-kind {
+  font-size: 0.7rem; font-weight: 500; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+}
+
 /* --- Inbox ---------------------------------------------------------------- */
 
 .threads { list-style: none; margin: 1.5rem 0 0; padding: 0; }

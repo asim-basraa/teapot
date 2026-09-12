@@ -86,14 +86,19 @@ export async function listNodeRights(
   return rights;
 }
 
-/** Whether the caller may start something at the top of this space. */
+/**
+ * Whether the caller is in this space.
+ *
+ * Which is what decides whether they may start something at the top of it, and
+ * is not the same question as whether anything in it has been shared with them.
+ */
 export async function canStartInSpace(spaceId: string): Promise<boolean> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("writes_in_space", {
+  const { data, error } = await supabase.rpc("in_space", {
     p_space_id: spaceId,
   });
   if (error) {
-    console.error("writes_in_space failed: %s", error.message);
+    console.error("in_space failed: %s", error.message);
     return false;
   }
   return data === true;

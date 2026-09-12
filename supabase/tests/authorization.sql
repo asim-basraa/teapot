@@ -1889,17 +1889,20 @@ select pg_temp.check('a share of somebody else''s is not in your list',
 
 reset role;
 
--- Starting something at the top of a space -----------------------------------
+-- Being in a space -------------------------------------------------------------
 --
--- Inheritance runs downwards, so it has nothing to say about the top of a
--- space: a top-level item has no parent to inherit from and the policy used to
--- fall back to ownership, which made the owner the only person who could begin
--- anything. Now anybody who already writes in the space can, and what they make
--- is theirs.
+-- Membership and sharing were the same mechanism and should not have been.
+-- Sharing answers "this page, this person". Membership answers "you work here":
+-- everything in the space, to read and to change, and the top of it to add to.
 --
--- Its own space, so none of this depends on what the sections above have
--- moved, transferred or deleted. Creators are named rather than left to the
--- claims in force, because who made a node now decides who may delete it.
+-- What it deliberately does not confer is deleting. That belongs to whoever
+-- wrote the thing and to nobody else, the space's owner included, which is the
+-- reversal these assertions exist to hold down. Owning a space is owning the
+-- room rather than the things people brought into it.
+--
+-- Its own space, so none of this depends on what the sections above have moved,
+-- transferred or deleted. Creators are named rather than left to whatever
+-- claims are in force, because who made a node decides who may delete it.
 
 insert into public.spaces (id, slug, name, owner_id) values
   ('a0000000-0000-0000-0000-000000000003','members-test','Members Test',
@@ -1907,76 +1910,112 @@ insert into public.spaces (id, slug, name, owner_id) values
 
 insert into public.nodes (id, space_id, parent_id, kind, name, created_by) values
   ('b0000000-0000-0000-0000-0000000000d1','a0000000-0000-0000-0000-000000000003',
-   null,'folder','Owner Folder','11111111-1111-1111-1111-111111111111');
+   null,'folder','Owner Folder','11111111-1111-1111-1111-111111111111'),
+  -- Shared with nobody, so seeing it can only be membership.
+  ('b0000000-0000-0000-0000-0000000000d6','a0000000-0000-0000-0000-000000000003',
+   null,'file','Owner Only','11111111-1111-1111-1111-111111111111');
 
--- Alice writes in this space; bob only reads in it.
+-- Alice is in the space. Bob is shared one folder in it and is not.
+insert into public.space_members (space_id, member_type, member_id) values
+  ('a0000000-0000-0000-0000-000000000003','user','22222222-2222-2222-2222-222222222222');
 insert into public.grants (node_id, grantee_type, grantee_id, role) values
-  ('b0000000-0000-0000-0000-0000000000d1','user','22222222-2222-2222-2222-222222222222','editor'),
   ('b0000000-0000-0000-0000-0000000000d1','user','33333333-3333-3333-3333-333333333333','viewer');
+
+select pg_temp.check('being in a space is not the same as being shared something in it',
+  public.is_space_member('33333333-3333-3333-3333-333333333333',
+    'a0000000-0000-0000-0000-000000000003')::text, 'false');
+select pg_temp.check('and the owner is in their own space without a row saying so',
+  public.is_space_member('11111111-1111-1111-1111-111111111111',
+    'a0000000-0000-0000-0000-000000000003')::text, 'true');
+
+-- A member sees the whole space, including what was shared with nobody.
+select pg_temp.check('a member reads what nobody shared with them',
+  public.can_read('22222222-2222-2222-2222-222222222222',
+    'b0000000-0000-0000-0000-0000000000d6')::text, 'true');
+select pg_temp.check('and may change it, which is what a shared space is for',
+  public.can_edit('22222222-2222-2222-2222-222222222222',
+    'b0000000-0000-0000-0000-0000000000d6')::text, 'true');
+-- Editing everything is not administering anything: who may read it stays the
+-- owner's to decide.
+select pg_temp.check('but does not decide who else may read it',
+  public.can_admin('22222222-2222-2222-2222-222222222222',
+    'b0000000-0000-0000-0000-0000000000d6')::text, 'false');
+
+-- Somebody shared one folder sees that folder and no more of the space.
+select pg_temp.check('somebody shared one folder sees only that folder',
+  public.can_read('33333333-3333-3333-3333-333333333333',
+    'b0000000-0000-0000-0000-0000000000d1')::text, 'true');
+select pg_temp.check('and nothing else in the space',
+  public.can_read('33333333-3333-3333-3333-333333333333',
+    'b0000000-0000-0000-0000-0000000000d6')::text, 'false');
 
 set local role authenticated;
 
+-- Starting something at the top, which inheritance cannot reach.
 select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
-select pg_temp.check('an editor somewhere in the space writes in the space',
-  public.writes_in_space('a0000000-0000-0000-0000-000000000003')::text, 'true');
+select pg_temp.check('a member is in the space',
+  public.in_space('a0000000-0000-0000-0000-000000000003')::text, 'true');
 
 insert into public.nodes (id, space_id, parent_id, kind, name) values
   ('b0000000-0000-0000-0000-0000000000d2','a0000000-0000-0000-0000-000000000003',
    null,'file','Alice Started This');
-
 select pg_temp.check('and may start something at the top of it',
   (select name from public.nodes where id = 'b0000000-0000-0000-0000-0000000000d2'),
   'Alice Started This');
 select pg_temp.check('recorded as hers without her saying so',
   (select created_by::text from public.nodes where id = 'b0000000-0000-0000-0000-0000000000d2'),
   '22222222-2222-2222-2222-222222222222');
--- Without this she would make a page and not be able to open it: nothing above
--- a top-level node carries a grant, so she would inherit from nowhere.
-select pg_temp.check('and it is hers to administer, or she could not read it',
-  public.can_admin('b0000000-0000-0000-0000-0000000000d2')::text, 'true');
 
--- A viewer reads in the space and does not write in it, so the top of it is
--- not theirs to add to.
+-- Somebody shared a folder in the space is not in the space, so the top of it
+-- is not theirs to add to.
 select set_config('request.jwt.claims','{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}', true);
-select pg_temp.check('somebody who only reads there does not write there',
-  public.writes_in_space('a0000000-0000-0000-0000-000000000003')::text, 'false');
+select pg_temp.check('somebody shared one folder is not in the space',
+  public.in_space('a0000000-0000-0000-0000-000000000003')::text, 'false');
 do $$
 begin
   begin
     insert into public.nodes (id, space_id, parent_id, kind, name) values
       ('b0000000-0000-0000-0000-0000000000d3','a0000000-0000-0000-0000-000000000003',
        null,'file','Bob Should Not');
-    raise exception 'FAIL: a viewer started something at the top of a space';
+    raise exception 'FAIL: somebody outside a space started something at the top of it';
   exception when sqlstate 'P0001' then raise;
        when others then null;  -- refused, as it must be
   end;
 end $$;
 
--- Nor does writing in one space say anything about another.
+-- Deleting: the author, and nobody else --------------------------------------
+
 select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
-select pg_temp.check('and writing in one space is not writing in another',
-  public.writes_in_space('a0000000-0000-0000-0000-000000000002')::text, 'false');
-
--- Deleting: yours, or what you administer -------------------------------------
-
--- Alice is an editor on the owner's folder, which used to be enough to delete
--- it. It is not hers, so it is not hers to remove.
-select pg_temp.check('an editor may not delete what somebody else made',
-  public.can_delete_node('b0000000-0000-0000-0000-0000000000d1')::text, 'false');
+select pg_temp.check('a member may delete what they wrote',
+  public.can_delete_node('b0000000-0000-0000-0000-0000000000d2')::text, 'true');
+select pg_temp.check('and may not delete what somebody else wrote',
+  public.can_delete_node('b0000000-0000-0000-0000-0000000000d6')::text, 'false');
 do $$
 begin
-  delete from public.nodes where id = 'b0000000-0000-0000-0000-0000000000d1';
-  if not exists (select 1 from public.nodes where id = 'b0000000-0000-0000-0000-0000000000d1') then
-    raise exception 'FAIL: an editor deleted somebody else''s folder';
+  delete from public.nodes where id = 'b0000000-0000-0000-0000-0000000000d6';
+  if not exists (select 1 from public.nodes where id = 'b0000000-0000-0000-0000-0000000000d6') then
+    raise exception 'FAIL: a member deleted somebody else''s page';
   end if;
 end $$;
 
-select pg_temp.check('but may delete their own',
-  public.can_delete_node('b0000000-0000-0000-0000-0000000000d2')::text, 'true');
+-- The reversal. The owner of the space may not delete a member's work, because
+-- owning the space is not owning what is in it.
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select pg_temp.check('and neither may the owner of the space',
+  public.can_delete_node('b0000000-0000-0000-0000-0000000000d2')::text, 'false');
+do $$
+begin
+  delete from public.nodes where id = 'b0000000-0000-0000-0000-0000000000d2';
+  if not exists (select 1 from public.nodes where id = 'b0000000-0000-0000-0000-0000000000d2') then
+    raise exception 'FAIL: a space owner deleted a member''s page';
+  end if;
+end $$;
+select pg_temp.check('though the owner still deletes their own',
+  public.can_delete_node('b0000000-0000-0000-0000-0000000000d6')::text, 'true');
 
--- The clause that would be easy to leave out. Deleting a folder takes
--- everything under it, so without it you could remove somebody else's page by
--- deleting the folder it happens to sit in.
+-- A folder of your own stops being yours to delete once somebody else has put
+-- something in it, or the rule above would be one step from meaningless.
+select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
 insert into public.nodes (id, space_id, parent_id, kind, name) values
   ('b0000000-0000-0000-0000-0000000000d4','a0000000-0000-0000-0000-000000000003',
    null,'folder','Alice Folder');
@@ -1987,10 +2026,8 @@ insert into public.nodes (id, space_id, parent_id, kind, name, created_by) value
    '11111111-1111-1111-1111-111111111111');
 set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
-
 select pg_temp.check('nor a folder of their own holding somebody else''s work',
   public.can_delete_node('b0000000-0000-0000-0000-0000000000d4')::text, 'false');
-
 reset role;
 delete from public.nodes where id = 'b0000000-0000-0000-0000-0000000000d5';
 set local role authenticated;
@@ -1998,39 +2035,48 @@ select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-22222222
 select pg_temp.check('and may once it holds only their own',
   public.can_delete_node('b0000000-0000-0000-0000-0000000000d4')::text, 'true');
 
--- The owner is unchanged: admin everywhere, so everything is theirs to remove.
-select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
-select pg_temp.check('the owner may still delete what somebody else made',
-  public.can_delete_node('b0000000-0000-0000-0000-0000000000d2')::text, 'true');
+-- The roster is the owner's to change and everybody's to read ------------------
 
--- And none of this hands out the two powers that stayed the owner's.
-select set_config('request.jwt.claims','{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+select pg_temp.check('a member sees who else is in the space',
+  (select count(*)::text from public.space_roster('a0000000-0000-0000-0000-000000000003')), '1');
 do $$
 begin
   begin
-    delete from public.spaces where id = 'a0000000-0000-0000-0000-000000000003';
-    if exists (select 1 from public.spaces where id = 'a0000000-0000-0000-0000-000000000003') then
-      raise notice 'refused, as it must be';
-    else
-      raise exception 'FAIL: somebody who is not the owner deleted a space';
-    end if;
-  exception when sqlstate 'P0001' then raise;
-       when others then null;
-  end;
-end $$;
-do $$
-begin
-  begin
-    insert into public.grants (node_id, grantee_type, grantee_id, role) values
-      ('b0000000-0000-0000-0000-0000000000d1','user',
-       '44444444-4444-4444-4444-444444444444','viewer');
-    raise exception 'FAIL: an editor shared somebody else''s folder';
+    perform public.add_space_member(
+      'a0000000-0000-0000-0000-000000000003','carol@test.local');
+    raise exception 'FAIL: a member added somebody to a space';
   exception when sqlstate 'P0001' then raise;
        when others then null;  -- refused, as it must be
   end;
 end $$;
 
-reset role;
+select set_config('request.jwt.claims','{"sub":"33333333-3333-3333-3333-333333333333","role":"authenticated"}', true);
+select pg_temp.check('and somebody outside it is told nothing about the roster',
+  (select count(*)::text from public.space_roster('a0000000-0000-0000-0000-000000000003')), '0');
 
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select pg_temp.check('the owner adds somebody by address',
+  (public.add_space_member(
+     'a0000000-0000-0000-0000-000000000003','carol@test.local')).member_type::text,
+  'user');
+select pg_temp.check('and adding again is not an error',
+  (public.add_space_member(
+     'a0000000-0000-0000-0000-000000000003','carol@test.local')).member_type::text,
+  'user');
+
+reset role;
+select pg_temp.check('which lets them read the space at once',
+  public.can_read('44444444-4444-4444-4444-444444444444',
+    'b0000000-0000-0000-0000-0000000000d6')::text, 'true');
+
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select public.remove_space_member(
+  (select member_row_id from public.space_roster('a0000000-0000-0000-0000-000000000003')
+    where label = 'carol@test.local'));
+reset role;
+select pg_temp.check('and taking them out takes the reading with it',
+  public.can_read('44444444-4444-4444-4444-444444444444',
+    'b0000000-0000-0000-0000-0000000000d6')::text, 'false');
 
 rollback;

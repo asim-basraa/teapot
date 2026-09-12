@@ -199,10 +199,15 @@ test.describe("Seeing the team you are on", () => {
     await member.getByRole("button", { name: "Share" }).first().click();
 
     const dialog = member.getByRole("dialog");
-    await dialog.getByLabel("Share with").selectOption("team");
+    // By role rather than by label: a <label> wrapping a <select> has the
+    // option text in its own text content, so getByLabel("Team") matches the
+    // "Share with" select too, through its "A team" option.
+    await dialog
+      .getByRole("combobox", { name: "Share with" })
+      .selectOption("team");
 
     // Qualified by where it lives, because it does not live here.
-    const picker = dialog.getByLabel("Team");
+    const picker = dialog.getByRole("combobox", { name: "Team" });
     await expect(picker).toContainText("Duty Engineers (in Runbooks)");
 
     await picker.selectOption({ label: "Duty Engineers (in Runbooks)" });

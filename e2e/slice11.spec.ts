@@ -417,9 +417,10 @@ test.describe("MCP server", () => {
     // Multi-line survives as one comment rather than being split into three.
     expect(listed.text).toContain("3. The date in the header");
 
-    // The same conversation the browser shows, not a parallel one.
+    // The same conversation the browser shows, not a parallel one. A space
+    // page is a .space-shell rather than a <main>.
     await owner.goto(`/s/${SPACE}/roadmap`);
-    await expect(owner.locator("main")).toContainText(
+    await expect(owner.locator(".comments")).toContainText(
       "The second paragraph contradicts the first",
     );
   });

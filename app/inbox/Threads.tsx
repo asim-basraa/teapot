@@ -47,8 +47,8 @@ export function Threads({
   if (threads.length === 0) {
     return (
       <p className="empty">
-        Nothing here. Notes sent from the <strong>Tell me a joke</strong> box at
-        the bottom of any page land here.
+        Nothing here yet. Notes sent from the{" "}
+        <strong>Tell me a joke</strong> box at the bottom of any page land here.
       </p>
     );
   }

@@ -24,15 +24,18 @@ const OTHER = `tv-other-${RUN}@maqsoodlabs.com`;
 const STRANGER = `tv-stranger-${RUN}@maqsoodlabs.com`;
 const PASSWORD = "correct-horse-battery";
 const SPACE = `runbooks-${RUN}`;
+const MEMBER_SPACE = `member-notes-${RUN}`;
 
 test.describe.configure({ mode: "serial" });
 
 test.describe("Seeing the team you are on", () => {
   let ownerCtx: BrowserContext;
   let memberCtx: BrowserContext;
+  let otherCtx: BrowserContext;
   let strangerCtx: BrowserContext;
   let owner: Page;
   let member: Page;
+  let other: Page;
   let stranger: Page;
   let spaceId: string;
   let teamId: string;
@@ -48,11 +51,11 @@ test.describe("Seeing the team you are on", () => {
     await registerAndConfirm(stranger, STRANGER, PASSWORD);
 
     // A second person on the team, so "who else is on it" has somebody in it
-    // who is neither the reader nor the owner.
-    const otherCtx = await browser.newContext();
-    const other = await otherCtx.newPage();
+    // who is neither the reader nor the owner. Kept open, because they are also
+    // the person a page shared with the team has to actually reach.
+    otherCtx = await browser.newContext();
+    other = await otherCtx.newPage();
     await registerAndConfirm(other, OTHER, PASSWORD);
-    await otherCtx.close();
 
     ownerCtx = await browser.newContext();
     owner = await ownerCtx.newPage();
@@ -87,6 +90,7 @@ test.describe("Seeing the team you are on", () => {
   test.afterAll(async () => {
     await ownerCtx.close();
     await memberCtx.close();
+    await otherCtx.close();
     await strangerCtx.close();
   });
 
@@ -173,6 +177,86 @@ test.describe("Seeing the team you are on", () => {
     const body = await roster.json();
     expect(body.members).toEqual([]);
     expect(body.reach).toEqual([]);
+  });
+
+  test("a member can share a page of their own with the team", async () => {
+    // The gap QA found from the other end. Somebody is put on a team that lives
+    // in another space, writes something in their own, and wants the team to
+    // read it. Teams used to be grantable only inside the space that defined
+    // them, so the picker did not offer this team and naming it was refused.
+    await createSpace(member, "Member Notes", MEMBER_SPACE);
+
+    const memberSpaceId = (await member
+      .locator(".space-shell")
+      .getAttribute("data-space-id")) as string;
+
+    const page = await member.request.post("/api/v1/nodes", {
+      data: { space_id: memberSpaceId, kind: "file", name: "Handover" },
+    });
+    expect(page.status(), await page.text()).toBe(201);
+
+    await member.goto(`/s/${MEMBER_SPACE}/handover`);
+    await member.getByRole("button", { name: "Share" }).first().click();
+
+    const dialog = member.getByRole("dialog");
+    await dialog.getByLabel("Share with").selectOption("team");
+
+    // Qualified by where it lives, because it does not live here.
+    const picker = dialog.getByLabel("Team");
+    await expect(picker).toContainText("Duty Engineers (in Runbooks)");
+
+    await picker.selectOption({ label: "Duty Engineers (in Runbooks)" });
+    // And it says what sharing with somebody else's team actually commits you
+    // to, before you do it rather than after.
+    await expect(dialog).toContainText("decides who is on it");
+
+    await dialog.getByRole("button", { name: "Share", exact: true }).click();
+    await expect(dialog.locator(".share-list")).toContainText("Duty Engineers");
+  });
+
+  test("and it reaches the people on that team, across the space boundary", async () => {
+    await other.goto(`/s/${MEMBER_SPACE}/handover`);
+    await expect(other.locator("h1")).toContainText("Handover");
+
+    await other.goto("/teams");
+    const card = other.locator(".my-team", { hasText: "Duty Engineers" });
+    await expect(card.locator(".team-reach-list")).toContainText("Handover");
+  });
+
+  test("but reaches nobody else, and the team's own owner least of all", async () => {
+    // The step the widening must not have taken. Sharing with a team reaches
+    // the people on it. The person who administers the roster decides who those
+    // people are, which is the real thing being accepted, but that is not the
+    // same as being one of them.
+    expect((await owner.goto(`/s/${MEMBER_SPACE}/handover`))?.status()).toBe(404);
+    expect(
+      (await stranger.goto(`/s/${MEMBER_SPACE}/handover`))?.status(),
+    ).toBe(404);
+  });
+
+  test("and a team you are not on is not yours to share with", async () => {
+    // The stranger knows the id, which is the whole point: knowing it is not
+    // being on it.
+    await createSpace(stranger, "Stranger Space", `stranger-${RUN}`);
+    const strangerSpaceId = (await stranger
+      .locator(".space-shell")
+      .getAttribute("data-space-id")) as string;
+
+    const page = await stranger.request.post("/api/v1/nodes", {
+      data: { space_id: strangerSpaceId, kind: "file", name: "Theirs" },
+    });
+    expect(page.status(), await page.text()).toBe(201);
+    const pageId = (await page.json()).node.id;
+
+    const offered = await stranger.request.get(`/api/v1/nodes/${pageId}/teams`);
+    expect(offered.status()).toBe(200);
+    expect((await offered.json()).teams).toEqual([]);
+
+    const refused = await stranger.request.post(
+      `/api/v1/nodes/${pageId}/grants`,
+      { data: { team_id: teamId, role: "viewer" } },
+    );
+    expect(refused.status()).toBe(403);
   });
 
   test("the member's own spaces page offers the way in", async () => {

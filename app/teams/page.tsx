@@ -18,10 +18,11 @@ export const dynamic = "force-dynamic";
  * where it came from, and no way to answer the only question they had — why can
  * I see this, and who else can?
  *
- * Read-only, deliberately. Membership confers no administration: a member
- * cannot add anybody, cannot rename the team, cannot share anything with it.
- * The owner of the space still decides all of that. This only says what is
- * already true.
+ * Read-only, deliberately. Membership confers no administration over the team
+ * itself: a member cannot add anybody to it or rename it, and the owner of its
+ * space still decides who is on it. What membership does confer, since teams
+ * stopped being space-scoped, is the ability to share your own pages with the
+ * team, which happens on the page being shared rather than here.
  */
 export default async function MyTeamsPage() {
   const supabase = await createClient();
@@ -43,13 +44,14 @@ export default async function MyTeamsPage() {
       <h1>Your teams</h1>
       <p className="lede">
         Teams somebody has put you on, and what each one lets you reach. Being on
-        a team is not access in itself: it is a name the owner of a space can
-        share things with, so that sharing once reaches everybody at once.
+        a team is not access in itself: it is a name that pages can be shared
+        with, so that sharing once reaches everybody on it at once. You can
+        share your own pages with any team you are on.
       </p>
 
       {teams.length === 0 ? (
         <p className="empty">
-          You are not on any teams. Nothing is missing — most sharing is done
+          You are not on any teams. Nothing is missing: most sharing is done
           person by person, and only the owner of a space can put you on a team.
         </p>
       ) : (
@@ -74,8 +76,10 @@ export default async function MyTeamsPage() {
                   <p className="hint">
                     Nothing has been shared with this team yet, so it gives you
                     nothing to read for the moment. That is the ordinary state of
-                    a new team, not a fault: whoever owns {team.space_name}{" "}
-                    shares a page or folder with the team, and it appears here.
+                    a new team, not a fault. Anybody on it can share a page or
+                    folder of their own with it, from the Share button on that
+                    page, and it appears here. It does not have to live in{" "}
+                    {team.space_name}.
                   </p>
                 ) : (
                   <>

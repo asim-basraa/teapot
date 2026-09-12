@@ -7,7 +7,7 @@ import {
   readInheritedVisibility,
   type Visibility,
 } from "@/lib/visibility";
-import type { Team } from "@/lib/teams";
+import type { GrantableTeam } from "@/lib/teams";
 
 type Grantee = "person" | "team";
 
@@ -50,11 +50,9 @@ const DESCRIPTIONS: Record<string, string> = {
 export function Share({
   nodeId,
   nodeName,
-  spaceId,
 }: {
   nodeId: string;
   nodeName: string;
-  spaceId: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -72,7 +70,6 @@ export function Share({
         <ShareDialog
           nodeId={nodeId}
           nodeName={nodeName}
-          spaceId={spaceId}
           onClose={() => setOpen(false)}
         />
       ) : null}
@@ -83,17 +80,15 @@ export function Share({
 export function ShareDialog({
   nodeId,
   nodeName,
-  spaceId,
   onClose,
 }: {
   nodeId: string;
   nodeName: string;
-  spaceId: string;
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [grants, setGrants] = useState<EffectiveGrant[] | null>(null);
-  const [teams, setTeams] = useState<Team[]>([]);
+  const [teams, setTeams] = useState<GrantableTeam[]>([]);
   const [grantee, setGrantee] = useState<Grantee>("person");
   const [email, setEmail] = useState("");
   const [teamId, setTeamId] = useState("");
@@ -136,14 +131,20 @@ export function ShareDialog({
 
   // Teams are loaded alongside the grants rather than lazily: whether the
   // "Team" option is worth offering at all depends on there being any.
+  //
+  // Asked of the node rather than of its space. Which teams you may hand this
+  // to is a question about which teams you are on, and a team defined in
+  // somebody else's space is still a group of people you know.
   async function loadTeams() {
-    const res = await fetch(`/api/v1/spaces/${spaceId}/teams`);
+    const res = await fetch(`/api/v1/nodes/${nodeId}/teams`);
     if (!res.ok) return;
     const body = await res.json();
-    const list: Team[] = body.teams ?? [];
+    const list: GrantableTeam[] = body.teams ?? [];
     setTeams(list);
-    if (list.length > 0) setTeamId((current) => current || list[0].id);
+    if (list.length > 0) setTeamId((current) => current || list[0].team_id);
   }
+
+  const chosenTeam = teams.find((team) => team.team_id === teamId) ?? null;
 
   async function share(event: React.FormEvent) {
     event.preventDefault();
@@ -333,20 +334,38 @@ export function ShareDialog({
         ) : null}
 
         {grantee === "team" ? (
-          <label className="field">
-            <span className="field-label">Team</span>
-            <select
-              className="input"
-              value={teamId}
-              onChange={(e) => setTeamId(e.target.value)}
-            >
-              {teams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <>
+            <label className="field">
+              <span className="field-label">Team</span>
+              <select
+                className="input"
+                value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+              >
+                {teams.map((team) => (
+                  <option key={team.team_id} value={team.team_id}>
+                    {/* Qualified only when it needs qualifying. A team from
+                        this space is the ordinary case and reads better
+                        without the extra words. */}
+                    {team.same_space
+                      ? team.team_name
+                      : `${team.team_name} (in ${team.space_name})`}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* The part of group sharing that is easy to find out too late.
+                You are handing this to a list somebody else keeps, so it
+                covers whoever is on that list later, not only today. */}
+            {chosenTeam && !chosenTeam.same_space ? (
+              <p className="hint">
+                {chosenTeam.team_name} is kept in {chosenTeam.space_name}, so
+                whoever owns that space decides who is on it. Anybody added
+                later will be able to read this too.
+              </p>
+            ) : null}
+          </>
         ) : (
           <label className="field">
             <span className="field-label">Email</span>

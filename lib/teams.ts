@@ -7,6 +7,15 @@ export type Team = {
   name: string;
 };
 
+/** A team a particular node could be handed to, for the sharing dialog. */
+export type GrantableTeam = {
+  team_id: string;
+  team_name: string;
+  space_name: string;
+  /** False when the team belongs to another space, which the picker says out loud. */
+  same_space: boolean;
+};
+
 export type TeamMember = {
   user_id: string;
   email: string;
@@ -32,6 +41,29 @@ export async function listTeams(spaceId: string): Promise<Team[]> {
     .eq("space_id", spaceId)
     .order("name");
   return data ?? [];
+}
+
+/**
+ * The teams this node could be shared with.
+ *
+ * Node-scoped rather than space-scoped, which is the whole point: a team you
+ * are on is a team you can hand something to, wherever it was defined. The
+ * database decides, so the picker cannot offer something the grant would then
+ * refuse.
+ */
+export async function grantableTeams(
+  nodeId: string,
+): Promise<GrantableTeam[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("grantable_teams", {
+    p_node_id: nodeId,
+  });
+
+  if (error) {
+    console.error("grantable_teams failed: %s", error.message);
+    return [];
+  }
+  return (data as GrantableTeam[] | null) ?? [];
 }
 
 export async function createTeam(
@@ -162,7 +194,8 @@ export async function removeTeamMember(
  * Through grant_to_team rather than a client-side upsert: the uniqueness rule
  * on `grants` is a partial index, and inferring it needs an ON CONFLICT clause
  * carrying the same predicate, which PostgREST cannot express. The function
- * makes the same admin check RLS would, and the same-space trigger still runs.
+ * makes the same admin check RLS would, and the trigger that decides whether
+ * this team is yours to name still runs.
  */
 export async function shareWithTeam(
   nodeId: string,
@@ -179,11 +212,15 @@ export async function shareWithTeam(
 
   if (!error) return { ok: true };
 
-  if (/own space/i.test(error.message)) {
+  // A team belonging to another space is fine now. Naming one you have nothing
+  // to do with is not, and saying so plainly is better than not-found here: the
+  // picker only ever offers teams you can see, so anybody hitting this reached
+  // past it and is owed a straight answer.
+  if (/not yours to share with|no such team/i.test(error.message)) {
     return {
       ok: false,
-      error: "That team belongs to a different space.",
-      status: 400,
+      error: "That team is not one of yours.",
+      status: 403,
     };
   }
 

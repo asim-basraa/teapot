@@ -340,7 +340,6 @@ export function Tree({ spaceSlug, spaceId, tree, canEdit, canShare }: Props) {
         <ShareDialog
           nodeId={sharing.id}
           nodeName={sharing.name}
-          spaceId={spaceId}
           onClose={() => setSharing(null)}
         />
       ) : null}

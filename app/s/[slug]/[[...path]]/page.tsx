@@ -66,7 +66,7 @@ export default async function NodePage({
           />
         ) : null}
         {canAdmin ? (
-          <Share nodeId={node.id} nodeName={node.name} spaceId={space.id} />
+          <Share nodeId={node.id} nodeName={node.name} />
         ) : null}
         {canEdit ? (
           <Link

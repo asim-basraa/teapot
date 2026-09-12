@@ -348,8 +348,10 @@ select pg_temp.check('adding again changes the team role rather than failing',
 select pg_temp.check('the owner sees the whole roster',
   (select count(*)::text from public.team_roster('c0000000-0000-0000-0000-000000000001')), '2');
 
--- A team may only be granted access inside its own space. Without this, an
--- administrator could point a roster the space owner cannot see at their
+-- A team you have nothing to do with may not be named. The rule is no longer
+-- "a team from this space" but "a team you can see", and the owner is neither
+-- on Outsiders nor the owner of the space it lives in. Without something here,
+-- an administrator could point a roster they cannot even read at their own
 -- content, and every later membership change would silently move the boundary.
 do $$
 begin
@@ -358,7 +360,7 @@ begin
       'b0000000-0000-0000-0000-000000000004',
       'c0000000-0000-0000-0000-000000000002',
       'viewer');
-    raise exception 'FAIL: a team from another space was granted access';
+    raise exception 'FAIL: a team the grantor cannot see was granted access';
   exception when sqlstate 'P0001' then raise;
        when others then null;  -- refused, as it must be
   end;
@@ -405,6 +407,95 @@ select pg_temp.check('deleting the team removes the grant it carried',
   public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000004')::text, 'false');
 select pg_temp.check('and the grant row is gone, not orphaned',
   (select count(*)::text from public.grants where grantee_type = 'team'), '0');
+
+-- Sharing with a team that lives somewhere else ------------------------------
+--
+-- A team used to be grantable only inside the space that defined it, which made
+-- it a filing convention rather than a group of people: somebody put on a team
+-- in one space could not share their own page with it. The rule is now that you
+-- may name a team you can see, meaning one whose space you own or one you are
+-- on. Both of those can already read its roster, so you can always see who you
+-- are handing something to.
+--
+-- What these pin down is the part that is easy to get wrong while widening a
+-- rule: that it widened by exactly one step and not two. Sharing with a team
+-- reaches the people on the team. It does not reach the person who administers
+-- the team, and it does not reach anybody else.
+
+insert into public.nodes (id, space_id, parent_id, kind, name, content) values
+  ('b0000000-0000-0000-0000-000000000006','a0000000-0000-0000-0000-000000000001',
+   null,'file','Cross','# cross');
+
+set local role authenticated;
+
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select pg_temp.check('a team you are not on and do not administer is not grantable',
+  public.can_grant_to_team('c0000000-0000-0000-0000-000000000002')::text, 'false');
+select pg_temp.check('so the picker does not offer it',
+  (select count(*)::text from public.grantable_teams('b0000000-0000-0000-0000-000000000006')),
+  '0');
+
+-- Carol owns the space Outsiders lives in, so the roster is hers to change.
+select set_config('request.jwt.claims','{"sub":"44444444-4444-4444-4444-444444444444","role":"authenticated"}', true);
+select public.add_team_member(
+  'c0000000-0000-0000-0000-000000000002','owner@test.local','member');
+
+select set_config('request.jwt.claims','{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select pg_temp.check('being on a team makes it grantable',
+  public.can_grant_to_team('c0000000-0000-0000-0000-000000000002')::text, 'true');
+select pg_temp.check('and the picker offers it, marked as living elsewhere',
+  (select same_space::text from public.grantable_teams('b0000000-0000-0000-0000-000000000006')
+    where team_id = 'c0000000-0000-0000-0000-000000000002'),
+  'false');
+select pg_temp.check('a page can be shared with a team from another space',
+  (public.grant_to_team(
+     'b0000000-0000-0000-0000-000000000006',
+     'c0000000-0000-0000-0000-000000000002',
+     'viewer')).role::text,
+  'viewer');
+
+-- Refused on integrity grounds rather than visibility: grantee_id is
+-- polymorphic and carries no foreign key, so nothing else would catch this.
+do $$
+begin
+  begin
+    perform public.grant_to_team(
+      'b0000000-0000-0000-0000-000000000006', gen_random_uuid(), 'viewer');
+    raise exception 'FAIL: a grant was written naming a team that does not exist';
+  exception when sqlstate 'P0001' then raise;
+       when others then null;  -- refused, as it must be
+  end;
+end $$;
+
+reset role;
+
+select pg_temp.check('somebody on no relevant team still cannot read it',
+  public.can_read('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-000000000006')::text,
+  'false');
+-- The one that matters most. Carol decides who is on Outsiders, and that is a
+-- real thing to accept when sharing with it, but administering the team is not
+-- the same as being on it and does not by itself let her read this.
+select pg_temp.check('and administering the team is not being on it',
+  public.can_read('44444444-4444-4444-4444-444444444444','b0000000-0000-0000-0000-000000000006')::text,
+  'false');
+
+insert into public.team_members (team_id, user_id) values
+  ('c0000000-0000-0000-0000-000000000002','33333333-3333-3333-3333-333333333333');
+select pg_temp.check('a member of it reads across the space boundary',
+  public.can_read('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-000000000006')::text,
+  'true');
+select pg_temp.check('with the role the grant carried and no more',
+  public.can_edit('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-000000000006')::text,
+  'false');
+
+-- Torn down so later sections see the access they expect. Two of them assert
+-- that no team grant is left standing anywhere, which is a useful thing for
+-- them to be able to assume and a fixture of this one's is not a good reason to
+-- take it away.
+delete from public.teams where id = 'c0000000-0000-0000-0000-000000000002';
+select pg_temp.check('deleting the borrowed team takes its reach with it',
+  public.can_read('33333333-3333-3333-3333-333333333333','b0000000-0000-0000-0000-000000000006')::text,
+  'false');
 
 -- Publishing -----------------------------------------------------------------
 --

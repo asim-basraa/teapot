@@ -110,6 +110,25 @@ test.describe("Reading a page", () => {
     expect(tableWidth).toBeLessThanOrEqual(column + 1);
   });
 
+  test("leaves no link to the browser's own colours", async () => {
+    // The bug this guards: nothing set a colour for a bare link, so every one
+    // that carried no class of its own was the browser's blue, and its purple
+    // once followed. A purple "3 unread in your inbox" was the visible half.
+    const UA_BLUE = "rgb(0, 0, 238)";
+
+    for (const url of ["/spaces", href, "/account"]) {
+      await page.goto(url);
+      const colours = await page
+        .locator("a")
+        .evaluateAll((links) =>
+          links.map((a) => getComputedStyle(a as HTMLElement).color),
+        );
+      expect(colours.length).toBeGreaterThan(0);
+      expect(colours, `a link on ${url} is still the browser's default`)
+        .not.toContain(UA_BLUE);
+    }
+  });
+
   test("offers no contents for a page with nothing to list", async () => {
     const spaceId = (await page
       .locator(".space-shell")

@@ -7,6 +7,12 @@
   --ok: #1c7c4a;
   --bad: #b4341f;
   --accent: #7a5c2e;
+  /* Links that carry no colour of their own. Without this they fall back to the
+     browser's own blue and, once followed, its purple — which is where the
+     purple "3 unread in your inbox" came from. Not a contrast problem: that
+     purple reads at 10.6:1 here. It is simply the browser's colour rather than
+     ours, and a followed link that turns purple looks stale. */
+  --link: #1a56db;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -19,10 +25,23 @@
     --ok: #6ede9f;
     --bad: #ff8f76;
     --accent: #d9b779;
+    --link: #8ab4f8;
   }
 }
 
 * { box-sizing: border-box; }
+
+/* Said once, so no link anywhere is left to the browser's defaults. Visited is
+   named alongside unvisited and given the same colour deliberately: where a
+   link has been is not something this product needs to say, and the purple that
+   said it was the loudest thing on the page.
+
+   Inside :where() so the whole selector still weighs exactly as much as a bare
+   `a`. Written as `a:visited` it would weigh more than `.btn` and turn every
+   followed button blue, which is the sort of thing a floor should never do:
+   anything with a colour of its own — a button, prose, the tree, a list row
+   that reads as text — keeps it. */
+a:where(:link, :visited) { color: var(--link); }
 
 /* Following a link to a heading glides rather than jumps, so it stays clear
    that you moved within the page rather than to a new one. Off for anybody who
